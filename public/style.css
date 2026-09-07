@@ -1,7 +1,8 @@
 /* tempmail — design system and app styles.
 
    Structure:
-     1. tokens        colour ramps, type scale, motion curves
+     0. type          the two Geist faces
+     1. tokens        colour ramps, spacing and type scales, motion curves
      2. base          resets, typography, focus
      3. primitives    buttons, fields, chips, badges, sheets
      4. chrome        top bar, rail, list, reading pane
@@ -9,10 +10,16 @@
      6. gate          sign-in / first-run screen
      7. responsive    phone layout (single column + sheets)
 
-   Motion follows the values used by SmoothUI and Animate UI: a standard
-   cubic-bezier(0.645, 0.045, 0.355, 1), entrances around 0.22s, exits
-   faster at 0.12s, and a gentle spring with barely any overshoot. Hover
-   effects are gated behind a fine pointer so phones never trigger them. */
+   Rules live with the surface they style. There is no section for whatever
+   was added most recently.
+
+   Motion is used where it tells you something: mail arriving or leaving, a
+   refresh in flight, a panel opening. Entrances around 0.22s, exits faster at
+   0.12s, a spring with barely any overshoot. Hover effects are gated behind a
+   fine pointer so phones never trigger them.
+
+   Colour is used only where something happened: a live connection, a code, a
+   destructive action. Everything else, including the primary button, is ink. */
 
 /* ================================================================= 0. type */
 
@@ -636,6 +643,21 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 .only-phone { display: none; }
 
+/* ---- sound button: a speaker whose waves animate ---- */
+
+.sound-btn .wave { transform-origin: 6px 12px; transition: opacity var(--d-mid) var(--ease); }
+.sound-btn[aria-pressed="false"] .wave { opacity: 0; }
+/* Pulsed once from JS each time the arrival chime plays. */
+.sound-btn.ringing .wave-1 { animation: wave 0.62s var(--ease-out) 1; }
+.sound-btn.ringing .wave-2 { animation: wave 0.62s var(--ease-out) 0.09s 1; }
+@keyframes wave {
+  0% { opacity: 0.15; scale: 0.6; }
+  45% { opacity: 1; scale: 1.12; }
+  100% { opacity: 1; scale: 1; }
+}
+.sound-btn.ringing { animation: ring-pop var(--d-slow) var(--ease-spring); }
+@keyframes ring-pop { 50% { scale: 1.14; } }
+
 /* ---- shell ---- */
 
 .shell {
@@ -861,6 +883,75 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
    a cross, which reads as "that one is gone, here is another". */
 .rolling .spin { rotate: 135deg; }
 
+/* ---- view filter chips ---- */
+
+.view-filters {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px;
+  background: var(--c5);
+  border-radius: var(--r-full);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+.view-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 2px;
+  border-radius: var(--r-full);
+  color: var(--ink3);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
+}
+.view-chip:active { transform: scale(0.95); }
+.view-chip.active {
+  background: var(--c2);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+}
+.pip {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ---- address labels ---- */
+
+.rail-item .tag-label {
+  font-family: var(--font);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-item .sub {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-item .stack-2 { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+@media (hover: hover) and (pointer: fine) { .rail-row .rename:hover { color: var(--accent); background: var(--accent-a10); } }
+
+/* ---- paused polling indicator ---- */
+
+/* The dot pulses green only with a live socket; polling shows it amber and still. */
+.domain-pill:not(.live) .live-dot { background: var(--accent); animation: none; }
+.domain-pill:not(.live) .live-dot::after { display: none; }
+.domain-pill.paused .live-dot { background: var(--ink3); animation: none; }
+.domain-pill.paused .live-dot::after { display: none; }
+
 /* ---- address list with a sliding highlight ---- */
 
 .rail-group { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1 1 auto; }
@@ -1049,6 +1140,84 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .leak-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .leak.blocked { opacity: 0.75; }
 .rail-empty { padding: 8px 10px; font-size: var(--t-md); color: var(--ink3); }
+
+/* ---- starring ---- */
+
+.star {
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border-radius: var(--r-sm);
+  color: var(--ink3);
+  opacity: 0;
+  transition: opacity var(--d-mid) var(--ease), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
+}
+.mail:hover .star, .mail:focus-within .star, .star.on { opacity: 1; }
+.star.on { color: var(--accent); }
+.star.on .icon { fill: var(--accent-a28); }
+@media (hover: hover) and (pointer: fine) { .star:hover { color: var(--accent); background: var(--accent-a10); } }
+/* A small spring pop the moment a message is starred. */
+.star.just-starred .icon { animation: star-pop 0.42s var(--ease-spring); }
+@keyframes star-pop {
+  0% { scale: 1; }
+  40% { scale: 1.22; }
+  100% { scale: 1; }
+}
+.chip[aria-pressed="true"] .icon { fill: var(--accent-a28); }
+
+/* ---- selection mode ---- */
+
+.select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  background: var(--accent-a10);
+  box-shadow: inset 0 -1px 0 0 var(--c6);
+  animation: sec-in var(--d-slow) var(--ease-out);
+}
+.select-count { font-size: var(--t-md); font-weight: 600; color: var(--accent); }
+.select-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.select-actions .btn { padding: 8px 10px; gap: 6px; }
+
+/* The list column is only ~400px. Labels make the action row wrap into a
+   tangled second line, so drop them and keep the icon (title still explains). */
+@container list (max-width: 520px) {
+  .select-actions .btn span { display: none; }
+  .select-actions .btn { padding: 8px; min-width: 44px; }
+}
+
+.mail .tick-box {
+  display: none;
+  place-items: center;
+  width: 20px; height: 20px;
+  margin-top: 8px;
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1.5px var(--c7);
+  color: transparent;
+  transition: background var(--d-mid) var(--ease), box-shadow var(--d-mid) var(--ease), color var(--d-mid) var(--ease);
+}
+body.selecting .mail { grid-template-columns: 20px 38px 1fr; }
+body.selecting .mail .tick-box { display: grid; }
+body.selecting .mail .star { display: none; }
+.mail.picked .tick-box { background: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
+.mail.picked { background: var(--accent-a10); }
+.mail .tick-box .icon { width: 13px; height: 13px; stroke-width: 3; }
+
+/* ---- number roll for counts (SmoothUI's number-flow) ---- */
+
+/* Each digit is a two-high column; changing the value slides the new digit
+   up into place instead of swapping the glyph. */
+.roll { display: inline-flex; overflow: hidden; height: 1.35em; vertical-align: bottom; }
+.roll .col {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35em;
+  transition: translate var(--d-slow) var(--ease-spring);
+}
+.roll .col.up { translate: 0 -1.35em; }
 
 /* ---- message list ---- */
 
@@ -1317,6 +1486,27 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   font-weight: 600;
 }
 
+/* ---- inline images in the reading pane can be clicked to zoom ---- */
+
+.zoom-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.82);
+  animation: fade-in var(--d-slow) var(--ease);
+}
+.zoom-layer img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  animation: zoom-in var(--d-slow) var(--ease-spring);
+}
+@keyframes zoom-in { from { opacity: 0; scale: 0.9; } to { opacity: 1; scale: 1; } }
+
 /* ---- reading pane ---- */
 
 .viewer { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
@@ -1412,6 +1602,37 @@ a.attachment:active { transform: scale(0.97); }
   overflow-wrap: anywhere;
 }
 .msg-text a { color: var(--accent); }
+
+/* ---- the rename dialog ---- */
+
+dialog.mini {
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+dialog.mini::backdrop {
+  background: var(--scrim);
+  opacity: 0;
+  transition: opacity var(--d-slow) var(--ease), display var(--d-slow) allow-discrete, overlay var(--d-slow) allow-discrete;
+}
+dialog.mini[open]::backdrop { opacity: 1; }
+@starting-style { dialog.mini[open]::backdrop { opacity: 0; } }
+.mini-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px;
+  background: var(--c2);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--c6), var(--shadow-3);
+}
+.mini-inner h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
+dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spring) both; }
+@keyframes mini-in { from { opacity: 0; translate: 0 10px; scale: 0.97; } to { opacity: 1; translate: 0 0; scale: 1; } }
+.row.end { justify-content: flex-end; }
 
 /* ---- toast ---- */
 
@@ -1513,6 +1734,16 @@ a.attachment:active { transform: scale(0.97); }
 .setting-row .label small { color: var(--ink3); font-size: var(--t-sm); }
 
 /* ================================================================ 5. drawer */
+
+
+/* ---- settings: the limits grid ---- */
+
+.limits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.limit { display: flex; flex-direction: column; gap: 4px; }
+.limit > span { display: flex; align-items: baseline; gap: 6px; font-size: var(--t-sm); color: var(--ink2); }
+.limit em { font-style: normal; color: var(--ink3); font-size: var(--t-xs); }
+.limit input { padding: 8px 12px; font-size: var(--t-md); }
+.limits > button { grid-column: 1 / -1; justify-self: start; }
 
 /* Settings slides in from the right on desktop and up from the bottom on a
    phone. <dialog> is kept for the free focus trap and Esc handling; the
@@ -1699,231 +1930,6 @@ body.gate {
 
 .gate-foot { text-align: center; font-size: var(--t-sm); color: var(--ink3); }
 
-
-/* ====================================================== 6b. new controls */
-
-/* ---- sound button: a speaker whose waves animate ---- */
-
-.sound-btn .wave { transform-origin: 6px 12px; transition: opacity var(--d-mid) var(--ease); }
-.sound-btn[aria-pressed="false"] .wave { opacity: 0; }
-/* Pulsed once from JS each time the arrival chime plays. */
-.sound-btn.ringing .wave-1 { animation: wave 0.62s var(--ease-out) 1; }
-.sound-btn.ringing .wave-2 { animation: wave 0.62s var(--ease-out) 0.09s 1; }
-@keyframes wave {
-  0% { opacity: 0.15; scale: 0.6; }
-  45% { opacity: 1; scale: 1.12; }
-  100% { opacity: 1; scale: 1; }
-}
-.sound-btn.ringing { animation: ring-pop var(--d-slow) var(--ease-spring); }
-@keyframes ring-pop { 50% { scale: 1.14; } }
-
-/* ---- view filter chips ---- */
-
-.view-filters {
-  display: flex;
-  flex: none;
-  gap: 4px;
-  min-width: 0;
-  padding: 4px;
-  background: var(--c5);
-  border-radius: var(--r-full);
-  box-shadow: inset 0 0 0 1px var(--c6);
-}
-.view-chip {
-  flex: 1 1 0;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 2px;
-  border-radius: var(--r-full);
-  color: var(--ink3);
-  font-size: var(--t-xs);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
-}
-.view-chip:active { transform: scale(0.95); }
-.view-chip.active {
-  background: var(--c2);
-  color: var(--ink);
-  font-weight: 600;
-  box-shadow: var(--shadow-1);
-}
-.pip {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-/* ---- starring ---- */
-
-.star {
-  display: grid;
-  place-items: center;
-  width: 26px; height: 26px;
-  border-radius: var(--r-sm);
-  color: var(--ink3);
-  opacity: 0;
-  transition: opacity var(--d-mid) var(--ease), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
-}
-.mail:hover .star, .mail:focus-within .star, .star.on { opacity: 1; }
-.star.on { color: var(--accent); }
-.star.on .icon { fill: var(--accent-a28); }
-@media (hover: hover) and (pointer: fine) { .star:hover { color: var(--accent); background: var(--accent-a10); } }
-/* A small spring pop the moment a message is starred. */
-.star.just-starred .icon { animation: star-pop 0.42s var(--ease-spring); }
-@keyframes star-pop {
-  0% { scale: 1; }
-  40% { scale: 1.22; }
-  100% { scale: 1; }
-}
-.chip[aria-pressed="true"] .icon { fill: var(--accent-a28); }
-
-/* ---- selection mode ---- */
-
-.select-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  padding: 10px 16px;
-  background: var(--accent-a10);
-  box-shadow: inset 0 -1px 0 0 var(--c6);
-  animation: sec-in var(--d-slow) var(--ease-out);
-}
-.select-count { font-size: var(--t-md); font-weight: 600; color: var(--accent); }
-.select-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.select-actions .btn { padding: 8px 10px; gap: 6px; }
-
-/* The list column is only ~400px. Labels make the action row wrap into a
-   tangled second line, so drop them and keep the icon (title still explains). */
-@container list (max-width: 520px) {
-  .select-actions .btn span { display: none; }
-  .select-actions .btn { padding: 8px; min-width: 44px; }
-}
-
-.mail .tick-box {
-  display: none;
-  place-items: center;
-  width: 20px; height: 20px;
-  margin-top: 8px;
-  border-radius: var(--r-sm);
-  box-shadow: inset 0 0 0 1.5px var(--c7);
-  color: transparent;
-  transition: background var(--d-mid) var(--ease), box-shadow var(--d-mid) var(--ease), color var(--d-mid) var(--ease);
-}
-body.selecting .mail { grid-template-columns: 20px 38px 1fr; }
-body.selecting .mail .tick-box { display: grid; }
-body.selecting .mail .star { display: none; }
-.mail.picked .tick-box { background: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
-.mail.picked { background: var(--accent-a10); }
-.mail .tick-box .icon { width: 13px; height: 13px; stroke-width: 3; }
-
-/* ---- address labels ---- */
-
-.rail-item .tag-label {
-  font-family: var(--font);
-  font-size: var(--t-sm);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rail-item .sub {
-  font-family: var(--mono);
-  font-size: var(--t-xs);
-  color: var(--ink3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rail-item .stack-2 { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-@media (hover: hover) and (pointer: fine) { .rail-row .rename:hover { color: var(--accent); background: var(--accent-a10); } }
-
-/* ---- settings: the limits grid ---- */
-
-.limits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.limit { display: flex; flex-direction: column; gap: 4px; }
-.limit > span { display: flex; align-items: baseline; gap: 6px; font-size: var(--t-sm); color: var(--ink2); }
-.limit em { font-style: normal; color: var(--ink3); font-size: var(--t-xs); }
-.limit input { padding: 8px 12px; font-size: var(--t-md); }
-.limits > button { grid-column: 1 / -1; justify-self: start; }
-
-/* ---- the rename dialog ---- */
-
-dialog.mini {
-  margin: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-}
-dialog.mini::backdrop {
-  background: var(--scrim);
-  opacity: 0;
-  transition: opacity var(--d-slow) var(--ease), display var(--d-slow) allow-discrete, overlay var(--d-slow) allow-discrete;
-}
-dialog.mini[open]::backdrop { opacity: 1; }
-@starting-style { dialog.mini[open]::backdrop { opacity: 0; } }
-.mini-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: min(380px, calc(100vw - 32px));
-  padding: 20px;
-  background: var(--c2);
-  border-radius: var(--r-lg);
-  box-shadow: inset 0 0 0 1px var(--c6), var(--shadow-3);
-}
-.mini-inner h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
-dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spring) both; }
-@keyframes mini-in { from { opacity: 0; translate: 0 10px; scale: 0.97; } to { opacity: 1; translate: 0 0; scale: 1; } }
-.row.end { justify-content: flex-end; }
-
-/* ---- number roll for counts (SmoothUI's number-flow) ---- */
-
-/* Each digit is a two-high column; changing the value slides the new digit
-   up into place instead of swapping the glyph. */
-.roll { display: inline-flex; overflow: hidden; height: 1.35em; vertical-align: bottom; }
-.roll .col {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.35em;
-  transition: translate var(--d-slow) var(--ease-spring);
-}
-.roll .col.up { translate: 0 -1.35em; }
-
-/* ---- inline images in the reading pane can be clicked to zoom ---- */
-
-.zoom-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgb(0 0 0 / 0.82);
-  animation: fade-in var(--d-slow) var(--ease);
-}
-.zoom-layer img {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-3);
-  animation: zoom-in var(--d-slow) var(--ease-spring);
-}
-@keyframes zoom-in { from { opacity: 0; scale: 0.9; } to { opacity: 1; scale: 1; } }
-
-/* ---- paused polling indicator ---- */
-
-/* The dot pulses green only with a live socket; polling shows it amber and still. */
-.domain-pill:not(.live) .live-dot { background: var(--accent); animation: none; }
-.domain-pill:not(.live) .live-dot::after { display: none; }
-.domain-pill.paused .live-dot { background: var(--ink3); animation: none; }
-.domain-pill.paused .live-dot::after { display: none; }
 
 /* ============================================================ 7. responsive */
 
