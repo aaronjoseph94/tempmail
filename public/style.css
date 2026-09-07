@@ -1588,8 +1588,7 @@ body.gate {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 7px 4px;
+  padding: 7px 2px;
   border-radius: var(--r-full);
   color: var(--ink3);
   font-size: var(--t-xs);
@@ -1598,7 +1597,6 @@ body.gate {
   overflow: hidden;
   transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
 }
-.view-chip .icon { width: 13px; height: 13px; }
 .view-chip:active { transform: scale(0.95); }
 .view-chip.active {
   background: var(--c2);
@@ -1606,7 +1604,6 @@ body.gate {
   font-weight: 650;
   box-shadow: var(--shadow-1), var(--edge);
 }
-.view-chip.active .icon { color: var(--accent); fill: var(--accent-a28); }
 .pip {
   width: 6px; height: 6px;
   border-radius: 50%;
