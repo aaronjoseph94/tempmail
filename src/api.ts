@@ -17,6 +17,7 @@ import {
 } from "./db";
 import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
 import { hubStub } from "./live";
+import { getVapidKeys } from "./push";
 import { json, readJson, sleep, withSecurityHeaders } from "./http";
 import type { Env } from "./index";
 import {
@@ -106,6 +107,10 @@ async function setup(request: Request, env: Env): Promise<Response> {
 const ROUTES = [
   route("GET", "/api/config", getConfig),
   route("GET", "/api/live", live),
+  route("GET", "/api/push/key", pushKey),
+  route("GET", "/api/push/subscriptions", pushStatus),
+  route("POST", "/api/push/subscriptions", pushSubscribe),
+  route("DELETE", "/api/push/subscriptions", pushUnsubscribe),
   route("PUT", "/api/settings", updateSettings),
   route("POST", "/api/password", changePassword),
   route("GET", "/api/addresses", listAddresses),
@@ -888,6 +893,46 @@ async function devIngest(request: Request, env: Env, url: URL, ctx?: ExecutionCo
   });
   if (result.ok) afterIngest(env, ctx, result);
   return result.ok ? json(result) : json(result, 422);
+}
+
+/* ----------------------------------------------------------------- push */
+
+/** GET /api/push/key — the VAPID public key a browser subscribes with. */
+async function pushKey({ env }: Ctx): Promise<Response> {
+  return json({ key: (await getVapidKeys(env)).publicKey });
+}
+
+/** GET /api/push/subscriptions?endpoint= — how many devices, and whether this one is among them. */
+async function pushStatus({ env, url }: Ctx): Promise<Response> {
+  const endpoint = url.searchParams.get("endpoint");
+  const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions").first<{ n: number }>();
+  const mine = endpoint
+    ? await env.DB.prepare("SELECT 1 AS one FROM push_subscriptions WHERE endpoint = ?1").bind(endpoint).first()
+    : null;
+  return json({ devices: count?.n ?? 0, registered: !!mine });
+}
+
+/** POST /api/push/subscriptions — the browser's PushSubscription.toJSON(). */
+async function pushSubscribe({ request, env }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  const endpoint = typeof body.endpoint === "string" ? body.endpoint : "";
+  const keys = (body.keys ?? {}) as Record<string, unknown>;
+  const p256dh = typeof keys.p256dh === "string" ? keys.p256dh : "";
+  const auth = typeof keys.auth === "string" ? keys.auth : "";
+  if (!/^https:\/\//.test(endpoint) || endpoint.length > 2000 || !p256dh || !auth) return json({ error: "That is not a push subscription" }, 400);
+  await env.DB.prepare(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at, user_agent) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, user_agent = excluded.user_agent`
+  ).bind(endpoint, p256dh, auth, Date.now(), request.headers.get("user-agent")?.slice(0, 200) ?? null).run();
+  return json({ ok: true });
+}
+
+/** DELETE /api/push/subscriptions { endpoint } */
+async function pushUnsubscribe({ request, env }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  if (typeof body.endpoint !== "string") return json({ error: "Which endpoint?" }, 400);
+  const result = await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?1").bind(body.endpoint).run();
+  return json({ ok: true, removed: result.meta.changes });
 }
 
 /**

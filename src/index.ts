@@ -38,7 +38,7 @@ export interface Env {
 
 /** Files the sign-in page needs before anyone is signed in. */
 const PUBLIC_FILES = new Set([
-  "/style.css", "/theme.js", "/login.js", "/icon.svg", "/manifest.webmanifest",
+  "/style.css", "/theme.js", "/login.js", "/icon.svg", "/manifest.webmanifest", "/sw.js",
   "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
 ]);
 

@@ -15,6 +15,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy": [
     "default-src 'self'",
     "script-src 'self'",
+    "worker-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src * data: blob:",
     "font-src 'self' data:",

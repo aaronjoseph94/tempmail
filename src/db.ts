@@ -15,6 +15,9 @@ export const SETTING_PER_ADDRESS = "per_address_cap";
 export const SETTING_GLOBAL_CAP = "global_cap";
 export const SETTING_RAW_MB = "raw_mb";
 export const SETTING_ATTACHMENT_MB = "attachment_mb";
+/** The instance's Web Push (VAPID) key pair, created on first use. */
+export const SETTING_VAPID_PUBLIC = "vapid_public";
+export const SETTING_VAPID_PRIVATE = "vapid_private";
 /** Bumped when a one-off data migration has run, so it never runs twice. */
 export const SETTING_SCHEMA_VERSION = "schema_v";
 const SCHEMA_VERSION = "2";
@@ -63,6 +66,15 @@ const CREATE_ADDRESSES = `CREATE TABLE IF NOT EXISTS addresses (
   owner_domain  TEXT,
   created_at    INTEGER NOT NULL,
   first_seen_at INTEGER
+)`;
+
+/** Browsers that asked to be pushed to when mail arrives. */
+const CREATE_PUSH = `CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint   TEXT PRIMARY KEY,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  user_agent TEXT
 )`;
 
 /** The pre-lifecycle label table; kept so the migration below can read it. */
@@ -137,6 +149,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_MESSAGES),
     db.prepare(CREATE_SETTINGS),
     db.prepare(CREATE_ADDRESSES),
+    db.prepare(CREATE_PUSH),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),

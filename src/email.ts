@@ -13,6 +13,7 @@ import { addressVerdict, recordArrival, senderDomain } from "./addresses";
 import { deleteAttachmentsFor } from "./db";
 import { headerValue, parseAuthResults, parseSentAt } from "./headers";
 import { pokeHub } from "./live";
+import { anySubscriptions, sendPush } from "./push";
 import { ATTACHMENT_CHUNK_CHARS, MAX_BODY_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
 
@@ -36,7 +37,7 @@ export interface InboundMail {
 }
 
 export type IngestResult =
-  | { ok: true; id: string; address: string; code: string | null }
+  | { ok: true; id: string; address: string; code: string | null; from: string; subject: string }
   | { ok: false; reason: string };
 
 /**
@@ -81,8 +82,14 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env, ct
  * ingest itself: telling open browsers, and (later) pushing to phones.
  */
 export function afterIngest(env: Env, ctx: ExecutionContext | undefined, stored: Extract<IngestResult, { ok: true }>): void {
-  const work = pokeHub(env, { type: "new", address: stored.address, id: stored.id, code: stored.code, at: Date.now() });
-  if (ctx) ctx.waitUntil(work);
+  const live = pokeHub(env, { type: "new", address: stored.address, id: stored.id, code: stored.code, at: Date.now() });
+  const push = anySubscriptions(env)
+    .then((any) => (any ? sendPush(env, { id: stored.id, address: stored.address, code: stored.code, from: stored.from, subject: stored.subject.slice(0, 80) }) : undefined))
+    .catch((err) => console.warn("push failed", err));
+  if (ctx) {
+    ctx.waitUntil(live);
+    ctx.waitUntil(push);
+  }
 }
 
 export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<IngestResult> {
@@ -178,7 +185,7 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   }
 
   console.log("stored mail for", to, "subject:", subject);
-  return { ok: true, id, address: to, code };
+  return { ok: true, id, address: to, code, from: sender.name || sender.address, subject };
 }
 
 /** Header values are kept whole but never past a few KB. */
