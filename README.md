@@ -31,6 +31,8 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 - **Safe rendering**: HTML mail opens sandboxed with scripts blocked and remote images off until you ask. Inline images work; click one to zoom.
 - **Search** across sender, subject, address and preview, plus **unread** and **starred** views and **load older** for long histories.
 - **Instant delivery**: open tabs hold a live connection to the Worker and show new mail the moment it lands; polling stays as a backstop.
+- **Codes on the lock screen**: turn on push notifications and a verification code arrives as a notification, with the code in the title and a Copy action, even with the app closed. On iPhone, add the site to your Home Screen first.
+- **Wait for a code**: tap it before you sign up somewhere, and the next code sent to your address appears full-screen and lands on your clipboard.
 - **New-mail alerts**: a quiet chime, desktop notifications, and an unread count in the tab title.
 - **Tune the limits**: retention, per-address and total caps, max message size and attachment budget are all editable in Settings.
 - **Phone-friendly**: a proper mobile layout, installable as a home-screen app (PWA).

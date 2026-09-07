@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=11" />
+  <link rel="stylesheet" href="/style.css?v=12" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -123,6 +123,9 @@
           </button>
           <button id="btn-mine" class="btn sm ghost" title="Show only the messages sent to this address">
             <svg class="icon sm"><use href="#i-inbox-arrow"/></svg>Go to box
+          </button>
+          <button id="btn-wait" class="btn sm ghost" title="Watch this address and show the next code as soon as it lands">
+            <svg class="icon sm"><use href="#i-key"/></svg>Wait for code
           </button>
         </div>
         <div class="roll-mode">
@@ -347,6 +350,10 @@
             <span class="label">Desktop notifications<small>Only while this tab is in the background</small></span>
           </label>
           <label class="switch">
+            <input type="checkbox" id="set-push" /><span class="track"></span>
+            <span class="label">Push notifications<small id="push-hint">Codes on the lock screen, even with the app closed</small></span>
+          </label>
+          <label class="switch">
             <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
             <span class="label">Check for new mail automatically<small>Turn off to stop the timed checks; mail still arrives live while connected</small></span>
           </label>
@@ -447,8 +454,28 @@
     </form>
   </dialog>
 
+  <!-- Waiting for a code: watches one address and shows the code the moment it lands. -->
+  <div id="wait" class="wait" role="dialog" aria-modal="true" aria-labelledby="wait-title" hidden>
+    <div class="wait-card">
+      <button type="button" class="icon-btn plain wait-close" id="wait-close" aria-label="Stop waiting"><svg class="icon"><use href="#i-close"/></svg></button>
+      <p class="wait-eyebrow">Waiting for mail to</p>
+      <p class="wait-address mono" id="wait-address"></p>
+      <div class="wait-stage" id="wait-stage" data-state="waiting">
+        <div class="wait-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="wait-title" id="wait-title">Send yourself the code now</p>
+        <p class="wait-code mono" id="wait-code" hidden></p>
+        <p class="wait-subject" id="wait-subject" hidden></p>
+      </div>
+      <div class="wait-actions">
+        <button type="button" class="btn" id="wait-copy" hidden><svg class="icon sm"><use href="#i-copy"/></svg>Copy code</button>
+        <button type="button" class="btn ghost" id="wait-open" hidden><svg class="icon sm"><use href="#i-mail"/></svg>Open message</button>
+      </div>
+      <p class="hint wait-hint" id="wait-hint">The code is copied for you the moment it arrives. <kbd>Esc</kbd> stops waiting.</p>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

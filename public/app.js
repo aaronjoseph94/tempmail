@@ -44,7 +44,9 @@ const state = {
   sound: true,
   notify: false,
   autoRefresh: true,
-  view: "all",             // all | unread | starred
+  view: "all",             // all | unread | starred | leaks
+  waiting: null,           // { address, since } while the code overlay is up
+  push: false,             // this browser is subscribed to pushes
   selecting: false,
   picked: new Set(),
   alwaysImages: false,
@@ -53,7 +55,7 @@ const state = {
 /** Preference keys kept per device rather than on the server. */
 const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
-  images: "always_images", address: "address", theme: "theme", rollMode: "roll_mode",
+  images: "always_images", address: "address", theme: "theme", rollMode: "roll_mode", push: "push",
 };
 
 /** Lifecycles a generated address can be given, keyed by the picker's value. */
@@ -299,6 +301,10 @@ function applyList(data) {
     for (const m of data.messages) if (m.receivedAt > state.newestSeen) arrived.add(m.id);
   }
   state.messages = data.messages;
+  if (state.waiting) {
+    const hit = data.messages.find((m) => m.address === state.waiting.address && m.receivedAt > state.waiting.since);
+    if (hit) codeArrived(hit);
+  }
   state.hasMore = data.hasMore;
   state.nextCursor = data.nextCursor;
   $("feed").setAttribute("aria-busy", "false");
@@ -329,7 +335,8 @@ function announceNewMail(since) {
   }
   toast(text, "i-mail");
   if (state.sound) chime();
-  if (state.notify && document.hidden && "Notification" in window && Notification.permission === "granted") {
+  // With pushes on, the service worker's notification covers the hidden case.
+  if (state.notify && !state.push && document.hidden && "Notification" in window && Notification.permission === "granted") {
     try {
       const note = new Notification("AJ\u2019s Temp Email", { body: text, tag: "tempmail-new" });
       note.onclick = () => {
@@ -379,7 +386,8 @@ function chime() {
 function schedulePoll() {
   clearTimeout(state.pollTimer);
   if (!state.autoRefresh) return;   // the user asked to check only on demand
-  const wait = document.hidden ? POLL_HIDDEN_MS : state.live ? POLL_LIVE_MS : POLL_VISIBLE_MS;
+  let wait = document.hidden ? POLL_HIDDEN_MS : state.live ? POLL_LIVE_MS : POLL_VISIBLE_MS;
+  if (state.waiting && !state.live && !document.hidden) wait = 3000;   // someone is staring at the overlay
   state.pollTimer = setTimeout(poll, wait);
 }
 
@@ -1605,6 +1613,7 @@ function openSettings() {
   $("set-images").checked = state.alwaysImages;
   $("set-sound").checked = state.sound;
   $("set-notify").checked = state.notify && "Notification" in window && Notification.permission === "granted";
+  syncPushSwitch().catch(() => {});
   renderStorage();
 
   $("settings").showModal();
@@ -1773,6 +1782,12 @@ async function markAllRead() {
 }
 
 async function logout() {
+  // This device should stop receiving pushes once nobody is signed in on it.
+  try {
+    const sub = await swRegistration?.pushManager.getSubscription();
+    if (sub) { await send("DELETE", "/api/push/subscriptions", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  } catch { /* best effort */ }
+  store.remove(PREFS.push);
   try { await fetch("/api/logout", { method: "POST" }); } catch { /* the cookie clears on reload anyway */ }
   store.remove(CACHE_KEY);
   location.replace("/");
@@ -1817,6 +1832,154 @@ function wireDrawerDrag() {
   };
   grip.addEventListener("pointerup", end);
   grip.addEventListener("pointercancel", end);
+}
+
+/* --------------------------------------------------------- wait for code */
+
+function startWaiting() {
+  if (!state.mailDomain) { toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
+  const address = fullAddress();
+  state.waiting = { address, since: Date.now() };
+  $("wait-address").textContent = address;
+  $("wait-stage").dataset.state = "waiting";
+  $("wait-title").textContent = "Send yourself the code now";
+  $("wait-code").hidden = true; $("wait-subject").hidden = true;
+  $("wait-copy").hidden = true; $("wait-open").hidden = true;
+  $("wait-hint").hidden = false;
+  $("wait").hidden = false;
+  document.body.classList.add("waiting");
+  // Any mail already sitting in the list is old news; only what lands from now counts.
+  if (!state.live) { clearTimeout(state.pollTimer); schedulePoll(); }
+}
+
+function stopWaiting() {
+  if (!state.waiting) return;
+  state.waiting = null;
+  $("wait").hidden = true;
+  document.body.classList.remove("waiting");
+  schedulePoll();
+}
+
+/** The awaited message landed: show the code big, copy it, chime. */
+async function codeArrived(m) {
+  const waiting = state.waiting;
+  if (!waiting) return;
+  state.waiting = { ...waiting, since: Infinity };   // one message, then stop watching
+  const stage = $("wait-stage");
+  stage.dataset.state = "arrived";
+  if (m.code) {
+    $("wait-title").textContent = `Code from ${senderLabel(m)}`;
+    $("wait-code").hidden = false;
+    renderRoll($("wait-code"), m.code);
+    $("wait-copy").hidden = false;
+    $("wait-copy").onclick = () => copyText(m.code).then((done) => toast(done ? "Code copied" : "Could not copy", done ? "i-tick" : "i-warn"));
+    const copied = await copyText(m.code);
+    $("wait-hint").textContent = copied ? "Copied to your clipboard." : "Tap Copy code to put it on your clipboard.";
+  } else {
+    $("wait-title").textContent = `Mail from ${senderLabel(m)}`;
+    $("wait-subject").textContent = m.subject || "(no subject)";
+    $("wait-subject").hidden = false;
+    $("wait-hint").textContent = "No code was spotted in it.";
+  }
+  $("wait-open").hidden = false;
+  $("wait-open").onclick = () => { stopWaiting(); openMessage(m.id); };
+  if (state.sound) chime();
+}
+
+/* ------------------------------------------------------------------- push */
+
+let swRegistration = null;
+
+/** Registers the service worker that shows pushes; harmless where unsupported. */
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    swRegistration = await navigator.serviceWorker.register("/sw.js");
+    navigator.serviceWorker.addEventListener("message", (e) => handleWorkerMessage(e.data));
+    return swRegistration;
+  } catch (err) {
+    console.warn("service worker unavailable", err);
+    return null;
+  }
+}
+
+/** A notification was tapped: open the message, and copy the code if the tap said so. */
+async function handleWorkerMessage(data) {
+  if (!data || typeof data !== "object") return;
+  if (data.open) openMessage(data.open).catch(() => {});
+  if (data.copy) {
+    const done = await copyText(data.copy);
+    toast(done ? `Code ${data.copy} copied` : `Code ${data.copy} (tap the chip to copy)`, done ? "i-tick" : "i-key");
+  }
+}
+
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function iosNotInstalled() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.standalone !== true;
+}
+
+function urlBase64ToBytes(text) {
+  const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (text.length % 4)) % 4);
+  const raw = atob(padded);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+/** Reflects the real subscription state in the switch. */
+async function syncPushSwitch() {
+  const box = $("set-push");
+  const hint = $("push-hint");
+  if (!pushSupported()) {
+    box.checked = false; box.disabled = true;
+    hint.textContent = "Not supported by this browser";
+    return;
+  }
+  if (iosNotInstalled()) {
+    box.checked = false; box.disabled = true;
+    hint.textContent = "On iPhone, add this site to your Home Screen first, then turn this on from there";
+    return;
+  }
+  box.disabled = false;
+  hint.textContent = "Codes on the lock screen, even with the app closed";
+  const reg = swRegistration ?? (await registerServiceWorker());
+  const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+  state.push = !!sub && store.get(PREFS.push) === "on";
+  box.checked = state.push;
+}
+
+async function togglePush(on) {
+  const box = $("set-push");
+  const reg = swRegistration ?? (await registerServiceWorker());
+  if (!reg) { box.checked = false; toast("Push needs a service worker, which this browser refused", "i-warn"); return; }
+  try {
+    if (on) {
+      if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted") {
+        box.checked = false;
+        toast("Notifications are blocked for this site", "i-warn");
+        return;
+      }
+      const { key } = await api("/api/push/key");
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToBytes(key) });
+      await send("POST", "/api/push/subscriptions", sub.toJSON());
+      state.push = true;
+      store.set(PREFS.push, "on");
+      toast("Pushes on: codes will reach this device", "i-tick");
+    } else {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await send("DELETE", "/api/push/subscriptions", { endpoint: sub.endpoint }).catch(() => {});
+        await sub.unsubscribe().catch(() => {});
+      }
+      state.push = false;
+      store.set(PREFS.push, "off");
+      toast("Pushes off for this device", "i-tick");
+    }
+  } catch (err) {
+    box.checked = state.push;
+    toast(`Could not ${on ? "enable" : "disable"} pushes: ${err.message}`, "i-warn");
+  }
 }
 
 /* ------------------------------------------------------------------ theme */
@@ -1907,6 +2070,7 @@ document.addEventListener("keydown", (e) => {
     (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
   if (e.key === "Escape") {
+    if (state.waiting) { stopWaiting(); return; }
     if ($("settings").open) return;  // the dialog closes itself
     if (typing && target.id === "search") {
       if (target.value) { target.value = ""; setQuery(""); } else target.blur();
@@ -2016,6 +2180,10 @@ $("sel-unread").addEventListener("click", () => bulk("unread"));
 $("sel-unstar").addEventListener("click", () => bulk("unstar"));
 $("btn-refresh").addEventListener("click", manualRefresh);
 $("btn-unsub").addEventListener("click", unsubscribeOpen);
+$("btn-wait").addEventListener("click", startWaiting);
+$("wait-close").addEventListener("click", stopWaiting);
+$("wait").addEventListener("click", (e) => { if (e.target === e.currentTarget) stopWaiting(); });
+$("set-push").addEventListener("change", (e) => togglePush(e.target.checked));
 $("msg-warn-plain").addEventListener("click", () => { state.showHtml = false; renderBody(); });
 $("btn-burn").addEventListener("click", () => { if (state.filter) toggleBlock(state.filter); });
 $("roll-mode").addEventListener("click", (e) => {
@@ -2116,4 +2284,12 @@ window.addEventListener("online", () => {
   }
   await poll();
   connectLive();
+  registerServiceWorker().then(() => {
+    // Cold-started from a notification: the URL says what to open and copy.
+    const params = new URLSearchParams(location.search);
+    if (params.get("open")) {
+      handleWorkerMessage({ open: params.get("open"), copy: params.get("copy") });
+      history.replaceState(null, "", "/");
+    }
+  });
 })();
