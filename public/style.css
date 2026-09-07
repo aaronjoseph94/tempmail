@@ -582,7 +582,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 .searchbox { position: relative; display: flex; align-items: center; }
 .searchbox .icon { position: absolute; left: 12px; color: var(--ink3); pointer-events: none; transition: color var(--d-mid) var(--ease); }
-.searchbox input { padding-left: 38px; padding-right: 76px; background: var(--c3); }
+.searchbox input { padding-left: 38px; padding-right: 76px; background: none; }
+.searchbox:focus-within input { background: var(--c2); }
 .searchbox:focus-within .icon { color: var(--accent); }
 .search-meta {
   position: absolute;
@@ -646,24 +647,26 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 12px;
+  gap: var(--s-7);
+  padding: var(--s-6) var(--s-6) var(--s-8);
   overflow-y: auto;
   box-shadow: inset -1px 0 0 0 var(--c6);
 }
 
 /* ---- your-address card ---- */
 
+/* Not a card any more. The rail is already a column, so this is a region of
+   it, closed by a hairline rather than wrapped in a box. */
 .inbox-card {
   position: relative;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 14px;
-  border-radius: var(--r-lg);
-  background: var(--c3);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  gap: var(--s-5);
+  margin: 0 -12px;                 /* reach past the rail's own padding */
+  padding: var(--s-4) var(--s-7) var(--s-9);
+  background: none;
+  box-shadow: inset 0 -1px 0 0 var(--c6);
   overflow: hidden;
   container-type: inline-size;
   container-name: addr;
@@ -914,7 +917,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   .rail-item:hover { color: var(--ink); background: var(--c3); }
   .rail-row:has(.rail-item.active) .rail-item:hover { background: transparent; }
 }
-.rail-item.active { color: var(--accent); font-weight: 600; }
+.rail-item.active { color: var(--ink); font-weight: 600; }
 .rail-item .icon { color: currentColor; opacity: 0.8; }
 .rail-item .name {
   flex: 1;
@@ -1977,9 +1980,8 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   /* The sliding highlight is desktop only: the phone rail is a scrolling
      chip strip, so each chip carries its own fill. */
   .rail-list::before { display: none; }
-  .rail-item.active { color: var(--accent-ink); background: var(--accent); box-shadow: none; }
-  .rail-item.active .count { color: inherit; opacity: 0.75; }
-  .rail-item.active .badge { background: rgb(0 0 0 / 0.22); color: inherit; }
+  .rail-item.active { color: var(--ink); background: var(--c5); box-shadow: inset 0 0 0 1px var(--c7); }
+  .rail-item.active .count { color: var(--ink2); }
   .rail-empty { display: none; }
 
   .list-col { box-shadow: inset 0 1px 0 0 var(--c6); }
