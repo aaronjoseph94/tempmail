@@ -25,6 +25,21 @@ describe("before signing in", () => {
     expect(await (await call("/style.css")).text()).toContain("--accent");
   });
 
+  it("serves the fonts the sign-in page asks for", async () => {
+    // style.css is public, so the faces it references must be too. A missing
+    // entry in PUBLIC_FILES does not 404 — it falls through to the app shell,
+    // so the browser gets HTML where it wanted a font and only the sign-in
+    // screen quietly loses the typeface.
+    const css = await (await call("/style.css")).text();
+    const referenced = [...css.matchAll(/url\("(\/fonts\/[^"]+\.woff2)"\)/g)].map((m) => m[1]);
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const path of referenced) {
+      const res = await call(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("content-type") ?? "", path).not.toContain("text/html");
+    }
+  });
+
   it("does not leak the app script", async () => {
     const res = await call("/app.js");
     expect(await res.text()).not.toContain("openMessage");

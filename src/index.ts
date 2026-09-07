@@ -36,10 +36,19 @@ export interface Env {
   INGEST_KEY?: string;
 }
 
-/** Files the sign-in page needs before anyone is signed in. */
+/**
+ * Files the sign-in page needs before anyone is signed in.
+ *
+ * The fonts are here because style.css asks for them: anything missing from
+ * this set falls through to the app shell, so the browser would receive
+ * login.html with a text/html type where it expected a woff2, and the sign-in
+ * screen alone would silently render in the fallback face.
+ */
 const PUBLIC_FILES = new Set([
   "/style.css", "/theme.js", "/login.js", "/icon.svg", "/manifest.webmanifest", "/sw.js",
   "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
+  "/fonts/geist-latin.woff2", "/fonts/geist-latin-ext.woff2",
+  "/fonts/geist-mono-latin.woff2", "/fonts/geist-mono-latin-ext.woff2",
 ]);
 
 export default {
