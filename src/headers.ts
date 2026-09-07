@@ -52,43 +52,32 @@ export function isOneClick(listUnsubscribePost: string | null): boolean {
 }
 
 /**
- * Whether the Worker may call this unsubscribe URL itself. Only public
- * https hosts on the default port: nothing that could reach the Worker's
- * own network, and no credentials in the URL.
+ * Whether the Worker may call this URL itself. Only public https hosts on the
+ * default port, so nothing here can be pointed at the Worker's own network.
+ *
+ * IP literals are refused outright rather than range-checked. Range-checking
+ * them is a trap: `new URL("https://[::ffff:127.0.0.1]/")` reports its host as
+ * `[::ffff:7f00:1]`, so a filter written against the dotted-quad spelling
+ * silently passes loopback and link-local addresses. Real services that accept
+ * an unsubscribe POST or a push have names.
  */
-export function safeUnsubscribeUrl(raw: string | null): URL | null {
+export function publicHttpsUrl(raw: string | null | undefined): URL | null {
   if (!raw) return null;
   let url: URL;
   try { url = new URL(raw); } catch { return null; }
   if (url.protocol !== "https:") return null;
   if (url.username || url.password) return null;
   if (url.port && url.port !== "443") return null;
-  const host = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
-  if (host.startsWith("[") || /^[\d.]+$/.test(host) || host.includes(":")) {
-    if (privateIp(host.replace(/^\[|\]$/g, ""))) return null;
-  }
-  return url;
-}
 
-function privateIp(ip: string): boolean {
-  if (ip.includes(":")) {
-    const v6 = ip.toLowerCase();
-    // loopback, unspecified, unique-local, link-local, and v4-mapped forms of the same
-    if (v6 === "::1" || v6 === "::" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80")) return true;
-    const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    return mapped ? privateIp(mapped[1]) : false;
-  }
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
-  const [a, b] = parts;
-  return (
-    a === 0 || a === 10 || a === 127 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127)
-  );
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (!host) return null;
+  // Any IP literal: bracketed IPv6, bare IPv6, or all-digits-and-dots IPv4.
+  if (host.startsWith("[") || host.includes(":") || /^[\d.]+$/.test(host)) return null;
+  // Names that never leave the local network.
+  if (host === "localhost" || /\.(localhost|local|internal|home|lan|corp|intranet)$/.test(host)) return null;
+  // A public name has a dot and a real TLD; "metadata" or "router" do not.
+  if (!/\.[a-z]{2,}$/.test(host)) return null;
+  return url;
 }
 
 /** Sender's own Date header as a timestamp, when it parses. */

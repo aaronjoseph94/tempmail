@@ -25,7 +25,7 @@ import {
 } from "./limits";
 import { normalizeDomain } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
-import { isOneClick, parseListUnsubscribe, safeUnsubscribeUrl, type AuthSummary } from "./headers";
+import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
   request: Request;
@@ -599,7 +599,7 @@ async function unsubscribe({ env, params }: Ctx): Promise<Response> {
   const links = parseListUnsubscribe(row.list_unsubscribe);
   if (!links) return json({ error: "This message has no unsubscribe link" }, 404);
 
-  const url = safeUnsubscribeUrl(links.https);
+  const url = publicHttpsUrl(links.https);
   if (links.https && !url) {
     if (links.mailto) return json({ ok: true, method: "mailto", url: links.mailto });
     return json({ error: "The unsubscribe link points somewhere this inbox will not call" }, 400);
@@ -919,7 +919,10 @@ async function pushSubscribe({ request, env }: Ctx): Promise<Response> {
   const keys = (body.keys ?? {}) as Record<string, unknown>;
   const p256dh = typeof keys.p256dh === "string" ? keys.p256dh : "";
   const auth = typeof keys.auth === "string" ? keys.auth : "";
-  if (!/^https:\/\//.test(endpoint) || endpoint.length > 2000 || !p256dh || !auth) return json({ error: "That is not a push subscription" }, 400);
+  if (endpoint.length > 2000 || !p256dh || !auth) return json({ error: "That is not a push subscription" }, 400);
+  // The Worker POSTs here on every arrival, so it must not be able to reach
+  // inside the network: same host rules as an unsubscribe link.
+  if (!publicHttpsUrl(endpoint)) return json({ error: "That push endpoint is not a public https address" }, 400);
   await env.DB.prepare(
     `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at, user_agent) VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, user_agent = excluded.user_agent`

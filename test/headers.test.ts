@@ -1,6 +1,6 @@
 /** Kept headers: authentication verdicts, threading ids, and one-click unsubscribe. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseAuthResults, parseListUnsubscribe, safeUnsubscribeUrl } from "../src/headers";
+import { parseAuthResults, parseListUnsubscribe, publicHttpsUrl } from "../src/headers";
 import { buildMail, call, deliver, freshDatabase, json, signIn } from "./helpers";
 
 let cookie: string;
@@ -31,13 +31,18 @@ describe("parsers", () => {
     expect(parseListUnsubscribe("")).toBeNull();
   });
 
-  it("only lets the Worker call public https hosts on the default port", () => {
-    expect(safeUnsubscribeUrl("https://list.example/u?id=7")?.hostname).toBe("list.example");
+  it("only lets the Worker call public https hosts, refusing every IP literal", () => {
+    expect(publicHttpsUrl("https://list.example/u?id=7")?.hostname).toBe("list.example");
     for (const bad of [
       "http://list.example/u", "https://127.0.0.1/u", "https://10.0.0.1/u", "https://172.20.1.1/u", "https://192.168.1.1/u",
       "https://169.254.169.254/latest", "https://100.64.0.1/u", "https://[::1]/u", "https://[fd00::1]/u", "https://localhost/u",
       "https://foo.local/u", "https://user:pw@list.example/u", "https://list.example:8443/u", "not a url",
-    ]) expect(safeUnsubscribeUrl(bad), bad).toBeNull();
+      // IPv4-mapped IPv6: URL rewrites the host to hex, so a filter written
+      // against the dotted-quad spelling never sees these.
+      "https://[::ffff:127.0.0.1]/u", "https://[::ffff:169.254.169.254]/u", "https://[::ffff:10.0.0.5]/u",
+      // Names that resolve only inside a network, and bare labels with no TLD.
+      "https://metadata.google.internal/computeMetadata/v1/", "https://metadata/v1", "https://router.home/u",
+    ]) expect(publicHttpsUrl(bad), bad).toBeNull();
   });
 });
 
