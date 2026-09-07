@@ -23,6 +23,7 @@ import {
 } from "./limits";
 import { normalizeDomain } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
+import { isOneClick, parseListUnsubscribe, safeUnsubscribeUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
   request: Request;
@@ -120,6 +121,7 @@ const ROUTES = [
   route("DELETE", "/api/messages/:id", deleteMessage),
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
+  route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
 ];
 
 function route(method: string, path: string, handler: Handler) {
@@ -501,6 +503,21 @@ interface MessageRow {
   id: string; address: string; from_name: string | null; from_address: string; subject: string | null;
   code: string | null; text_body: string | null; html_body: string | null; attachments: string | null;
   received_at: number; read: number; starred: number;
+  message_id: string | null; in_reply_to: string | null; references_hdr: string | null; reply_to: string | null;
+  sent_at: number | null; list_unsubscribe: string | null; list_unsubscribe_post: string | null;
+  auth_results: string | null; auth_summary: string | null;
+}
+
+function authOf(row: MessageRow): AuthSummary | null {
+  if (!row.auth_summary) return null;
+  try { return JSON.parse(row.auth_summary) as AuthSummary; } catch { return null; }
+}
+
+/** What the reader needs to offer an Unsubscribe action, or null. */
+function unsubscribeOf(row: MessageRow) {
+  const links = parseListUnsubscribe(row.list_unsubscribe);
+  if (!links) return null;
+  return { oneClick: isOneClick(row.list_unsubscribe_post) && !!links.https, https: links.https, mailto: links.mailto };
 }
 
 /** The attachment list for a message, preferring the table over the old column. */
@@ -554,7 +571,50 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     attachments: await attachmentsFor(env.DB, row),
     receivedAt: row.received_at,
     starred: !!row.starred,
+    messageId: row.message_id,
+    inReplyTo: row.in_reply_to,
+    replyTo: row.reply_to,
+    sentAt: row.sent_at,
+    auth: authOf(row),
+    unsubscribe: unsubscribeOf(row),
   });
+}
+
+/**
+ * POST /api/messages/:id/unsubscribe
+ * With a List-Unsubscribe-Post promise and an https link, the Worker makes
+ * the RFC 8058 one-click request itself. Otherwise the client is told what to
+ * open. Only public https hosts are ever contacted.
+ */
+async function unsubscribe({ env, params }: Ctx): Promise<Response> {
+  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow>();
+  if (!row) return json({ error: "Message not found" }, 404);
+  const links = parseListUnsubscribe(row.list_unsubscribe);
+  if (!links) return json({ error: "This message has no unsubscribe link" }, 404);
+
+  const url = safeUnsubscribeUrl(links.https);
+  if (links.https && !url) {
+    if (links.mailto) return json({ ok: true, method: "mailto", url: links.mailto });
+    return json({ error: "The unsubscribe link points somewhere this inbox will not call" }, 400);
+  }
+  if (url && isOneClick(row.list_unsubscribe_post)) {
+    try {
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "user-agent": "tempmail-unsubscribe" },
+        body: "List-Unsubscribe=One-Click",
+        redirect: "manual",
+        signal: AbortSignal.timeout(8000),
+      });
+      const done = res.status >= 200 && res.status < 400;
+      return json({ ok: done, method: "post", status: res.status, url: url.toString() }, done ? 200 : 502);
+    } catch (err) {
+      console.warn("unsubscribe request failed", err);
+      return json({ ok: false, method: "post", error: "The sender's unsubscribe service did not answer", url: url.toString() }, 502);
+    }
+  }
+  if (url) return json({ ok: true, method: "open", url: url.toString() });
+  return json({ ok: true, method: "mailto", url: links.mailto });
 }
 
 /** PATCH /api/messages/:id  { read?: boolean, starred?: boolean } */
@@ -788,8 +848,10 @@ async function exportMessage({ env, params }: Ctx): Promise<Response> {
   const body = [
     `From: ${row.from_name ? `${row.from_name} <${row.from_address}>` : row.from_address}`,
     `To: ${row.address}`,
-    `Date: ${new Date(row.received_at).toUTCString()}`,
+    `Date: ${new Date(row.sent_at ?? row.received_at).toUTCString()}`,
     `Subject: ${row.subject ?? "(no subject)"}`,
+    row.message_id ? `Message-ID: ${row.message_id}` : null,
+    row.auth_summary ? `Authentication: ${Object.entries(authOf(row) ?? {}).map(([k, v]) => `${k}=${v}`).join(" ")}` : null,
     attachments.length ? `Attachments: ${attachments.map((a) => `${a.filename} (${a.size} bytes)`).join(", ")}` : null,
     "",
     row.text_body ?? (row.html_body ? "(HTML only — open it in the app to read it)" : "(empty message)"),

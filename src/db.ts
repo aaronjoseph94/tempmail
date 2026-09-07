@@ -33,7 +33,16 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   received_at  INTEGER NOT NULL,
   read         INTEGER NOT NULL DEFAULT 0,
   starred      INTEGER NOT NULL DEFAULT 0,
-  deleted_at   INTEGER
+  deleted_at   INTEGER,
+  message_id   TEXT,
+  in_reply_to  TEXT,
+  references_hdr TEXT,
+  reply_to     TEXT,
+  sent_at      INTEGER,
+  list_unsubscribe TEXT,
+  list_unsubscribe_post TEXT,
+  auth_results TEXT,
+  auth_summary TEXT
 )`;
 
 const CREATE_SETTINGS = `CREATE TABLE IF NOT EXISTS settings (
@@ -104,6 +113,17 @@ const ADDED_COLUMNS = [
   { name: "starred", ddl: "ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0" },
   // Soft delete: a trashed message keeps its row for a day so it can be undone.
   { name: "deleted_at", ddl: "ALTER TABLE messages ADD COLUMN deleted_at INTEGER" },
+  // Headers worth keeping: threading ids, the sender's own date, one-click
+  // unsubscribe links and Cloudflare's authentication verdicts.
+  { name: "message_id", ddl: "ALTER TABLE messages ADD COLUMN message_id TEXT" },
+  { name: "in_reply_to", ddl: "ALTER TABLE messages ADD COLUMN in_reply_to TEXT" },
+  { name: "references_hdr", ddl: "ALTER TABLE messages ADD COLUMN references_hdr TEXT" },
+  { name: "reply_to", ddl: "ALTER TABLE messages ADD COLUMN reply_to TEXT" },
+  { name: "sent_at", ddl: "ALTER TABLE messages ADD COLUMN sent_at INTEGER" },
+  { name: "list_unsubscribe", ddl: "ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT" },
+  { name: "list_unsubscribe_post", ddl: "ALTER TABLE messages ADD COLUMN list_unsubscribe_post TEXT" },
+  { name: "auth_results", ddl: "ALTER TABLE messages ADD COLUMN auth_results TEXT" },
+  { name: "auth_summary", ddl: "ALTER TABLE messages ADD COLUMN auth_summary TEXT" },
 ];
 
 /** Indexes on columns that older databases only gain from ADDED_COLUMNS. */

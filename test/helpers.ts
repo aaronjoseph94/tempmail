@@ -84,6 +84,11 @@ export interface MailOptions {
   text?: string | null;
   html?: string;
   attachments?: MailAttachment[];
+  /** Extra raw header lines, e.g. "List-Unsubscribe: <https://…>". */
+  headers?: string[];
+  /** Overrides the generated Message-ID (null drops it). */
+  messageId?: string | null;
+  date?: string;
 }
 
 function base64(bytes: Uint8Array): string {
@@ -101,14 +106,18 @@ export function buildMail(options: MailOptions = {}): string {
     text = "Hi there",
     html,
     attachments = [],
+    headers: extraHeaders = [],
+    messageId = `<${crypto.randomUUID()}@example.org>`,
+    date = new Date().toUTCString(),
   } = options;
 
   const headers = [
+    ...extraHeaders,
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: <${crypto.randomUUID()}@example.org>`,
+    `Date: ${date}`,
+    ...(messageId ? [`Message-ID: ${messageId}`] : []),
     "MIME-Version: 1.0",
   ];
   const CRLF = "\r\n";

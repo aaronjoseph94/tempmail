@@ -11,6 +11,7 @@ import PostalMime, { type Email } from "postal-mime";
 import type { Env } from "./index";
 import { addressVerdict, recordArrival, senderDomain } from "./addresses";
 import { deleteAttachmentsFor } from "./db";
+import { headerValue, parseAuthResults, parseSentAt } from "./headers";
 import { ATTACHMENT_CHUNK_CHARS, MAX_BODY_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
 
@@ -102,14 +103,17 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   const subject = clip(parsed.subject)?.trim() || "(no subject)";
   const code = extractCode(subject, text ?? (html ? htmlToText(html) : null));
   const id = crypto.randomUUID();
+  const authResults = headerValue(parsed.headers, "authentication-results");
+  const authSummary = parseAuthResults(authResults);
 
   // Metadata first, so the row is written even if an attachment write fails.
   const attachments = describeAttachments(parsed, limits.attachmentBytes);
 
   await env.DB.prepare(
     `INSERT INTO messages
-       (id, address, from_name, from_address, subject, snippet, code, text_body, html_body, attachments, received_at, read, starred)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, 0)`
+       (id, address, from_name, from_address, subject, snippet, code, text_body, html_body, attachments, received_at, read, starred,
+        message_id, in_reply_to, references_hdr, reply_to, sent_at, list_unsubscribe, list_unsubscribe_post, auth_results, auth_summary)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, 0, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)`
   )
     .bind(
       id,
@@ -122,7 +126,16 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
       text,
       html,
       JSON.stringify(attachments),
-      now
+      now,
+      clipHeader(parsed.messageId),
+      clipHeader(parsed.inReplyTo),
+      clipHeader(parsed.references),
+      clipHeader(parsed.replyTo?.[0]?.address),
+      parseSentAt(parsed.date),
+      clipHeader(headerValue(parsed.headers, "list-unsubscribe")),
+      clipHeader(headerValue(parsed.headers, "list-unsubscribe-post")),
+      clipHeader(authResults),
+      authSummary ? JSON.stringify(authSummary) : null
     )
     .run();
 
@@ -152,6 +165,13 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
 
   console.log("stored mail for", to, "subject:", subject);
   return { ok: true, id, address: to, code };
+}
+
+/** Header values are kept whole but never past a few KB. */
+function clipHeader(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, 4000) : null;
 }
 
 /** Parses the MIME message, falling back to a bare record if it is malformed. */
