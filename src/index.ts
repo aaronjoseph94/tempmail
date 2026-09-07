@@ -49,7 +49,7 @@ export default {
       await ensureSchema(env.DB);
 
       if (request.method === "OPTIONS") return withSecurityHeaders(new Response(null, { status: 204 }));
-      if (isCrossSiteWrite(request)) return json({ error: "Cross-site requests are not allowed" }, 403);
+      if (isCrossSiteWrite(request, url)) return json({ error: "Cross-site requests are not allowed" }, 403);
 
       const publicResponse = await handlePublicApi(request, env, url, ctx);
       if (publicResponse) return publicResponse;
@@ -130,9 +130,21 @@ async function purge(env: Env, sql: string, binds: unknown[]): Promise<void> {
  * from carrying it. Browsers that send Sec-Fetch-Site let us refuse such
  * requests outright as a second line of defence.
  */
-function isCrossSiteWrite(request: Request): boolean {
+/**
+ * Whether an unsafe request came from somewhere other than this site.
+ *
+ * "cross-site" alone is not enough: the session cookie is SameSite=Lax, which
+ * still sends it for same-site requests, so a sibling subdomain of a custom
+ * domain could forge writes. Anything but same-origin is refused, and an Origin
+ * header that disagrees with the request's own origin is refused outright for
+ * browsers that send it without Sec-Fetch-Site.
+ */
+function isCrossSiteWrite(request: Request, url: URL): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
-  return request.headers.get("sec-fetch-site") === "cross-site";
+  const origin = request.headers.get("origin");
+  if (origin && origin !== url.origin) return true;
+  const site = request.headers.get("sec-fetch-site");
+  return site != null && site !== "same-origin" && site !== "none";
 }
 
 /**

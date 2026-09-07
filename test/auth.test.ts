@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { call, cookieFrom, freshDatabase, freshIp, json, signIn } from "./helpers";
+import { call, cookieFrom, freshDatabase, freshIp, json, signIn, ORIGIN } from "./helpers";
 
 beforeEach(freshDatabase);
 
@@ -180,3 +180,32 @@ describe("request hygiene", () => {
 async function loginCookie(): Promise<string> {
   return cookieFrom(await call("/api/login", { json: { password: "correct horse battery" }, ip: freshIp() }));
 }
+
+describe("cross-site writes", () => {
+  it("refuses a same-site write and any foreign Origin", async () => {
+    const cookie = await signIn();
+    // The session cookie is SameSite=Lax, so a sibling subdomain still sends it.
+    for (const headers of [
+      { "sec-fetch-site": "same-site" },
+      { "sec-fetch-site": "cross-site" },
+      { origin: "https://evil.example.test" },
+      { "sec-fetch-site": "same-origin", origin: "https://evil.example.test" },
+    ]) {
+      const res = await call("/api/read-all", { method: "POST", cookie, headers });
+      expect(res.status, JSON.stringify(headers)).toBe(403);
+    }
+  });
+
+  it("still allows the app's own requests", async () => {
+    const cookie = await signIn();
+    for (const headers of [
+      { "sec-fetch-site": "same-origin" },
+      { "sec-fetch-site": "none" },
+      { "sec-fetch-site": "same-origin", origin: ORIGIN },
+      {},                                   // a client that sends neither header
+    ]) {
+      const res = await call("/api/read-all", { method: "POST", cookie, headers });
+      expect(res.status, JSON.stringify(headers)).toBe(200);
+    }
+  });
+});
