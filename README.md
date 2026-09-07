@@ -113,17 +113,24 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
 
 | | |
 |---|---|
-| **Your address** | The card in the sidebar. Click it to copy, **Generate** for another, **Go to box** to see only its mail. |
+| **Your address** | The card in the sidebar. Click it to copy, **Generate** for another (it is copied for you), **Go to box** to see only its mail. **New addresses last** decides whether a generated address lives forever, a day, a week, or takes exactly one message. |
+| **Wait for code** | Tap before you sign up somewhere. The next message to that address shows its code full-screen and copies it. |
 | **Read** | Click a message. `J` / `K` move through the list, `Esc` closes. |
 | **Star** | The star on any row, or `S` in the reading pane. Starred mail survives the nightly cleanup. |
-| **Select** | The tick icon in the list header, or `X`. Then mark read, star or delete in bulk. |
+| **Select** | The tick icon in the list header, or `X`. Then **All**, mark read or unread, star or unstar, or delete in bulk. |
+| **Delete** | The trash chip, or `#`. Nothing asks first: a toast offers **Undo** for ten seconds, and the trash is emptied a day later. |
 | **Codes** | A key chip shows the detected verification code; click to copy. |
 | **Images** | Remote images are blocked. **Load images** shows them for that message, or turn them on for good in Settings. |
 | **Attachments** | Click to download. They stream from the Worker, so a 25 MB file costs nothing until you ask for it. |
 | **Export** | Saves the open message as a plain `.txt` file. |
-| **Search** | The box in the top bar, or press `/`. **All / Unread / Starred** switch the view. |
-| **Addresses** | The sidebar lists every address that has received mail. Give one a name with the tag icon. On phones they become chips above the list. |
-| **Settings** | Gear icon (or `,`): mail domain, password, sound, notifications, auto-refresh, theme, remote images, storage limits. |
+| **Sender check** | A badge beside the sender: **Verified sender**, **Failed authentication** or **Unverified**. A strip warns when a link's text, characters or domain are pretending to be something else. |
+| **Unsubscribe** | The chip appears when a message carries an unsubscribe header. One-click senders are handled for you; others open in a new tab. |
+| **Search** | The box in the top bar, or press `/`. **All / Unread / Starred / Leaks** switch the view. |
+| **Leaks** | Every address remembers the first service that wrote to it. Mail from anyone else lists the address here with the offenders; **Block address** bounces everything to it from then on. |
+| **Block** | The ⃠ icon on an address row, in the list header, or under a leaked message. Blocked addresses bounce at the door; the toast offers Undo. |
+| **Addresses** | The sidebar lists every address that has received mail or been generated as a burner, with a tag for its lifetime (`23h`, `1-shot`, `used`, `blocked`). Give one a name with the tag icon. On phones they become chips above the list. |
+| **Refresh** | New mail arrives live while the tab is open (the green dot by the domain). The refresh icon, or `R`, checks by hand. |
+| **Settings** | Gear icon (or `,`): mail domain, password, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), remote images, storage limits. |
 
 ## Privacy and protection
 
