@@ -619,6 +619,12 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
    phones, where side-by-side would squeeze both labels. */
 .addr-actions { display: flex; gap: 8px; }
 .addr-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; }
+/* Lifetime picker under the address actions. */
+.roll-mode { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.roll-mode-label { font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
+.seg.full { display: flex; width: 100%; }
+.seg.full .seg-btn { flex: 1; text-align: center; padding-inline: 6px; }
+
 /* The dice glyph spins a half turn each time a new address is rolled. */
 .spin { transition: rotate 0.5s var(--ease-spring); }
 .rolling .spin { rotate: 180deg; }
@@ -691,6 +697,24 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   font-size: var(--t-sm);
 }
 .rail-item.all .name { font-family: var(--font); font-size: var(--t-md); font-weight: 600; }
+/* Lifecycle tag beside the name: hours left, 1-shot, used, blocked. */
+.life {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--c5);
+  color: var(--ink3);
+  font: 600 var(--t-xs)/1.5 var(--font);
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+.life.soon { color: var(--accent); background: var(--accent-a10); }
+.life.dead { color: var(--danger); background: var(--danger-a12); }
+.rail-item.dead .name, .rail-item.dead .tag-label { color: var(--ink3); }
+.rail-item.dead .name { text-decoration: line-through; text-decoration-color: var(--ink3); }
+.rail-item.dead .life { text-decoration: none; }
+.pip.warn { background: var(--danger); }
 .rail-item .count { font-size: var(--t-sm); color: var(--ink3); }
 
 .rail-row .wipe {
@@ -706,6 +730,53 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   transition: opacity var(--d-mid) var(--ease), scale var(--d-mid) var(--ease-spring), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
 }
 .rail-row:hover .wipe, .rail-row:focus-within .wipe { opacity: 1; scale: 1; }
+.rail-row .burn {
+  flex: none;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 7px;
+  color: var(--ink3);
+  opacity: 0; scale: 0.9;
+  transition: opacity var(--d-mid) var(--ease), scale var(--d-mid) var(--ease-spring), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
+}
+.rail-row:hover .burn, .rail-row:focus-within .burn, .rail-row .burn.on { opacity: 1; scale: 1; }
+.rail-row .burn.on, #btn-burn.on { color: var(--danger); background: var(--danger-a12); }
+@media (hover: hover) and (pointer: fine) { .rail-row .burn:hover { color: var(--danger); background: var(--danger-a12); } }
+
+/* The warning strip under a message from someone other than the address's owner. */
+.leak-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 13px;
+  border-radius: var(--r-md);
+  background: var(--danger-a12);
+  color: var(--ink);
+  font-size: var(--t-md);
+  line-height: 1.45;
+}
+.leak-strip .icon { flex: none; color: var(--danger); }
+.leak-strip span { flex: 1; min-width: 0; }
+.leak-strip .btn { flex: none; }
+
+/* Leak cards in the list column. */
+.leak {
+  margin: 10px 14px 0;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--c2);
+  box-shadow: inset 0 0 0 1px var(--c6), var(--edge);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.leak h3 { font-size: var(--t-base); font-weight: 600; margin: 0 0 2px; }
+.leak h3 .sub { font-family: var(--mono); font-weight: 400; color: var(--ink3); font-size: var(--t-sm); margin-left: 6px; }
+.leak header p { margin: 0; font-size: var(--t-md); }
+.leak ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.leak li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: var(--r-sm); background: var(--c3); font-size: var(--t-md); }
+.leak li .dim { font-size: var(--t-sm); white-space: nowrap; }
+.leak-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.leak.blocked { opacity: 0.75; }
 @media (hover: hover) and (pointer: fine) { .rail-row .wipe:hover { color: var(--danger); background: var(--danger-a12); } }
 .rail-empty { padding: 8px 10px; font-size: var(--t-md); color: var(--ink3); }
 
@@ -736,6 +807,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   white-space: nowrap;
 }
 .list-sub { font-size: var(--t-sm); color: var(--ink3); }
+/* The title shrinks (ellipsis) so a long address never pushes the tools over the reader. */
+.list-head > div:first-child { flex: 1; min-width: 0; }
+.list-head h2 { white-space: nowrap; text-overflow: ellipsis; }
 .list-tools { display: flex; gap: 5px; flex: none; }
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
@@ -1588,7 +1662,8 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
       opacity var(--d-mid) var(--ease);
   }
   .rail-row { flex: none; scroll-snap-align: start; }
-  .rail-row .wipe, .rail-row .rename { display: none; }
+  .rail-row .wipe, .rail-row .rename, .rail-row .burn { display: none; }
+  .leak { margin: 10px 12px 0; }
   .rail-item {
     padding: 8px 14px;
     border-radius: var(--r-full);

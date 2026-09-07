@@ -52,7 +52,15 @@ const state = {
 /** Preference keys kept per device rather than on the server. */
 const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
-  images: "always_images", address: "address", theme: "theme",
+  images: "always_images", address: "address", theme: "theme", rollMode: "roll_mode",
+};
+
+/** Lifecycles a generated address can be given, keyed by the picker's value. */
+const ROLL_MODES = {
+  permanent: null,
+  "24h": { mode: "expires", ttlHours: 24 },
+  "7d": { mode: "expires", ttlHours: 24 * 7 },
+  once: { mode: "sealed" },
 };
 
 /* ---------------------------------------------------------------- helpers */
@@ -65,9 +73,11 @@ const store = {
 };
 
 let toastTimer = null;
+let toastHideTimer = null;
 /** A short notice. With an action it stays longer and carries one button (Undo, say). */
 function toast(text, icon = "i-tick", { action = null, onAction = null, duration = null } = {}) {
   const el = $("toast");
+  clearTimeout(toastHideTimer);   // a toast mid-exit must not hide this one
   el.classList.remove("out");
   el.innerHTML = `<svg class="icon sm" aria-hidden="true"><use href="#${icon}"/></svg><span></span>`;
   el.querySelector("span").textContent = text;
@@ -87,8 +97,9 @@ function toast(text, icon = "i-tick", { action = null, onAction = null, duration
 function hideToast() {
   const el = $("toast");
   clearTimeout(toastTimer);
+  clearTimeout(toastHideTimer);
   el.classList.add("out");
-  setTimeout(() => { el.hidden = true; }, 140);
+  toastHideTimer = setTimeout(() => { el.hidden = true; }, 140);
 }
 
 function escapeHtml(value) {
@@ -464,13 +475,13 @@ function renderStorage() {
 
 function renderRail() {
   const all = totals();
-  const sig = JSON.stringify([state.filter, all, state.addresses.map((a) => [a.address, a.count, a.unread])]);
+  const sig = JSON.stringify([state.filter, all, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
   if (sig !== state.railSig) {
     const hadRows = state.railSig !== "";
     state.railSig = sig;
     const rows = [railRow({ address: "", label: "All mail", count: all.count, unread: all.unread, all: true })];
     for (const a of state.addresses) {
-      rows.push(railRow({ address: a.address, label: a.address.split("@")[0], name: a.label, count: a.count, unread: a.unread }));
+      rows.push(railRow({ address: a.address, label: a.address.split("@")[0], name: a.label, count: a.count, unread: a.unread, entry: a }));
     }
     // A freshly rolled address has no mail yet but can still be selected.
     if (state.filter && !state.addresses.some((a) => a.address === state.filter)) {
@@ -486,22 +497,115 @@ function renderRail() {
   renderListHead();
 }
 
-function railRow({ address, label, name, count, unread, all = false }) {
+function railRow({ address, label, name, count, unread, all = false, entry = null }) {
   const active = state.filter === address;
   const tally = unread > 0 ? `<span class="badge">${unread}</span>` : `<span class="count">${count}</span>`;
   const local = escapeHtml(label);
+  const life = lifeChip(entry);
   // A named address shows its name with the raw local part underneath.
   const body = name
-    ? `<span class="stack-2"><span class="tag-label">${escapeHtml(name)}</span><span class="sub">${local}</span></span>`
-    : `<span class="name">${local}</span>`;
+    ? `<span class="stack-2"><span class="tag-label">${escapeHtml(name)}${life}</span><span class="sub">${local}</span></span>`
+    : `<span class="name">${local}${life}</span>`;
+  const blocked = entry?.mode === "blocked";
   const tools = all ? "" : `
     <button class="rename" data-rename="${escapeHtml(address)}" aria-label="Name ${escapeHtml(address)}" title="Give this address a name"><svg class="icon sm"><use href="#i-tag"/></svg></button>
+    <button class="burn${blocked ? " on" : ""}" data-burn="${escapeHtml(address)}" aria-pressed="${blocked}" aria-label="${blocked ? "Unblock" : "Block"} ${escapeHtml(address)}" title="${blocked ? "Unblock this address" : "Block this address: mail to it bounces"}"><svg class="icon sm"><use href="#i-ban"/></svg></button>
     <button class="wipe" data-wipe="${escapeHtml(address)}" aria-label="Delete all mail to ${escapeHtml(address)}" title="Delete all mail to this address"><svg class="icon sm"><use href="#i-trash"/></svg></button>`;
   const icon = all ? '<svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>' : "";
+  const dead = entry?.dead ? " dead" : "";
   return `<div class="rail-row">
-    <button class="rail-item${all ? " all" : ""}${active ? " active" : ""}" data-address="${escapeHtml(address)}"${active ? ' aria-current="true"' : ""} title="${escapeHtml(address || "Every address")}">
+    <button class="rail-item${all ? " all" : ""}${active ? " active" : ""}${dead}" data-address="${escapeHtml(address)}"${active ? ' aria-current="true"' : ""} title="${escapeHtml(address || "Every address")}">
       ${icon}${body}${tally}
     </button>${tools}</div>`;
+}
+
+/** The small lifecycle tag on a rail row: "23h", "1-shot", "used", "blocked". */
+function lifeChip(entry) {
+  if (!entry) return "";
+  if (entry.mode === "blocked") return '<span class="life dead">blocked</span>';
+  if (entry.mode === "sealed") return entry.used ? '<span class="life dead">used</span>' : '<span class="life">1-shot</span>';
+  if (entry.mode === "expires") {
+    const left = entry.expiresAt - Date.now();
+    if (left <= 0) return '<span class="life dead">expired</span>';
+    return `<span class="life${left < 3600000 * 2 ? " soon" : ""}" title="Bounces mail from ${formatWhen(entry.expiresAt)}">${timeLeft(left)}</span>`;
+  }
+  return "";
+}
+
+function timeLeft(ms) {
+  const h = Math.ceil(ms / 3600000);
+  if (h < 1) return "<1h";
+  if (h < 48) return `${h}h`;
+  return `${Math.ceil(h / 24)}d`;
+}
+
+/** Client-side twins of the server's leak rules. */
+function domainOf(address) {
+  const at = (address || "").lastIndexOf("@");
+  return at < 0 ? null : address.slice(at + 1).toLowerCase();
+}
+function relatedDomain(a, b) {
+  if (!a || !b) return false;
+  return a === b || a.endsWith("." + b) || b.endsWith("." + a);
+}
+
+/** Blocks an address, or unblocks a blocked one, with an Undo on the toast. */
+async function toggleBlock(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const blocking = entry?.mode !== "blocked";
+  const previous = entry?.mode ?? "permanent";
+  const revert = previous === "expires" && entry?.expiresAt
+    ? { mode: "expires", expiresAt: entry.expiresAt }
+    : { mode: previous === "blocked" ? "permanent" : previous };
+  try {
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, { mode: blocking ? "blocked" : "permanent" });
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  toast(blocking ? `Blocked ${address.split("@")[0]}: mail to it now bounces` : `Unblocked ${address.split("@")[0]}`, "i-ban", {
+    action: "Undo",
+    onAction: () => send("PUT", `/api/addresses/${encodeURIComponent(address)}`, revert).then(() => refresh()).catch((e) => toast(e.message, "i-warn")),
+  });
+  await refresh().catch(() => {});
+  if (state.open?.address === address) renderLeakStrip(state.open);
+}
+
+/** Lets the owner say which service an address was made for. */
+async function setOwner(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const answer = prompt("Which service was this address given to? (a domain, like netflix.com)", entry?.ownerDomain ?? "");
+  if (answer === null) return;
+  try {
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, { ownerDomain: answer.trim() });
+    toast(answer.trim() ? `Owner set to ${answer.trim().toLowerCase()}` : "Owner cleared", "i-tick");
+  } catch (err) {
+    toast(err.message, "i-warn");
+  }
+  refresh().catch(() => {});
+}
+
+/** The Leaks view: every address hearing from someone other than its owner. */
+function leaksHtml() {
+  const leaked = state.addresses.filter((a) => a.leaks?.length);
+  return leaked.map((a) => {
+    const name = a.label ? `${escapeHtml(a.label)} <span class="sub">${escapeHtml(a.address.split("@")[0])}</span>` : escapeHtml(a.address.split("@")[0]);
+    const senders = a.leaks.map((l) =>
+      `<li><span class="mono">${escapeHtml(l.domain)}</span><span class="dim">${plural(l.count, "message")} · ${timeAgo(l.last)}</span></li>`).join("");
+    return `<article class="leak${a.mode === "blocked" ? " blocked" : ""}">
+      <header>
+        <h3>${name}</h3>
+        <p class="dim">Given to <button type="button" class="link mono" data-owner="${escapeHtml(a.address)}" title="Change the owner">${escapeHtml(a.ownerDomain)}</button>, but also hears from:</p>
+      </header>
+      <ul>${senders}</ul>
+      <div class="leak-actions">
+        <button type="button" class="btn sm ${a.mode === "blocked" ? "ghost" : ""}" data-burn="${escapeHtml(a.address)}">
+          <svg class="icon sm"><use href="#i-ban"/></svg>${a.mode === "blocked" ? "Unblock" : "Block address"}
+        </button>
+        <button type="button" class="btn sm ghost" data-address="${escapeHtml(a.address)}">Show its mail</button>
+      </div>
+    </article>`;
+  }).join("");
 }
 
 /**
@@ -544,6 +648,7 @@ function moveSegHighlight(seg = $("body-toggle")) {
 function renderViewChips() {
   const unread = totals().unread;
   $("pip-unread").hidden = unread === 0;
+  $("pip-leaks").hidden = !state.addresses.some((a) => a.leaks?.length);
   for (const chip of document.querySelectorAll("[data-view]")) {
     const on = chip.dataset.view === state.view;
     chip.classList.toggle("active", on);
@@ -559,6 +664,12 @@ function renderListHead() {
   $("list-sub").textContent = count ? `${plural(count, "message")}${unread ? ` · ${unread} unread` : ""}` : "";
   $("btn-wipe").hidden = !state.filter || !count;
   $("btn-rename").hidden = !state.filter;
+  const blocked = entry?.mode === "blocked";
+  $("btn-burn").hidden = !state.filter;
+  $("btn-burn").setAttribute("aria-pressed", String(blocked));
+  $("btn-burn").classList.toggle("on", blocked);
+  $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
+  $("btn-burn").setAttribute("aria-label", $("btn-burn").title);
   $("btn-read-all").hidden = unread === 0;
 }
 
@@ -589,8 +700,20 @@ function skeletonRows(n = 6) {
 }
 
 function renderFeed(arrived = new Set()) {
+  if (state.view === "leaks") {
+    const leaked = state.addresses.filter((a) => a.leaks?.length);
+    const sig = JSON.stringify(["leaks", leaked.map((a) => [a.address, a.mode, a.ownerDomain, a.leaks])]);
+    if (sig !== state.feedSig) {
+      state.feedSig = sig;
+      $("feed").innerHTML = leaksHtml();
+      $("feed").setAttribute("aria-busy", "false");
+    }
+    $("btn-more").hidden = true;
+    renderEmpty(leaked.length);
+    return;
+  }
   const visible = visibleMessages();
-  const sig = JSON.stringify([state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read, m.starred])]);
+  const sig = JSON.stringify([state.view, state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read, m.starred])]);
   const timesStale = Date.now() - state.lastFeedRender > 60000; // "5m" labels drift
   if (sig === state.feedSig && !timesStale && arrived.size === 0) return;
   state.feedSig = sig;
@@ -669,6 +792,9 @@ function renderEmpty(visibleCount) {
   } else if (state.view === "starred") {
     $("empty-title").textContent = "No starred mail";
     $("empty-text").textContent = "Star a message to keep it past the nightly cleanup.";
+  } else if (state.view === "leaks") {
+    $("empty-title").textContent = "No leaks detected";
+    $("empty-text").textContent = "Every address here only hears from the service it was given to.";
   } else if (state.filter) {
     $("empty-title").textContent = "Nothing here yet";
     $("empty-text").textContent = `Send something to ${state.filter} and it will appear here.`;
@@ -768,6 +894,7 @@ function renderViewer() {
   avatar.textContent = initialsFor(from);
   avatar.style.setProperty("--hue", hueFor((msg.fromAddress || from).toLowerCase()));
   $("msg-from-name").textContent = msg.fromName || msg.fromAddress;
+  renderLeakStrip(msg);
   $("msg-from-addr").textContent = msg.fromName ? `<${msg.fromAddress}>` : "";
   $("msg-to").textContent = msg.address;
   $("msg-date").textContent = formatWhen(msg.receivedAt);
@@ -1187,14 +1314,52 @@ function fullAddress() {
   return state.mailDomain ? `${state.address}@${state.mailDomain}` : "";
 }
 
-function newAddress() {
+async function newAddress() {
   state.address = generateAddress();
   store.set(PREFS.address, state.address);
   renderAddressCard();
   const button = $("btn-roll");
   button.classList.toggle("rolling");   // the die turns a half-step each roll
-  if (state.mailDomain) copyAddress();   // ready to paste straight into a form
-  else toast("New address ready", "i-dice");
+  if (!state.mailDomain) { toast("New address ready", "i-dice"); return; }
+  copyAddress();                          // ready to paste straight into a form
+  // A burner has to exist before its first message so the lifecycle applies.
+  const lifecycle = ROLL_MODES[rollMode()];
+  if (lifecycle) {
+    try {
+      await send("PUT", `/api/addresses/${encodeURIComponent(fullAddress())}`, lifecycle);
+      refreshRailSoon();
+    } catch (err) {
+      toast(`Copied, but could not set its lifetime: ${err.message}`, "i-warn");
+    }
+  }
+}
+
+function rollMode() {
+  const saved = store.get(PREFS.rollMode);
+  return saved in ROLL_MODES ? saved : "permanent";
+}
+
+function setRollMode(mode) {
+  if (!(mode in ROLL_MODES)) return;
+  store.set(PREFS.rollMode, mode);
+  const seg = $("roll-mode");
+  for (const button of seg.querySelectorAll(".seg-btn")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+  moveSegHighlight(seg);
+}
+
+/** Under the sender: a warning when this message is from someone other than the address's owner. */
+function renderLeakStrip(msg) {
+  const strip = $("msg-leak");
+  const entry = state.addresses.find((a) => a.address === msg.address);
+  const from = domainOf(msg.fromAddress);
+  const leak = entry?.ownerDomain && from && !relatedDomain(from, entry.ownerDomain);
+  strip.hidden = !leak;
+  if (!leak) return;
+  $("msg-leak-text").textContent = `Sent by ${from}, but ${msg.address.split("@")[0]} was given to ${entry.ownerDomain}. It may have been shared or sold.`;
+  const button = $("msg-leak-block");
+  button.textContent = entry.mode === "blocked" ? "Blocked" : "Block address";
+  button.disabled = entry.mode === "blocked";
+  button.onclick = () => toggleBlock(msg.address);
 }
 
 async function copyAddress() {
@@ -1603,6 +1768,8 @@ $("rail-list").addEventListener("click", (e) => {
   if (rename) { openLabelDialog(rename.dataset.rename); return; }
   const wipe = e.target.closest("[data-wipe]");
   if (wipe) { wipeAddress(wipe.dataset.wipe); return; }
+  const burn = e.target.closest("[data-burn]");
+  if (burn) { toggleBlock(burn.dataset.burn); return; }
   const item = e.target.closest("[data-address]");
   if (item) setFilter(item.dataset.address);
 });
@@ -1647,6 +1814,20 @@ $("sel-all").addEventListener("click", pickAll);
 $("sel-unread").addEventListener("click", () => bulk("unread"));
 $("sel-unstar").addEventListener("click", () => bulk("unstar"));
 $("btn-refresh").addEventListener("click", manualRefresh);
+$("btn-burn").addEventListener("click", () => { if (state.filter) toggleBlock(state.filter); });
+$("roll-mode").addEventListener("click", (e) => {
+  const button = e.target.closest(".seg-btn");
+  if (button) setRollMode(button.dataset.mode);
+});
+// Leak cards live inside the feed; their buttons route here.
+$("feed").addEventListener("click", (e) => {
+  const burn = e.target.closest("[data-burn]");
+  if (burn) { e.stopPropagation(); toggleBlock(burn.dataset.burn); return; }
+  const owner = e.target.closest("[data-owner]");
+  if (owner) { e.stopPropagation(); setOwner(owner.dataset.owner); return; }
+  const show = e.target.closest(".leak [data-address]");
+  if (show) { e.stopPropagation(); setView("all"); setFilter(show.dataset.address); }
+}, true);
 
 $("btn-star").addEventListener("click", () => state.open && toggleStar(state.open.id, null));
 
@@ -1686,6 +1867,7 @@ window.addEventListener("popstate", () => closeMessage({ fromHistory: true }));
 window.addEventListener("resize", () => {
   moveRailHighlight();
   moveSegHighlight();
+  moveSegHighlight($("roll-mode"));
   if ($("settings").open) moveSegHighlight($("theme-seg"));
   if (state.open && state.showHtml) fitFrame($("msg-frame"));
 });
@@ -1705,6 +1887,7 @@ window.addEventListener("online", () => { clearTimeout(state.pollTimer); poll();
   $("domain-pill").classList.toggle("paused", !state.autoRefresh);
   state.address = store.get(PREFS.address) || generateAddress();
   store.set(PREFS.address, state.address);
+  setRollMode(rollMode());
   wireDrawerDrag();
 
   const painted = loadCache();

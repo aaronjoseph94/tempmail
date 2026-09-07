@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=8" />
+  <link rel="stylesheet" href="/style.css?v=9" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -52,6 +52,8 @@
       <symbol id="i-inbox-arrow" viewBox="0 0 24 24"><path d="M4 13h3.6l1.4 2.2h6L16.4 13H20"/><path d="M5.6 4.6h12.8l2.6 8.4v5.4a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 18.4V13z"/><path d="M12 3.2v5m0 0 2-2m-2 2-2-2"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 17v2.5h16V17"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 4v5h-5"/></symbol>
+      <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
       <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3.5 8.5h8a5 5 0 0 1 0 10h-4"/><path d="M7 4.5l-4 4 4 4"/></symbol>
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11V4.5H10l10 10-6.5 6.5z"/><circle cx="7.3" cy="7.8" r="1.3"/></symbol>
       <symbol id="i-select" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="m8 12 3 3 5-6"/></symbol>
@@ -121,6 +123,15 @@
             <svg class="icon sm"><use href="#i-inbox-arrow"/></svg>Go to box
           </button>
         </div>
+        <div class="roll-mode">
+          <span class="roll-mode-label">New addresses last</span>
+          <div class="seg full" id="roll-mode" data-ready="false" role="group" aria-label="How long a generated address lives">
+            <button type="button" class="seg-btn" data-mode="permanent" aria-pressed="true" title="Keeps taking mail">Always</button>
+            <button type="button" class="seg-btn" data-mode="24h" aria-pressed="false" title="Bounces mail after a day">24h</button>
+            <button type="button" class="seg-btn" data-mode="7d" aria-pressed="false" title="Bounces mail after a week">7d</button>
+            <button type="button" class="seg-btn" data-mode="once" aria-pressed="false" title="Takes one message, then bounces the rest">One-shot</button>
+          </div>
+        </div>
       </section>
 
       <div class="view-filters" role="group" aria-label="Filter the list">
@@ -130,6 +141,9 @@
         </button>
         <button class="view-chip" data-view="starred" aria-pressed="false">
           <svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>Starred
+        </button>
+        <button class="view-chip" data-view="leaks" aria-pressed="false" title="Addresses that hear from someone other than the service they were made for">
+          Leaks<span class="pip warn" id="pip-leaks" hidden></span>
         </button>
       </div>
 
@@ -158,6 +172,9 @@
           </button>
           <button id="btn-rename" class="icon-btn" aria-label="Name this address" title="Give this address a name" hidden>
             <svg class="icon sm"><use href="#i-tag"/></svg>
+          </button>
+          <button id="btn-burn" class="icon-btn" aria-label="Block this address" title="Block this address" aria-pressed="false" hidden>
+            <svg class="icon sm"><use href="#i-ban"/></svg>
           </button>
           <button id="btn-wipe" class="icon-btn danger" aria-label="Delete every message to this address" title="Wipe this address" hidden>
             <svg class="icon sm"><use href="#i-trash"/></svg>
@@ -227,6 +244,12 @@
             <div class="msg-to">to <button type="button" class="link mono" id="msg-to" title="Show only mail for this address"></button></div>
           </div>
           <div class="msg-when"><time id="msg-date"></time><span class="sep">·</span><span id="msg-expiry"></span></div>
+        </div>
+
+        <div id="msg-leak" class="leak-strip" hidden>
+          <svg class="icon sm" aria-hidden="true"><use href="#i-warn"/></svg>
+          <span id="msg-leak-text"></span>
+          <button type="button" class="btn sm ghost" id="msg-leak-block">Block address</button>
         </div>
 
         <div class="msg-actions">
@@ -413,6 +436,6 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="/app.js?v=8"></script>
+  <script src="/app.js?v=9"></script>
 </body>
 </html>

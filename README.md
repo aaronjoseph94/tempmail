@@ -20,6 +20,8 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 
 - **Catch-all**: every address at your domain lands in one inbox. Filter by address, name one, or wipe it in a click.
 - **Instant addresses**: the sidebar generates a fresh, memorable address (`quiet-otter-42@…`) and copies it for you.
+- **Burner addresses**: a generated address can last forever, a day, a week, or take exactly one message. Afterwards mail to it bounces at the door, and you can block any address the same way.
+- **Leak detector**: each address remembers the service it was given to. Hear from anyone else and the **Leaks** view names them, one tap from blocking the address.
 - **Codes, spotted**: verification codes are detected and shown as a one-click copy chip in the list and the message.
 - **Star anything**: starred mail is exempt from the nightly cleanup, so a receipt can sit here indefinitely.
 - **Bulk actions**: select several messages to mark read, star or delete them together.
