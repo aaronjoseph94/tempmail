@@ -28,6 +28,7 @@ const state = {
   messages: [],
   addresses: [],
   filter: "",            // address being viewed; "" is all mail
+  candidate: "",         // the local part the new-inbox sheet is offering
   query: "",             // search text
   hasMore: false,
   nextCursor: null,
@@ -55,12 +56,12 @@ const state = {
 /** Preference keys kept per device rather than on the server. */
 const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
-  images: "always_images", address: "address", theme: "theme", rollMode: "roll_mode", push: "push",
+  images: "always_images", address: "address", theme: "theme", push: "push",
 };
 
 /** Lifecycles a generated address can be given, keyed by the picker's value. */
 const ROLL_MODES = {
-  permanent: null,
+  permanent: { mode: "permanent" },
   "24h": { mode: "expires", ttlHours: 24 },
   "7d": { mode: "expires", ttlHours: 24 * 7 },
 };
@@ -1511,35 +1512,76 @@ function fullAddress() {
   return state.mailDomain ? `${state.address}@${state.mailDomain}` : "";
 }
 
-async function newAddress() {
-  state.address = generateAddress();
+/* ---- making an inbox ---------------------------------------------------- */
+
+let pendingLife = "permanent";
+
+/* One line each: the sheet's action bar is tight on a small phone, and a hint
+   that wraps to three lines pushes Create off the screen. */
+const LIFE_HINTS = {
+  permanent: "Never expires. Delete it yourself.",
+  "24h": "Stops accepting mail after a day.",
+  "7d": "Stops accepting mail after a week.",
+};
+
+/** Opens the sheet with a fresh candidate address. Also the phone's inbox menu. */
+function openNewInbox() {
+  if (!state.mailDomain) { toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
+  $("sheet-addr-text").textContent = fullAddress();
+  rerollCandidate();
+  setPendingLife(pendingLife);
+  retireActionToast();
+  $("new-inbox").showModal();
+}
+
+function closeNewInbox() { $("new-inbox").close(); }
+
+function rerollCandidate() {
+  state.candidate = generateAddress();
+  $("new-addr-text").textContent = `${state.candidate}@${state.mailDomain}`;
+}
+
+function setPendingLife(life) {
+  if (!(life in ROLL_MODES)) return;
+  pendingLife = life;
+  for (const button of $("life-seg").querySelectorAll("[data-life]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.life === life));
+  }
+  $("life-hint").textContent = LIFE_HINTS[life];
+  moveSegHighlight($("life-seg"));
+}
+
+/**
+ * Creates the inbox for real.
+ *
+ * Every lifetime writes a row, permanent included. It used to skip the request
+ * entirely for permanent — ROLL_MODES.permanent was null — so a "forever" inbox
+ * existed only in this browser's localStorage. The server had never heard of
+ * it, GET /api/addresses could not return it, and it never appeared in the
+ * list. That is the whole of what "New Inbox does nothing" was.
+ */
+async function createInbox() {
+  const address = `${state.candidate}@${state.mailDomain}`;
+  const button = $("new-inbox-create");
+  button.disabled = true;
+  try {
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, ROLL_MODES[pendingLife]);
+  } catch (err) {
+    button.disabled = false;
+    toast(`Could not create it: ${err.message}`, "i-warn");
+    return;
+  }
+  button.disabled = false;
+  state.address = state.candidate;
   store.set(PREFS.address, state.address);
   renderAddressCard();
-  const button = $("btn-roll");
-  button.classList.toggle("rolling");   // the plus turns to a cross and back
-  if (!state.mailDomain) { toast("New address ready", "i-dice"); return; }
-  copyAddress();                          // ready to paste straight into a form
-  // A burner has to exist before its first message so the lifecycle applies.
-  const lifecycle = ROLL_MODES[rollMode()];
-  if (lifecycle) {
-    try {
-      await send("PUT", `/api/addresses/${encodeURIComponent(fullAddress())}`, lifecycle);
-      refreshRailSoon();
-    } catch (err) {
-      toast(`Copied, but could not set its lifetime: ${err.message}`, "i-warn");
-    }
-  }
-}
-
-function rollMode() {
-  const saved = store.get(PREFS.rollMode);
-  return saved in ROLL_MODES ? saved : "permanent";
-}
-
-function setRollMode(mode) {
-  if (!(mode in ROLL_MODES)) return;
-  store.set(PREFS.rollMode, mode);
-  $("roll-mode").value = mode;
+  closeNewInbox();
+  const copied = await copyText(address);
+  toast(copied ? `${address} copied` : `${address} is ready`, copied ? "i-copy" : "i-plus");
+  await refresh().catch(() => {});
+  state.filter = address;              // show it straight away in the list
+  renderRail();
+  renderListHead();
 }
 
 /** Beside the sender: what Cloudflare's SPF, DKIM and DMARC checks said. */
@@ -1931,9 +1973,10 @@ async function logout() {
 /* On a phone the settings panel is a bottom sheet. Dragging the grip moves
    it with the finger; past a third of its height, or on a fast flick, it
    closes — otherwise it springs back. */
-function wireDrawerDrag() {
-  const panel = $("drawer-panel");
-  const grip = $("drawer-grip");
+/** Swipe a bottom sheet down to dismiss it. Any panel with a grip can use it. */
+function wireDrawerDrag(panelId = "drawer-panel", gripId = "drawer-grip", dismiss = closeSettings) {
+  const panel = $(panelId);
+  const grip = $(gripId);
   let startY = 0;
   let startedAt = 0;
   let offset = 0;
@@ -1961,7 +2004,7 @@ function wireDrawerDrag() {
     panel.classList.remove("dragging");
     panel.style.translate = "";
     const velocity = offset / Math.max(1, performance.now() - startedAt); // px per ms
-    if (offset > panel.offsetHeight / 3 || velocity > 0.6) closeSettings();
+    if (offset > panel.offsetHeight / 3 || velocity > 0.6) dismiss();
   };
   grip.addEventListener("pointerup", end);
   grip.addEventListener("pointercancel", end);
@@ -2233,7 +2276,7 @@ document.addEventListener("keydown", (e) => {
     case "j": case "ArrowDown": e.preventDefault(); step(+1); break;
     case "k": case "ArrowUp": e.preventDefault(); step(-1); break;
     case "c": copyAddress(); break;
-    case "n": newAddress(); break;
+    case "n": openNewInbox(); break;
     case "u": markUnread(); break;
     case "s": if (state.open) toggleStar(state.open.id, null); break;
     case "x": setSelecting(!state.selecting); break;
@@ -2390,7 +2433,19 @@ $("search-clear").addEventListener("click", () => { $("search").value = ""; setQ
 $("btn-search").addEventListener("click", toggleSearch);
 
 $("btn-copy").addEventListener("click", copyAddress);
-$("btn-roll").addEventListener("click", newAddress);
+$("btn-roll").addEventListener("click", openNewInbox);
+$("btn-new-phone").addEventListener("click", openNewInbox);
+$("new-inbox-close").addEventListener("click", closeNewInbox);
+$("new-inbox").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeNewInbox(); });
+$("new-addr-reroll").addEventListener("click", rerollCandidate);
+$("sheet-copy").addEventListener("click", copyAddress);
+$("sheet-open").addEventListener("click", () => { closeNewInbox(); setFilter(fullAddress()); });
+$("sheet-wait").addEventListener("click", () => { closeNewInbox(); startWaiting(); });
+$("new-inbox-create").addEventListener("click", createInbox);
+$("life-seg").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-life]");
+  if (button) setPendingLife(button.dataset.life);
+});
 $("btn-mine").addEventListener("click", () => {
   if (!state.mailDomain) { copyAddress(); return; }
   setFilter(fullAddress());
@@ -2427,7 +2482,6 @@ $("wait").addEventListener("click", (e) => { if (e.target === e.currentTarget) s
 $("set-push").addEventListener("change", (e) => togglePush(e.target.checked));
 $("msg-warn-plain").addEventListener("click", () => { state.showHtml = false; renderBody(); });
 $("btn-burn").addEventListener("click", () => { if (state.filter) toggleBlock(state.filter); });
-$("roll-mode").addEventListener("change", (e) => setRollMode(e.target.value));
 // Leak cards live inside the feed; their buttons route here.
 $("feed").addEventListener("click", (e) => {
   const burn = e.target.closest("[data-burn]");
@@ -2501,8 +2555,8 @@ window.addEventListener("online", () => {
   $("domain-pill").classList.toggle("paused", !state.autoRefresh);
   state.address = store.get(PREFS.address) || generateAddress();
   store.set(PREFS.address, state.address);
-  setRollMode(rollMode());
   wireDrawerDrag();
+  wireDrawerDrag("new-inbox-panel", "new-inbox-grip", closeNewInbox);
 
   const painted = loadCache();
   if (painted) {

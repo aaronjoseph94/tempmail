@@ -171,6 +171,12 @@
   --r-xl: 16px;
   --r-full: 999px;
 
+  /* Minimum tap target, raised to 44px for coarse pointers further down.
+     A floor rather than an override: `min-height: max(own, --tap-min)` means
+     a variant like .btn.sm cannot win the specificity race and ship a control
+     under the minimum, which is exactly how a 39px button reached the sheet. */
+  --tap-min: 0px;
+
   /* Stacking. Anything opened with showModal() or showPopover() sits in the
      browser's top layer and outranks every value here, which is the whole
      reason the toast is a popover. */
@@ -326,7 +332,11 @@ kbd {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /* Delays too, or a staggered entrance still takes its full run to land
+       even though each step is instant. */
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
   ::view-transition-group(*),
@@ -359,6 +369,9 @@ kbd {
   font-weight: 500;
   line-height: 1;
   padding: 8px 14px;
+  /* Heights are declared, not inherited from whatever font-size a variant
+     happens to carry — that is what put a 39px button beside a 44px one. */
+  min-height: max(var(--btn-h, 36px), var(--tap-min));
   white-space: nowrap;
   transition:
     background var(--d-mid) var(--ease),
@@ -397,8 +410,8 @@ kbd {
 @media (hover: hover) and (pointer: fine) {
   .btn.ghost:hover:not(:disabled) { background: var(--c4); box-shadow: none; }
 }
-.btn.sm, .chip.sm { padding: 6px 12px; font-size: var(--t-sm); border-radius: var(--r-sm); }
-.btn.block { width: 100%; padding: 12px 16px; font-size: var(--t-base); }
+.btn.sm, .chip.sm { padding: 6px 12px; font-size: var(--t-sm); border-radius: var(--r-sm); --btn-h: 30px; }
+.btn.block { width: 100%; padding: 12px 16px; font-size: var(--t-base); --btn-h: 40px; }
 .btn.danger, .chip.danger { color: var(--danger); }
 @media (hover: hover) and (pointer: fine) {
   .btn.danger:hover:not(:disabled), .chip.danger:hover:not(:disabled) {
@@ -407,7 +420,17 @@ kbd {
   }
 }
 
-.icon-btn { width: 36px; height: 36px; padding: 0; border-radius: var(--r-md); color: var(--ink2); }
+.icon-btn {
+  width: max(36px, var(--tap-min));
+  height: max(36px, var(--tap-min));
+  /* flex: none because an icon button is a fixed square. As a flex item it
+     otherwise shrinks below its own width, which is how Copy ended up 39px
+     wide in a 320px sheet while still reporting height 44. */
+  flex: none;
+  padding: 0;
+  border-radius: var(--r-md);
+  color: var(--ink2);
+}
 .icon-btn.plain { background: transparent; box-shadow: none; }
 @media (hover: hover) and (pointer: fine) { .icon-btn:hover:not(:disabled) { color: var(--ink); } }
 .icon-btn[aria-pressed="false"] { color: var(--ink3); }
@@ -768,7 +791,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 }
 .addr-actions .btn {
   min-width: 0;
-  min-height: 36px;
+  min-height: max(36px, var(--tap-min));
   padding: 8px 8px;
   gap: 6px;
   font-size: var(--t-sm);
@@ -848,49 +871,6 @@ body.waiting { overflow: hidden; }
 .wait-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .wait-hint { margin: 14px 0 0; }
 @media (prefers-reduced-motion: reduce) { .wait, .wait-card, .wait-dots span { animation: none; } }
-
-/* Lifetime picker under the address actions. */
-.roll-mode { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
-.roll-mode-label {
-  font-size: var(--t-xs);
-  font-weight: 600;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--ink3);
-}
-
-/* A native select: it cannot overflow its column, and it brings its own
-   keyboard handling and the platform picker on a phone. */
-.select-wrap { position: relative; display: flex; min-width: 0; }
-.select {
-  width: 100%;
-  min-width: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  padding: 8px 32px 8px 12px;
-  border: 0;
-  border-radius: var(--r-md);
-  background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--t-md);
-  line-height: 1.3;
-  cursor: pointer;
-  transition: box-shadow var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
-}
-.select:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--ring); }
-@media (hover: hover) and (pointer: fine) {
-  .select:hover { box-shadow: inset 0 0 0 1px var(--accent-a28); background: var(--accent-a10); }
-}
-.select-wrap .chevron {
-  position: absolute;
-  right: 11px;
-  top: 50%;
-  translate: 0 -50%;
-  pointer-events: none;
-  color: var(--ink3);
-}
 
 /* The dice glyph spins a half turn each time a new address is rolled. */
 .spin { transition: rotate 0.5s var(--ease-spring); }
@@ -1844,6 +1824,13 @@ dialog.drawer[open]::backdrop { opacity: 1; }
 }
 .drawer-sec:last-child { box-shadow: none; }
 dialog.drawer[open] .drawer-sec { animation: sec-in var(--d-slow) var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
+/* --i has to be set for the stagger to exist; nothing was setting it, so every
+   section was arriving on the same 80ms beat. Six is past the fold in any
+   drawer — later sections keep the last delay rather than trailing further. */
+dialog.drawer[open] .drawer-sec:nth-child(2) { --i: 1; }
+dialog.drawer[open] .drawer-sec:nth-child(3) { --i: 2; }
+dialog.drawer[open] .drawer-sec:nth-child(4) { --i: 3; }
+dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
 @keyframes sec-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
 .drawer-sec h3 {
   display: flex;
@@ -1875,6 +1862,73 @@ dialog.drawer[open] .drawer-sec { animation: sec-in var(--d-slow) var(--ease-out
   transition: width 0.7s var(--ease-out);
 }
 .meter-row { display: flex; justify-content: space-between; font-size: var(--t-sm); color: var(--ink3); }
+
+/* ---- the new-inbox sheet ---- */
+
+/* It borrows the drawer's whole treatment — same panel, grip, entrance and
+   swipe-to-dismiss — because a second sheet pattern is a second thing to keep
+   in step. On desktop it is a centred card rather than a full-height panel. */
+.new-addr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-6);
+  border-radius: var(--r-md);
+  background: var(--c3);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+/* The address wraps rather than truncating: it is the one string the sheet
+   exists to show, and eliding it on a 320px screen (or against a long real
+   domain) defeats the purpose. */
+.new-addr-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--t-lg);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: var(--track-snug);
+  color: var(--ink);
+}
+.life-seg { width: 100%; }
+/* A beat of air before the action itself, so the choice above reads as its
+   input rather than as another button in a stack. */
+.sheet-foot #new-inbox-create { margin-top: var(--s-2); }
+
+/* The sheet's action bar: pinned under the scroll region, carrying the home
+   indicator inset itself. */
+.sheet-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-8);
+  padding-bottom: calc(var(--s-8) + env(safe-area-inset-bottom));
+  background: var(--c2);
+  box-shadow: inset 0 1px 0 0 var(--c6);
+}
+.life-seg .seg-btn { flex: 1; }
+#new-inbox .drawer-sec { display: flex; flex-direction: column; gap: var(--s-5); }
+#new-inbox .drawer-scroll { padding-bottom: 0; }
+
+@media (min-width: 900px) {
+  dialog.sheet { inset: 0; display: grid; place-items: center; }
+  dialog.sheet:not([open]) { display: none; }
+  dialog.sheet .drawer-panel {
+    width: min(420px, calc(100vw - 32px));
+    height: auto;
+    max-height: min(560px, 88dvh);
+    border-radius: var(--r-lg);
+    translate: 0 0;
+    opacity: 1;
+    box-shadow: inset 0 0 0 1px var(--c6), var(--shadow-3);
+    transition: translate var(--d-slow) var(--ease-out), opacity var(--d-mid) var(--ease),
+                display var(--d-slow) allow-discrete, overlay var(--d-slow) allow-discrete;
+  }
+  dialog.sheet:not([open]) .drawer-panel { translate: 0 var(--s-4); opacity: 0; }
+  @starting-style { dialog.sheet[open] .drawer-panel { translate: 0 var(--s-4); opacity: 0; } }
+  dialog.sheet .drawer-grip { display: none; }
+}
 
 /* ================================================================== 6. gate */
 
@@ -1985,6 +2039,8 @@ body.gate {
     overflow: visible;
     box-shadow: none;
   }
+  .inbox-card { display: none; }
+  .rail { padding-top: var(--s-4); }
   .rail-head { display: none; }
 
   /* Addresses become a scrolling chip strip with the same sliding pill. */
@@ -2106,17 +2162,12 @@ body.gate {
   .select-bar { padding: 10px 16px; flex-wrap: wrap; row-gap: 8px; }
   .select-count { flex: 1 1 100%; }
   .select-actions { width: 100%; }
-  .select-actions .btn { min-height: 44px; }
   .select-actions .icon-btn.plain { margin-left: auto; }
 
-  /* Comfortable touch targets: 44px minimum on anything tappable. */
   .inbox-card { gap: 14px; padding: 16px 16px 20px; }
   .addr-actions { gap: 8px; }
-  .addr-actions .btn { min-height: 44px; font-size: var(--t-md); }
+  .addr-actions .btn { font-size: var(--t-md); }
   #btn-roll { min-height: 46px; }
-  .select { min-height: 44px; }
-  .icon-btn { width: 44px; height: 44px; }
-  .list-tools .icon-btn { width: 44px; height: 44px; }
   .tag { padding: 4px 10px; font-size: var(--t-sm); }
   .tag.code { padding: 8px 12px; min-height: 44px; }
   .brand { min-height: 44px; }
@@ -2156,17 +2207,18 @@ body.gate {
 @media (max-width: 899px), (pointer: coarse) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
   select,
-  .select,
   textarea { font-size: 16px; }
 
   /* Touch targets are 44px square at minimum. A finger is not a cursor: the
      open-message actions especially, where Delete sits mid-row and a mis-tap
-     lands on Star. Desktop keeps the denser 36px controls. */
-  .msg-actions .chip, .msg-actions .seg-btn, .wait-actions .btn { min-height: 44px; }
+     lands on Star. Desktop keeps the denser 36px controls.
+
+     --tap-min raises the floor under every .btn, .chip and .icon-btn at once,
+     so only controls that are none of those three need a rule of their own. */
+  :root { --tap-min: 44px; }
+  .msg-actions .seg-btn { min-height: 44px; }
   .msg-actions .chip, .msg-actions .seg-btn { min-width: 44px; }
   .wait-close { width: 44px; height: 44px; }
   .rail-item { min-height: 44px; }
   .addr-value { min-height: 44px; }
-  .btn.sm, .select-bar .btn, .leak .btn { min-height: 44px; }
-  #btn-more, #sel-all, .select-actions .icon-btn { min-height: 44px; min-width: 44px; }
 }

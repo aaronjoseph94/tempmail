@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=36" />
+  <link rel="stylesheet" href="/style.css?v=39" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -87,6 +87,9 @@
       <span class="domain-pill" id="domain-pill" hidden title="Any address at this domain arrives here">
         <span class="live-dot" aria-hidden="true"></span><b id="domain-label"></b>
       </span>
+      <button id="btn-new-phone" class="icon-btn plain only-phone" aria-label="New inbox" title="New inbox">
+        <svg class="icon"><use href="#i-plus"/></svg>
+      </button>
       <button id="btn-search" class="icon-btn plain only-phone" aria-label="Search" aria-expanded="false">
         <svg class="icon"><use href="#i-search"/></svg>
       </button>
@@ -121,7 +124,7 @@
         </p>
 
         <button id="btn-roll" class="btn primary block" title="Make a new inbox (N)">
-          <svg class="icon sm spin"><use href="#i-plus"/></svg><span>New Inbox</span>
+          <svg class="icon sm"><use href="#i-plus"/></svg><span>New Inbox</span>
         </button>
 
         <div class="addr-actions">
@@ -133,17 +136,6 @@
           </button>
         </div>
 
-        <div class="roll-mode">
-          <label class="roll-mode-label" for="roll-mode">New inboxes last</label>
-          <div class="select-wrap">
-            <select id="roll-mode" class="select">
-              <option value="permanent">Forever</option>
-              <option value="24h">24 hours</option>
-              <option value="7d">7 days</option>
-            </select>
-            <svg class="icon sm chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-          </div>
-        </div>
       </section>
 
       <div class="view-filters" role="group" aria-label="Filter the list">
@@ -480,6 +472,71 @@
     </div>
   </div>
 
+  <!--
+    Making an inbox: the address it will be, how long it should live, and one
+    button. Reused as the whole inbox menu on phones, where the rail's creation
+    controls are hidden so the main screen is only mail.
+  -->
+  <dialog id="new-inbox" class="drawer sheet" aria-labelledby="new-inbox-title">
+    <div class="drawer-panel" id="new-inbox-panel">
+      <div class="drawer-grip" id="new-inbox-grip" aria-hidden="true"></div>
+      <header class="drawer-head">
+        <h2 id="new-inbox-title">Inbox</h2>
+        <button type="button" class="icon-btn plain" id="new-inbox-close" aria-label="Close">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+      <div class="drawer-scroll">
+        <!-- The address about to be created leads: it is what the sheet is
+             for, and on a 320px phone whatever comes second is a scroll away. -->
+        <section class="drawer-sec">
+          <span class="card-label">New address</span>
+          <div class="new-addr">
+            <span class="new-addr-text" id="new-addr-text"></span>
+            <button type="button" class="icon-btn plain" id="new-addr-reroll" title="Try another name" aria-label="Try another name">
+              <svg class="icon sm"><use href="#i-refresh"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <!-- What you can do with the inbox you already have. On phones this is
+             the only route to it, since the rail's card is hidden there. -->
+        <section class="drawer-sec">
+          <span class="card-label">Your inbox</span>
+          <div class="new-addr">
+            <span class="new-addr-text" id="sheet-addr-text"></span>
+            <button type="button" class="icon-btn plain" id="sheet-copy" title="Copy this address" aria-label="Copy this address">
+              <svg class="icon sm"><use href="#i-copy"/></svg>
+            </button>
+          </div>
+          <div class="addr-actions">
+            <button type="button" class="btn sm ghost" id="sheet-open">
+              <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Open</span>
+            </button>
+            <button type="button" class="btn sm ghost" id="sheet-wait">
+              <svg class="icon sm"><use href="#i-key"/></svg><span>Get code</span>
+            </button>
+          </div>
+        </section>
+      </div>
+      <!-- Outside .drawer-scroll so the action and the one choice feeding it
+           are never below the fold: on a 320x568 phone the sections above
+           already fill the sheet. -->
+      <footer class="sheet-foot">
+        <span class="card-label" id="life-label">Keep it for</span>
+        <div class="seg life-seg" id="life-seg" role="group" aria-labelledby="life-label">
+          <button type="button" class="seg-btn" data-life="permanent" aria-pressed="true">Forever</button>
+          <button type="button" class="seg-btn" data-life="24h" aria-pressed="false">24 hours</button>
+          <button type="button" class="seg-btn" data-life="7d" aria-pressed="false">7 days</button>
+        </div>
+        <p class="hint" id="life-hint">It never expires. Delete it yourself when you are done.</p>
+        <button type="button" class="btn primary block" id="new-inbox-create">
+          <svg class="icon sm"><use href="#i-plus"/></svg><span>Create inbox</span>
+        </button>
+      </footer>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" popover="manual" hidden></div>
 
   <div id="mail-menu" class="menu" hidden role="menu" aria-label="Message">
@@ -498,6 +555,6 @@
     </button>
   </div>
 
-  <script src="/app.js?v=36"></script>
+  <script src="/app.js?v=39"></script>
 </body>
 </html>
