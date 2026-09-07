@@ -213,12 +213,6 @@ function linkify(text) {
   return out + escapeHtml(text.slice(last));
 }
 
-function hueFor(seed) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return hash % 360;
-}
-
 function initialsFor(name) {
   const parts = name.trim().split(/[\s.<@_-]+/).filter(Boolean);
   return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
@@ -879,7 +873,7 @@ function mailRow(m, staggerIndex) {
   const delay = staggerIndex >= 0 ? ` style="--stagger:${Math.min(staggerIndex, 6) * 45}ms"` : "";
   return `<div class="${classes}" data-id="${escapeHtml(m.id)}" role="button" tabindex="0"${delay}>
     <span class="tick-box" aria-hidden="true"><svg class="icon"><use href="#i-tick"/></svg></span>
-    <span class="avatar" style="--hue:${hueFor((m.fromAddress || from).toLowerCase())}" aria-hidden="true">${escapeHtml(initialsFor(from))}</span>
+    <span class="avatar" aria-hidden="true">${escapeHtml(initialsFor(from))}</span>
     <span class="mail-body">
       <span class="mail-top">
         <span class="mail-from">${escapeHtml(from)}</span>
@@ -1023,7 +1017,6 @@ function renderViewer() {
   $("msg-subject").textContent = msg.subject || "(no subject)";
   const avatar = $("msg-avatar");
   avatar.textContent = initialsFor(from);
-  avatar.style.setProperty("--hue", hueFor((msg.fromAddress || from).toLowerCase()));
   $("msg-from-name").textContent = msg.fromName || msg.fromAddress;
   renderLeakStrip(msg);
   renderAuthBadge(msg);

@@ -1097,38 +1097,54 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   background: linear-gradient(var(--c2) 62%, transparent);
 }
 
+/* Two lines: who it is from and when, then what it is about.
+
+   The preview used to sit permanently on a third line and the tags on a
+   fourth, which made every row five lines tall and meant a screen held six
+   messages. A preview is only worth the space when you have not read the
+   message yet, or when you are pointing at it — so that is when it shows. */
 .mail {
   position: relative;
   display: grid;
-  grid-template-columns: 38px 1fr;
-  gap: 12px;
+  grid-template-columns: 32px 1fr;
+  gap: var(--s-6);
   width: 100%;
-  padding: 12px 16px;
+  padding: var(--s-5) var(--s-8);
   text-align: left;
   box-shadow: inset 0 -1px 0 0 var(--c6);
   user-select: none;
   transition: background var(--d-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) { .mail:hover { background: var(--c3); } }
-.mail.open { background: var(--accent-a10); }
+.mail.open { background: var(--c4); }
 .mail.open::after {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 3px;
+  width: 2px;
   background: var(--accent);
 }
+/* Unread is a dot in the gutter, not an edge bar: it now reads as a column of
+   its own rather than as decoration on the frame, and it is no longer the same
+   mark as "open", which the two used to share. */
 .mail.unread::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 11px;
-  bottom: 11px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
+  left: var(--s-3);
+  top: var(--s-9);
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--signal);
 }
-/* New arrivals fade up with a touch of blur, staggered by index. */
+
+/* The preview earns its line only when unread or under the pointer. */
+.mail .mail-snippet { display: none; }
+.mail.unread .mail-snippet { display: block; }
+@media (hover: hover) and (pointer: fine) {
+  .mail:hover .mail-snippet, .mail:focus-within .mail-snippet { display: block; }
+}
+
+/* New arrivals fade up, staggered by index. */
 .mail.arrived { animation: arrive 0.42s var(--ease-out) both; animation-delay: var(--stagger, 0ms); }
 @keyframes arrive {
   0%   { opacity: 0; translate: 0 -6px; background: var(--signal-a12); }
@@ -1140,23 +1156,20 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   to { opacity: 0; translate: 12px 0; }
 }
 
+/* Kept as an anchor for the eye when scanning, but achromatic: it used to be
+   the only multi-hue thing in the app, and 38px of random colour per row was
+   more colour area than everything else combined. */
 .avatar {
-  width: 38px; height: 38px;
+  width: 32px; height: 32px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: hsl(var(--hue, 40) 34% 22%);
-  color: hsl(var(--hue, 40) 72% 76%);
-  box-shadow: inset 0 0 0 1px hsl(var(--hue, 40) 40% 40% / 0.4);
-  font-size: var(--t-md);
+  background: var(--c5);
+  color: var(--ink2);
+  font-size: var(--t-sm);
   font-weight: 600;
   text-transform: uppercase;
   user-select: none;
-}
-:root[data-theme="light"] .avatar {
-  background: hsl(var(--hue, 40) 62% 92%);
-  color: hsl(var(--hue, 40) 48% 30%);
-  box-shadow: inset 0 0 0 1px hsl(var(--hue, 40) 40% 70% / 0.5);
 }
 
 .mail-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1196,33 +1209,38 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 }
 .mail-tags { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 
+/* Tags are data, not controls. Rectangles read as a table; pills read as
+   buttons you cannot press. */
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-2);
   max-width: 100%;
-  padding: 2px 8px;
-  border-radius: var(--r-full);
-  background: var(--c5);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--c6);
   color: var(--ink3);
   font-size: var(--t-xs);
   line-height: 1.5;
 }
 .tag.addr { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tag.addr .at { color: var(--accent); }
+.tag.addr .at { color: var(--ink3); opacity: 0.6; }
+/* The one filled object in the list. A verification code is the entire reason
+   most of this mail exists, and filling it says take this, in a design where
+   nothing else is filled. */
 .tag.code {
-  /* Tappable: it copies the code, so it clears the 24px target floor. */
   min-height: 24px;
-  background: var(--accent-a10);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent-a28);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
   font-family: var(--mono);
   font-weight: 600;
   letter-spacing: var(--track-code);
   transition: background var(--d-mid) var(--ease), scale var(--d-fast) var(--ease-spring);
 }
 .tag.code:active { scale: 0.94; }
-@media (hover: hover) and (pointer: fine) { .tag.code:hover { background: var(--accent-a16); } }
+@media (hover: hover) and (pointer: fine) { .tag.code:hover { background: var(--accent-hi); } }
 .tag .icon { width: 11px; height: 11px; }
 
 .list-foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
