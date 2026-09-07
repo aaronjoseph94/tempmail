@@ -582,10 +582,11 @@ function railRow({ address, label, name, count, unread, all = false, entry = nul
     ? `<span class="stack-2"><span class="tag-label">${escapeHtml(name)}${life}</span><span class="sub">${local}</span></span>`
     : `<span class="name">${local}${life}</span>`;
   const blocked = entry?.mode === "blocked";
-  const tools = all ? "" : `
+  const tools = all ? "" : `<div class="rail-tools">
     <button class="rename" data-rename="${escapeHtml(address)}" aria-label="Name ${escapeHtml(address)}" title="Give this address a name"><svg class="icon sm"><use href="#i-tag"/></svg></button>
     <button class="burn${blocked ? " on" : ""}" data-burn="${escapeHtml(address)}" aria-pressed="${blocked}" aria-label="${blocked ? "Unblock" : "Block"} ${escapeHtml(address)}" title="${blocked ? "Unblock this address" : "Block this address: mail to it bounces"}"><svg class="icon sm"><use href="#i-ban"/></svg></button>
-    <button class="wipe" data-wipe="${escapeHtml(address)}" aria-label="Delete all mail to ${escapeHtml(address)}" title="Delete all mail to this address"><svg class="icon sm"><use href="#i-trash"/></svg></button>`;
+    <button class="wipe" data-wipe="${escapeHtml(address)}" aria-label="Delete all mail to ${escapeHtml(address)}" title="Delete all mail to this address"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+  </div>`;
   const icon = all ? '<svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>' : "";
   const dead = entry?.dead ? " dead" : "";
   return `<div class="rail-row">
@@ -835,10 +836,12 @@ function mailRow(m, staggerIndex) {
     <span class="mail-body">
       <span class="mail-top">
         <span class="mail-from">${escapeHtml(from)}</span>
-        <span class="mail-time" title="${escapeHtml(formatWhen(m.receivedAt))}">${escapeHtml(timeAgo(m.receivedAt))}</span>
-        <button class="star${m.starred ? " on" : ""}" data-star="${escapeHtml(m.id)}" aria-label="${m.starred ? "Unstar" : "Star"} this message" aria-pressed="${!!m.starred}">
-          <svg class="icon sm"><use href="#i-star"/></svg>
-        </button>
+        <span class="mail-aside">
+          <span class="mail-time" title="${escapeHtml(formatWhen(m.receivedAt))}">${escapeHtml(timeAgo(m.receivedAt))}</span>
+          <button class="star${m.starred ? " on" : ""}" data-star="${escapeHtml(m.id)}" aria-label="${m.starred ? "Unstar" : "Star"} this message" aria-pressed="${!!m.starred}">
+            <svg class="icon sm"><use href="#i-star"/></svg>
+          </button>
+        </span>
       </span>
       <span class="mail-subject">${escapeHtml(m.subject || "(no subject)")}</span>
       ${m.snippet ? `<span class="mail-snippet">${escapeHtml(m.snippet)}</span>` : ""}
@@ -1139,23 +1142,29 @@ function closeMessage({ fromHistory = false } = {}) {
 }
 
 async function deleteOpen() {
-  const msg = state.open;
+  if (state.open) deleteMessage(state.open.id);
+}
+
+async function deleteMessage(id) {
+  const msg = state.messages.find((m) => m.id === id);
   if (!msg) return;
   const list = visibleMessages();
-  const index = list.findIndex((m) => m.id === msg.id);
+  const index = list.findIndex((m) => m.id === id);
   const next = list[index + 1] || list[index - 1];
   // Slide the row out before the list is rebuilt without it.
-  $("feed").querySelector(`.mail[data-id="${CSS.escape(msg.id)}"]`)?.classList.add("leaving");
+  $("feed").querySelector(`.mail[data-id="${CSS.escape(id)}"]`)?.classList.add("leaving");
   try {
-    await send("DELETE", `/api/messages/${encodeURIComponent(msg.id)}`);
+    await send("DELETE", `/api/messages/${encodeURIComponent(id)}`);
   } catch (err) {
     toast(err.message, "i-warn");
     return;
   }
-  state.messages = state.messages.filter((m) => m.id !== msg.id);
-  closeMessage();
-  toast("Message deleted", "i-trash", { action: "Undo", onAction: () => restore([msg.id]) });
-  if (next && isDesktop()) openMessage(next.id);
+  state.messages = state.messages.filter((m) => m.id !== id);
+  if (state.open?.id === id) {
+    closeMessage();
+    if (next && isDesktop()) openMessage(next.id);
+  }
+  toast("Message deleted", "i-trash", { action: "Undo", onAction: () => restore([id]) });
   refresh().catch(() => {});
 }
 
@@ -2065,6 +2074,10 @@ function step(direction) {
 
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!$("mail-menu").hidden) {
+    if (e.key === "Escape") { e.preventDefault(); closeMailMenu(); }
+    return;
+  }
   const target = e.target;
   const typing = target instanceof HTMLElement &&
     (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
@@ -2100,6 +2113,98 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ----------------------------------------------------------------- wiring */
+
+/* Right-click menu on a message, shaped like shadcn's context menu:
+   icon + label + shortcut, a separator, then a destructive Delete. */
+let menuId = null;
+
+function closeMailMenu() {
+  const menu = $("mail-menu");
+  if (menu.hidden) return;
+  menu.hidden = true;
+  menuId = null;
+}
+
+function placeMailMenu(clientX, clientY) {
+  const menu = $("mail-menu");
+  menu.hidden = false;
+  const pad = 8;
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(Math.max(pad, clientX), innerWidth - rect.width - pad);
+  const top = Math.min(Math.max(pad, clientY), innerHeight - rect.height - pad);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.transformOrigin = `${clientX - left}px ${clientY - top}px`;
+}
+
+function openMailMenu(event, id) {
+  const msg = state.messages.find((m) => m.id === id);
+  if (!msg) return;
+  menuId = id;
+  const star = $("menu-star");
+  star.querySelector("span").textContent = msg.starred ? "Unstar" : "Star";
+  $("menu-unread").querySelector("span").textContent = msg.read ? "Mark unread" : "Mark read";
+  placeMailMenu(event.clientX, event.clientY);
+  $("mail-menu").querySelector(".menu-item")?.focus();
+}
+
+function runMailMenu(act) {
+  const id = menuId;
+  closeMailMenu();
+  if (!id) return;
+  if (act === "open") openMessage(id);
+  else if (act === "star") toggleStar(id, $("feed").querySelector(`[data-star="${CSS.escape(id)}"]`));
+  else if (act === "unread") {
+    const msg = state.messages.find((m) => m.id === id);
+    if (!msg) return;
+    const next = !msg.read;
+    send("PATCH", `/api/messages/${encodeURIComponent(id)}`, { read: next })
+      .then(() => { msg.read = next; if (state.open?.id === id) state.open.read = next; renderFeed(); renderRail(); })
+      .catch((err) => toast(err.message, "i-warn"));
+  } else if (act === "delete") deleteMessage(id);
+}
+
+let pressTimer = 0;
+$("feed").addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "touch") return;
+  const row = e.target.closest(".mail");
+  if (!row) return;
+  const { clientX, clientY } = e;
+  pressTimer = setTimeout(() => openMailMenu({ clientX, clientY }, row.dataset.id), 550);
+});
+$("feed").addEventListener("pointerup", () => clearTimeout(pressTimer));
+$("feed").addEventListener("pointercancel", () => clearTimeout(pressTimer));
+$("feed").addEventListener("pointermove", () => clearTimeout(pressTimer));
+
+$("feed").addEventListener("contextmenu", (e) => {
+  const row = e.target.closest(".mail");
+  if (!row) return;
+  e.preventDefault();
+  clearTimeout(pressTimer);
+  openMailMenu(e, row.dataset.id);
+});
+$("feed").addEventListener("scroll", closeMailMenu, { passive: true });
+
+$("mail-menu").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-act]");
+  if (item) runMailMenu(item.dataset.act);
+});
+
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest("#mail-menu")) closeMailMenu();
+}, true);
+
+$("mail-menu").addEventListener("keydown", (e) => {
+  const items = [...$("mail-menu").querySelectorAll(".menu-item")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    items[(i + 1) % items.length]?.focus();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    items[(i - 1 + items.length) % items.length]?.focus();
+  }
+});
 
 $("feed").addEventListener("click", (e) => {
   const star = e.target.closest("[data-star]");
