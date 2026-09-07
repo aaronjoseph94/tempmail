@@ -337,6 +337,30 @@ describe("address lifecycle API", () => {
     expect(left?.n).toBe(0);
   });
 
+  it("bounds the address length instead of trusting its shape", async () => {
+    // Shape alone accepted a five-thousand-character address: a row Email
+    // Routing can never deliver to, with the whole string as its primary key.
+    const local = (n: number) => "a".repeat(n);
+    expect((await put(`${local(5000)}@mail.example.test`, { mode: "permanent" })).status).toBe(400);
+    expect((await put(`${local(65)}@mail.example.test`, { mode: "permanent" })).status).toBe(400);
+    expect((await put(`${local(64)}@mail.example.test`, { mode: "permanent" })).status).toBe(200);
+
+    // 254 is the ceiling for the address as a whole, local part included.
+    const domain = "@mail.example.test";
+    expect((await put(local(254 - domain.length) + domain, { mode: "permanent" })).status).toBe(400); // local part over 64
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM addresses WHERE LENGTH(address) > 254").first<{ n: number }>();
+    expect(rows?.n).toBe(0);
+  });
+
+  it("bounces mail addressed past the RFC ceilings", async () => {
+    const to = `${"z".repeat(300)}@mail.example.test`;
+    const { storeInboundEmail } = await import("../src/email");
+    const result = await storeInboundEmail(env as any, { to, from: "s@x.example", raw: new TextEncoder().encode("Subject: hi\r\n\r\nbody").buffer });
+    expect(result.ok).toBe(false);
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM addresses WHERE address = ?1").bind(to).first<{ n: number }>();
+    expect(rows?.n).toBe(0);
+  });
+
   it("validates modes and expiries", async () => {
     expect((await put("a@mail.example.test", { mode: "forever" })).status).toBe(400);
     expect((await put("a@mail.example.test", { mode: "expires" })).status).toBe(400);

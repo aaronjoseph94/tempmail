@@ -9,6 +9,7 @@
 import {
   CLEAR_SESSION_COOKIE, checkPassword, clearFailedLogins, clientIp, createPassword, hasValidSession,
   lockoutSecondsLeft, noteFailedLogin, passwordProblem, passwordSource, replacePassword, sessionCookie,
+  timingSafeEqual,
 } from "./auth";
 import {
   deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
@@ -343,13 +344,30 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
 const ADDRESS_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
+ * RFC 5321's ceilings: 64 octets before the @, 254 for the address as a whole.
+ * Shape alone let a single PUT write a five-thousand-character primary key for
+ * an address Email Routing could never deliver to.
+ */
+const MAX_ADDRESS_LENGTH = 254;
+const MAX_LOCAL_LENGTH = 64;
+
+/** Why this address cannot be stored, or null when it can. */
+function addressProblem(address: string): string | null {
+  if (!ADDRESS_SHAPE.test(address)) return "That is not an address";
+  if (address.length > MAX_ADDRESS_LENGTH) return `An address is at most ${MAX_ADDRESS_LENGTH} characters`;
+  if (address.indexOf("@") > MAX_LOCAL_LENGTH) return `The part before the @ is at most ${MAX_LOCAL_LENGTH} characters`;
+  return null;
+}
+
+/**
  * PUT /api/addresses/:address  { mode?, ttlHours?, expiresAt?, ownerDomain?, label? }
  * Creates or updates an address's lifecycle. Block and unblock are just
  * mode "blocked" and mode "permanent".
  */
 async function putAddress({ request, env, params }: Ctx): Promise<Response> {
   const address = params.address.trim().toLowerCase();
-  if (!ADDRESS_SHAPE.test(address)) return json({ error: "That is not an address" }, 400);
+  const bad = addressProblem(address);
+  if (bad) return json({ error: bad }, 400);
   const body = await readJson(request);
   const now = Date.now();
 
@@ -420,7 +438,8 @@ async function putLabel({ request, env, params }: Ctx): Promise<Response> {
   // Without this, any path segment became an addresses row: PUT
   // /api/addresses/../label wrote a lifecycle for the literal string "..".
   const address = params.address.trim().toLowerCase();
-  if (!ADDRESS_SHAPE.test(address)) return json({ error: "That is not an address" }, 400);
+  const bad = addressProblem(address);
+  if (bad) return json({ error: bad }, 400);
   const body = await readJson(request);
   const label = String(body.label ?? "").trim().slice(0, MAX_LABEL_LENGTH);
   await setLabel(env.DB, address, label);
@@ -805,6 +824,37 @@ async function markAllRead({ env, url }: Ctx): Promise<Response> {
 /* -------------------------------------------------------- attachments */
 
 /**
+ * Content types ?inline=1 may reflect back.
+ *
+ * Inline exists for one thing: rendering a cid: image inside the message
+ * frame, whose own CSP (img-src 'self' data: blob:) can load nothing else.
+ * Echoing the sender's declared type served their HTML as text/html from this
+ * origin, leaving the app's CSP as the only thing between an emailed file and
+ * same-origin script. Anything not on this list downloads instead.
+ *
+ * image/svg+xml is deliberately absent: an SVG can carry script, and it buys
+ * nothing here that a raster image does not.
+ */
+const INLINE_TYPES = new Set([
+  "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
+  "image/avif", "image/bmp", "image/tiff", "image/x-icon", "image/vnd.microsoft.icon",
+]);
+
+/**
+ * A Content-Disposition header for a filename that may be anything at all.
+ *
+ * Quotes, backslashes and newlines are stripped so the header cannot be broken
+ * out of, and a non-ASCII name is carried by RFC 6266's filename* alongside a
+ * flattened ASCII fallback -- a raw UTF-8 filename= is read as Latin-1 by some
+ * browsers, which turns an ordinary Japanese or emoji filename into mojibake.
+ */
+function contentDisposition(kind: "inline" | "attachment", filename: string): string {
+  const safe = filename.replace(/["\\\r\n]/g, "_");
+  const ascii = safe.replace(/[^\x20-\x7e]/g, "_") || "attachment";
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(safe)}`;
+}
+
+/**
  * GET /api/messages/:id/attachments/:idx
  *
  * Streams the attachment back, pulling a few base64 chunks per query and
@@ -853,14 +903,14 @@ async function downloadAttachment({ env, params, url }: Ctx): Promise<Response> 
   });
 
   // Inline images render in the message frame; everything else downloads.
-  const inline = url.searchParams.get("inline") === "1";
-  const safeType = meta.content_type.replace(/[^\w.+/-]/g, "") || "application/octet-stream";
+  const declared = meta.content_type.replace(/[^\w.+/-]/g, "").toLowerCase();
+  const inline = url.searchParams.get("inline") === "1" && INLINE_TYPES.has(declared);
   return withSecurityHeaders(
     new Response(stream, {
       headers: {
-        "content-type": inline ? safeType : "application/octet-stream",
+        "content-type": inline ? declared : "application/octet-stream",
         "content-length": String(meta.size),
-        "content-disposition": `${inline ? "inline" : "attachment"}; filename="${meta.filename.replace(/["\\\r\n]/g, "_")}"`,
+        "content-disposition": contentDisposition(inline ? "inline" : "attachment", meta.filename),
         "cache-control": "private, max-age=3600",
       },
     })
@@ -892,7 +942,7 @@ async function exportMessage({ env, params }: Ctx): Promise<Response> {
     new Response(body, {
       headers: {
         "content-type": "text/plain; charset=utf-8",
-        "content-disposition": `attachment; filename="${name}.txt"`,
+        "content-disposition": contentDisposition("attachment", `${name}.txt`),
       },
     })
   );
@@ -904,7 +954,8 @@ async function exportMessage({ env, params }: Ctx): Promise<Response> {
  * INGEST_KEY variable (see .dev.vars.example); without that it doesn't exist.
  */
 async function devIngest(request: Request, env: Env, url: URL, ctx?: ExecutionContext): Promise<Response> {
-  if (!env.INGEST_KEY || request.headers.get("x-ingest-key") !== env.INGEST_KEY) {
+  const offered = request.headers.get("x-ingest-key");
+  if (!env.INGEST_KEY || offered === null || !timingSafeEqual(offered, env.INGEST_KEY)) {
     return json({ error: "Not found" }, 404);
   }
   const result = await storeInboundEmail(env, {

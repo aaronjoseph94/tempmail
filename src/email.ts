@@ -96,6 +96,13 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   const to = mail.to.trim().toLowerCase();
   const limits = await resolveLimits(env.DB);
 
+  // RFC 5321 caps a path at 256 octets and a local part at 64. Nothing longer
+  // is a deliverable address, and storing it would write the whole string as a
+  // primary key.
+  if (to.length > 254 || to.indexOf("@") > 64) {
+    console.log("rejecting mail for an over-long address", `(${to.length} chars)`);
+    return { ok: false, reason: "No such mailbox" };
+  }
   if (!domainAccepted(to, allowedDomains(env))) {
     console.log("rejecting mail for", to, "(domain not accepted)");
     return { ok: false, reason: "No such mailbox" };

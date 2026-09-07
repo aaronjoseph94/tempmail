@@ -148,6 +148,42 @@ describe("large attachments", () => {
     expect((await fetchAttachment("no-such-message", 0)).status).toBe(404);
   });
 
+  it("refuses to reflect a sender's content type for anything but an image", async () => {
+    // ?inline=1 exists for cid: images in the message frame. Echoing the
+    // declared type served an emailed .html file as text/html from this
+    // origin, which left the app's CSP as the only thing between it and
+    // same-origin script.
+    await deliver(
+      buildMail({
+        attachments: [
+          { name: "page.html", type: "text/html", bytes: bytes(64), cid: "evil@x" },
+          { name: "vector.svg", type: "image/svg+xml", bytes: bytes(64), cid: "vec@x" },
+        ],
+      }),
+      "reflect@mail.example.test"
+    );
+    const { messages } = await json(await call("/api/messages?address=reflect@mail.example.test", { cookie }));
+
+    for (const idx of [0, 1]) {
+      const res = await fetchAttachment(messages[0].id, idx, "?inline=1");
+      expect(res.headers.get("content-type")).toBe("application/octet-stream");
+      expect(res.headers.get("content-disposition")).toMatch(/^attachment;/);
+    }
+  }, 60_000);
+
+  it("carries a non-ASCII filename in filename*, with an ASCII fallback", async () => {
+    // A raw UTF-8 filename= is read as Latin-1 by some browsers, which turns
+    // an ordinary Japanese or emoji name into mojibake on download.
+    await deliver(
+      buildMail({ attachments: [{ name: "\u65e5\u672c\u8a9e.txt", type: "text/plain", bytes: bytes(32) }] }),
+      "unicode-name@mail.example.test"
+    );
+    const { messages } = await json(await call("/api/messages?address=unicode-name@mail.example.test", { cookie }));
+    const header = (await fetchAttachment(messages[0].id, 0)).headers.get("content-disposition")!;
+    expect(header).toContain("filename*=UTF-8''%E6%97%A5%E6%9C%AC%E8%AA%9E.txt");
+    expect(header).toContain('filename="___.txt"');
+  }, 60_000);
+
   it("quotes a filename containing quotes and newlines safely", async () => {
     await deliver(
       buildMail({ attachments: [{ name: 'we"ird\nname.txt', type: "text/plain", bytes: bytes(64) }] }),

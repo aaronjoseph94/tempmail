@@ -541,7 +541,10 @@ function loadCache() {
     const cache = JSON.parse(store.get(CACHE_KEY) || "null");
     if (!cache || !Array.isArray(cache.messages)) return false;
     state.messages = cache.messages;
-    state.addresses = cache.addresses || [];
+    // Array-checked, not just truthy: renderRail iterates it, so a cache
+    // written by a version that shaped this differently would throw on boot
+    // and leave nothing on screen at all.
+    state.addresses = Array.isArray(cache.addresses) ? cache.addresses : [];
     state.mailDomain = cache.mailDomain || "";
     return true;
   } catch {
@@ -2479,8 +2482,11 @@ $("btn-inboxes").addEventListener("click", openInboxPicker);
 function syncInboxSwitch() { $("btn-inboxes").disabled = isDesktop(); }
 wideQuery.addEventListener("change", () => {
   syncInboxSwitch();
-  // The rail rows moved container; the signature cache would otherwise skip
-  // the re-render and leave the new side empty.
+  // Widening to desktop moves the rows into the rail, which would leave an
+  // open picker showing an empty list beside a rail that has them.
+  if ($("inboxes").open && isDesktop()) closeInboxPicker();
+  // The rows changed container; the signature cache would otherwise skip the
+  // re-render and leave the new side empty.
   state.railSig = "";
   renderRail();
 });
