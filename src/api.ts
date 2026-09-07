@@ -15,7 +15,8 @@ import {
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS,
 } from "./db";
-import { allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
+import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
+import { hubStub } from "./live";
 import { json, readJson, sleep, withSecurityHeaders } from "./http";
 import type { Env } from "./index";
 import {
@@ -36,13 +37,13 @@ type Handler = (ctx: Ctx) => Promise<Response>;
 
 /* ------------------------------------------------------- public routes */
 
-export async function handlePublicApi(request: Request, env: Env, url: URL): Promise<Response | null> {
+export async function handlePublicApi(request: Request, env: Env, url: URL, ctx?: ExecutionContext): Promise<Response | null> {
   const key = `${request.method} ${url.pathname}`;
   if (key === "GET /api/status") return status(request, env);
   if (key === "POST /api/login") return login(request, env);
   if (key === "POST /api/setup") return setup(request, env);
   if (key === "POST /api/logout") return json({ ok: true }, 200, { "set-cookie": CLEAR_SESSION_COOKIE });
-  if (key === "POST /api/dev/ingest") return devIngest(request, env, url); // guarded by its own key
+  if (key === "POST /api/dev/ingest") return devIngest(request, env, url, ctx); // guarded by its own key
   return null;
 }
 
@@ -104,6 +105,7 @@ async function setup(request: Request, env: Env): Promise<Response> {
 
 const ROUTES = [
   route("GET", "/api/config", getConfig),
+  route("GET", "/api/live", live),
   route("PUT", "/api/settings", updateSettings),
   route("POST", "/api/password", changePassword),
   route("GET", "/api/addresses", listAddresses),
@@ -875,7 +877,7 @@ async function exportMessage({ env, params }: Ctx): Promise<Response> {
  * Simulates Email Routing for local development. Needs no session, only the
  * INGEST_KEY variable (see .dev.vars.example); without that it doesn't exist.
  */
-async function devIngest(request: Request, env: Env, url: URL): Promise<Response> {
+async function devIngest(request: Request, env: Env, url: URL, ctx?: ExecutionContext): Promise<Response> {
   if (!env.INGEST_KEY || request.headers.get("x-ingest-key") !== env.INGEST_KEY) {
     return json({ error: "Not found" }, 404);
   }
@@ -884,5 +886,19 @@ async function devIngest(request: Request, env: Env, url: URL): Promise<Response
     from: url.searchParams.get("from") ?? "unknown@unknown.invalid",
     raw: await request.arrayBuffer(),
   });
+  if (result.ok) afterIngest(env, ctx, result);
   return result.ok ? json(result) : json(result, 422);
+}
+
+/**
+ * GET /api/live — upgrades to a WebSocket that announces new mail.
+ * The session gate has already run. Browsers always send Origin on a
+ * WebSocket handshake, so a foreign page cannot open one with our cookie.
+ * The Durable Object's 101 response goes back untouched: rebuilding it
+ * would drop the socket.
+ */
+async function live({ request, env, url }: Ctx): Promise<Response> {
+  if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return json({ error: "Expected a WebSocket" }, 426);
+  if (request.headers.get("origin") !== url.origin) return json({ error: "Wrong origin" }, 403);
+  return hubStub(env).fetch(request);
 }

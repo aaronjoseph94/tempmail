@@ -43,6 +43,14 @@
     "crons": ["0 3 * * *"]
   },
 
+  // Open browsers hold a WebSocket to one Durable Object, which tells them
+  // the moment mail arrives (src/live.ts). SQLite-backed, so it runs on the
+  // free plan too.
+  "durable_objects": {
+    "bindings": [{ "name": "INBOX_HUB", "class_name": "InboxHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InboxHub"] }],
+
   "observability": {
     "enabled": true
   }

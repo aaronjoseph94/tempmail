@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 const MAX_WINDOW = 500;       // the API's own page-size ceiling
 const POLL_VISIBLE_MS = 8000;
 const POLL_HIDDEN_MS = 30000;
+const POLL_LIVE_MS = 60000;        // with a live socket the poll is only a backstop
 const CACHE_KEY = "cache_v3";
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -252,6 +253,7 @@ function send(method, path, body) {
 }
 
 function signedOut() {
+  dropLive();
   store.remove(CACHE_KEY);
   location.replace("/");
 }
@@ -377,7 +379,72 @@ function chime() {
 function schedulePoll() {
   clearTimeout(state.pollTimer);
   if (!state.autoRefresh) return;   // the user asked to check only on demand
-  state.pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS);
+  const wait = document.hidden ? POLL_HIDDEN_MS : state.live ? POLL_LIVE_MS : POLL_VISIBLE_MS;
+  state.pollTimer = setTimeout(poll, wait);
+}
+
+/* ------------------------------------------------------------------ live */
+
+let liveSocket = null;
+let liveRetry = 0;          // consecutive reconnect attempts, for the backoff
+let liveFailures = 0;       // sockets that died within a second of opening
+let livePing = null;
+let liveTimer = null;
+let arrivalTimer = null;
+
+/** Opens the WebSocket that announces new mail; polling remains as a backstop. */
+function connectLive() {
+  if (liveSocket || !("WebSocket" in window) || liveFailures >= 3) return;
+  let ws;
+  try {
+    ws = new WebSocket(`${location.origin.replace(/^http/, "ws")}/api/live`);
+  } catch {
+    return;
+  }
+  liveSocket = ws;
+  const opened = Date.now();
+  ws.onopen = () => {
+    liveRetry = 0;
+    setLive(true);
+    livePing = setInterval(() => { try { ws.send("ping"); } catch { /* closing */ } }, 25000);
+  };
+  ws.onmessage = (e) => {
+    let event;
+    try { event = JSON.parse(e.data); } catch { return; }
+    if (event?.type === "new") {
+      // Several arrivals in a burst become one refresh.
+      clearTimeout(arrivalTimer);
+      arrivalTimer = setTimeout(() => refresh({ announce: true }).catch(() => {}), 250);
+    }
+  };
+  ws.onclose = () => {
+    clearInterval(livePing);
+    if (liveSocket === ws) liveSocket = null;
+    setLive(false);
+    // A socket that dies at once is being refused (signed out, or no
+    // upgrade support in front of the Worker); stop hammering after three.
+    liveFailures = Date.now() - opened < 1000 ? liveFailures + 1 : 0;
+    if (liveFailures >= 3) return;
+    const delay = Math.min(30000, 1000 * 2 ** liveRetry++) + Math.random() * 500;
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(connectLive, delay);
+  };
+  ws.onerror = () => { try { ws.close(); } catch { /* already closed */ } };
+}
+
+function setLive(on) {
+  if (state.live === on) return;
+  state.live = on;
+  const pill = $("domain-pill");
+  pill.classList.toggle("live", on);
+  pill.title = on ? "Connected: new mail appears the moment it arrives" : "Checking for new mail every few seconds";
+  schedulePoll();
+}
+
+function dropLive() {
+  liveFailures = 3;           // no reconnects until the page is reloaded
+  clearTimeout(liveTimer);
+  try { liveSocket?.close(); } catch { /* fine */ }
 }
 
 async function poll() {
@@ -2008,9 +2075,15 @@ window.addEventListener("resize", () => {
   if (state.open && state.showHtml) fitFrame($("msg-frame"));
 });
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) { clearTimeout(state.pollTimer); poll(); }  // repaint and refresh at once
+  if (!document.hidden) {
+    clearTimeout(state.pollTimer); poll();   // repaint and refresh at once
+    if (!liveSocket) { liveFailures = 0; liveRetry = 0; connectLive(); }
+  }
 });
-window.addEventListener("online", () => { clearTimeout(state.pollTimer); poll(); });
+window.addEventListener("online", () => {
+  clearTimeout(state.pollTimer); poll();
+  if (!liveSocket) { liveFailures = 0; liveRetry = 0; connectLive(); }
+});
 
 /* ------------------------------------------------------------------- boot */
 
@@ -2042,4 +2115,5 @@ window.addEventListener("online", () => { clearTimeout(state.pollTimer); poll();
     console.warn("config unavailable", err);
   }
   await poll();
+  connectLive();
 })();

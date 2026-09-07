@@ -30,6 +30,7 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 - **Big attachments**: messages up to 25 MB are accepted, and attachments stream back on demand rather than loading with the message.
 - **Safe rendering**: HTML mail opens sandboxed with scripts blocked and remote images off until you ask. Inline images work; click one to zoom.
 - **Search** across sender, subject, address and preview, plus **unread** and **starred** views and **load older** for long histories.
+- **Instant delivery**: open tabs hold a live connection to the Worker and show new mail the moment it lands; polling stays as a backstop.
 - **New-mail alerts**: a quiet chime, desktop notifications, and an unread count in the tab title.
 - **Tune the limits**: retention, per-address and total caps, max message size and attachment budget are all editable in Settings.
 - **Phone-friendly**: a proper mobile layout, installable as a home-screen app (PWA).

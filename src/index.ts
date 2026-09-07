@@ -11,12 +11,17 @@ import { handleApi, handlePublicApi } from "./api";
 import { hasValidSession } from "./auth";
 import { deleteAttachmentsFor, ensureSchema, sweepOrphanAttachments } from "./db";
 import { handleEmail } from "./email";
+import type { InboxHub } from "./live";
+
+export { InboxHub } from "./live";
 import { json, withSecurityHeaders } from "./http";
 import { resolveLimits, TRASH_TTL_MS } from "./limits";
 
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  /** The Durable Object that pushes arrivals to open browsers. */
+  INBOX_HUB: DurableObjectNamespace<InboxHub>;
   /**
    * Optional allow-list of mail domains, comma separated. Leave it unset to
    * accept everything Email Routing sends here (the usual case).
@@ -38,7 +43,7 @@ const PUBLIC_FILES = new Set([
 ]);
 
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
     try {
       await ensureSchema(env.DB);
@@ -46,7 +51,7 @@ export default {
       if (request.method === "OPTIONS") return withSecurityHeaders(new Response(null, { status: 204 }));
       if (isCrossSiteWrite(request)) return json({ error: "Cross-site requests are not allowed" }, 403);
 
-      const publicResponse = await handlePublicApi(request, env, url);
+      const publicResponse = await handlePublicApi(request, env, url, ctx);
       if (publicResponse) return publicResponse;
 
       if (!(await hasValidSession(request, env))) {
@@ -72,9 +77,9 @@ export default {
 
   // Called by Cloudflare Email Routing for every message the catch-all rule sends here.
   // This works whether or not anyone has signed in to the site.
-  async email(message, env): Promise<void> {
+  async email(message, env, ctx): Promise<void> {
     await ensureSchema(env.DB);
-    await handleEmail(message, env);
+    await handleEmail(message, env, ctx);
   },
 
   // Nightly housekeeping. Starred mail is exempt from both sweeps, so anything

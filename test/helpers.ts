@@ -166,7 +166,9 @@ export async function deliver(raw: string, to: string, options: { from?: string;
     async forward() {},
     async reply() {},
   } as unknown as ForwardableEmailMessage;
-  await worker.email(message, { ...env, ...options.env }, createExecutionContext());
+  const ctx = createExecutionContext();
+  await worker.email(message, { ...env, ...options.env }, ctx);
+  await waitOnExecutionContext(ctx);
   return rejected;
 }
 

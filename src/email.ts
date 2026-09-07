@@ -12,6 +12,7 @@ import type { Env } from "./index";
 import { addressVerdict, recordArrival, senderDomain } from "./addresses";
 import { deleteAttachmentsFor } from "./db";
 import { headerValue, parseAuthResults, parseSentAt } from "./headers";
+import { pokeHub } from "./live";
 import { ATTACHMENT_CHUNK_CHARS, MAX_BODY_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
 
@@ -60,7 +61,7 @@ export function domainAccepted(address: string, allowed: string[]): boolean {
 }
 
 /** Entry point for Cloudflare Email Routing. */
-export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
+export async function handleEmail(message: ForwardableEmailMessage, env: Env, ctx?: ExecutionContext): Promise<void> {
   const result = await storeInboundEmail(env, {
     to: message.to,
     from: message.from,
@@ -68,7 +69,20 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     rawSize: message.rawSize,
   });
   // Bounce rather than silently drop, so the sender learns what happened.
-  if (!result.ok) message.setReject(result.reason);
+  if (!result.ok) {
+    message.setReject(result.reason);
+    return;
+  }
+  afterIngest(env, ctx, result);
+}
+
+/**
+ * Everything that follows a stored message but must not delay or fail the
+ * ingest itself: telling open browsers, and (later) pushing to phones.
+ */
+export function afterIngest(env: Env, ctx: ExecutionContext | undefined, stored: Extract<IngestResult, { ok: true }>): void {
+  const work = pokeHub(env, { type: "new", address: stored.address, id: stored.id, code: stored.code, at: Date.now() });
+  if (ctx) ctx.waitUntil(work);
 }
 
 export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<IngestResult> {

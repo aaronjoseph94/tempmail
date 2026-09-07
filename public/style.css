@@ -1623,6 +1623,9 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
 /* ---- paused polling indicator ---- */
 
+/* The dot pulses green only with a live socket; polling shows it amber and still. */
+.domain-pill:not(.live) .live-dot { background: var(--accent); animation: none; }
+.domain-pill:not(.live) .live-dot::after { display: none; }
 .domain-pill.paused .live-dot { background: var(--ink3); animation: none; }
 .domain-pill.paused .live-dot::after { display: none; }
 
