@@ -92,8 +92,31 @@ function toast(text, icon = "i-tick", { action = null, onAction = null, duration
     el.appendChild(button);
   }
   el.hidden = false;
+  // The settings drawer is a <dialog> opened with showModal(), which lives in
+  // the browser's top layer and paints above every z-index there is. A toast
+  // raised while it is open was landing behind it, so "Domain saved" was
+  // invisible exactly when it mattered. A popover joins that same top layer.
+  showOnTop(el);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(hideToast, duration ?? (action ? 10000 : 2400));
+}
+
+/**
+ * Puts an element in the top layer where supported; harmless where not.
+ *
+ * Always re-promotes. Rank in the top layer is the order things were promoted,
+ * so a toast still open from before a dialog opened would sit underneath it —
+ * which is the whole failure this exists to prevent.
+ */
+function showOnTop(el) {
+  if (typeof el.showPopover !== "function") return;
+  try { if (el.matches(":popover-open")) el.hidePopover(); } catch { /* not open */ }
+  try { el.showPopover(); } catch { /* refused; the z-index fallback stands */ }
+}
+
+function hideOnTop(el) {
+  if (typeof el.hidePopover !== "function") return;
+  try { if (el.matches(":popover-open")) el.hidePopover(); } catch { /* already hidden */ }
 }
 
 function hideToast() {
@@ -101,7 +124,7 @@ function hideToast() {
   clearTimeout(toastTimer);
   clearTimeout(toastHideTimer);
   el.classList.add("out");
-  toastHideTimer = setTimeout(() => { el.hidden = true; }, 140);
+  toastHideTimer = setTimeout(() => { el.hidden = true; hideOnTop(el); }, 140);
 }
 
 function escapeHtml(value) {
@@ -1442,6 +1465,7 @@ function openLabelDialog(address) {
   const entry = state.addresses.find((a) => a.address === address);
   $("label-target").textContent = address;
   $("label-input").value = entry?.label ?? "";
+  retireActionToast();
   $("label-dialog").showModal();
   $("label-input").focus();
   $("label-input").select();
@@ -1685,6 +1709,16 @@ async function copyAddress() {
 
 /* --------------------------------------------------------------- settings */
 
+/**
+ * Retires a toast that is offering an action, because a modal dialog is about
+ * to make it inert. It stays on screen looking pressable and silently is not:
+ * delete a message, open Settings, and the only route back from that delete
+ * is gone while still visible.
+ */
+function retireActionToast() {
+  if ($("toast").querySelector(".toast-act")) hideToast();
+}
+
 function openSettings() {
   const cfg = state.config || {};
   const domainFromEnv = cfg.domainSource === "env";
@@ -1709,6 +1743,7 @@ function openSettings() {
   syncPushSwitch().catch(() => {});
   renderStorage();
 
+  retireActionToast();
   $("settings").showModal();
   requestAnimationFrame(renderThemeSeg);   // measured once the drawer is on screen
 }
@@ -2238,6 +2273,9 @@ function placeMailMenu(clientX, clientY) {
 function openMailMenu(event, id) {
   const msg = state.messages.find((m) => m.id === id);
   if (!msg) return;
+  // The toast now sits in the top layer, so it would cover a menu the reader
+  // deliberately opened. Deliberate beats transient: retire the toast.
+  hideToast();
   menuId = id;
   const star = $("menu-star");
   star.querySelector("span").textContent = msg.starred ? "Unstar" : "Star";
