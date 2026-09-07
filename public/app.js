@@ -1499,7 +1499,7 @@ async function newAddress() {
   store.set(PREFS.address, state.address);
   renderAddressCard();
   const button = $("btn-roll");
-  button.classList.toggle("rolling");   // the die turns a half-step each roll
+  button.classList.toggle("rolling");   // the plus turns to a cross and back
   if (!state.mailDomain) { toast("New address ready", "i-dice"); return; }
   copyAddress();                          // ready to paste straight into a form
   // A burner has to exist before its first message so the lifecycle applies.
