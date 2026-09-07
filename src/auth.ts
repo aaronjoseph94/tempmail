@@ -124,6 +124,9 @@ export async function createPassword(env: Env, password: string): Promise<boolea
 /** Replaces the stored password. Existing sessions stop working. */
 export async function replacePassword(env: Env, password: string): Promise<void> {
   await setSetting(env.DB, SETTING_PASSWORD, await hashPassword(password));
+  // Changing the password signs every device out, so it must also stop them
+  // receiving pushed message content.
+  await env.DB.prepare("DELETE FROM push_subscriptions").run();
   signingKey = null;
 }
 

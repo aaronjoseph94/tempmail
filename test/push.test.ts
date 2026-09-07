@@ -1,7 +1,7 @@
 /** Web Push: subscriptions, VAPID, and the aes128gcm payload a browser can open. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { base64url, fromBase64url } from "../src/push";
-import { buildMail, call, deliver, env, freshDatabase, json, signIn } from "./helpers";
+import { buildMail, call, cookieFrom, deliver, env, freshDatabase, json, signIn } from "./helpers";
 
 let cookie: string;
 beforeEach(async () => {
@@ -126,5 +126,55 @@ describe("a push on arrival", () => {
     const spy = vi.spyOn(globalThis, "fetch");
     await deliver(buildMail(), "quiet@mail.example.test");
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("hardening", () => {
+  it("refuses a push endpoint that points inside the network", async () => {
+    const browser = await fakeBrowser();
+    for (const endpoint of [
+      "https://127.0.0.1/send", "https://[::1]/send", "https://[::ffff:169.254.169.254]/send",
+      "https://10.0.0.5/send", "https://metadata.google.internal/send", "https://push.example:8443/send",
+      "http://push.example/send",
+    ]) {
+      const res = await call("/api/push/subscriptions", { cookie, json: { endpoint, keys: browser.keys } });
+      expect(res.status, endpoint).toBe(400);
+    }
+    expect((await json(await call("/api/push/subscriptions", { cookie }))).devices).toBe(0);
+  });
+
+  it("stops pushing to every device when the password changes", async () => {
+    const browser = await fakeBrowser();
+    await call("/api/push/subscriptions", { cookie, json: { endpoint: browser.endpoint, keys: browser.keys } });
+    expect((await json(await call("/api/push/subscriptions", { cookie }))).devices).toBe(1);
+
+    const res = await call("/api/password", { cookie, json: { currentPassword: "correct horse battery", newPassword: "a whole new secret" } });
+    expect(res.status).toBe(200);
+    cookie = cookieFrom(res);
+    expect((await json(await call("/api/push/subscriptions", { cookie }))).devices).toBe(0);
+  });
+
+  it("keeps the key pair together and recovers from a corrupt one", async () => {
+    // Concurrent first-callers must all end up with the same, matching pair.
+    const keys = await Promise.all([1, 2, 3].map(async () => (await json(await call("/api/push/key", { cookie }))).key));
+    expect(new Set(keys).size).toBe(1);
+
+    // The signature the Worker actually sends must verify against the served key.
+    const browser = await fakeBrowser();
+    await call("/api/push/subscriptions", { cookie, json: { endpoint: browser.endpoint, keys: browser.keys } });
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 201 }));
+    await deliver(buildMail(), "pair@mail.example.test");
+    const auth = ((spy.mock.calls[0][1] as RequestInit).headers as Record<string, string>).authorization.match(/^vapid t=([^,]+), k=(\S+)$/)!;
+    const [h, c, sig] = auth[1].split(".");
+    expect(auth[2]).toBe(keys[0]);
+    const verifyKey = await crypto.subtle.importKey("raw", fromBase64url(keys[0]), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    expect(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, verifyKey, fromBase64url(sig), new TextEncoder().encode(`${h}.${c}`))).toBe(true);
+    vi.restoreAllMocks();
+
+    // A corrupt stored value regenerates instead of throwing a 500.
+    await env.DB.prepare("UPDATE settings SET value = 'not json' WHERE key = 'vapid_keys'").run();
+    const after = await call("/api/push/key", { cookie });
+    expect(after.status).toBe(200);
+    expect((await json(after)).key).not.toBe(keys[0]);
   });
 });

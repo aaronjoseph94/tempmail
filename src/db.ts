@@ -15,7 +15,13 @@ export const SETTING_PER_ADDRESS = "per_address_cap";
 export const SETTING_GLOBAL_CAP = "global_cap";
 export const SETTING_RAW_MB = "raw_mb";
 export const SETTING_ATTACHMENT_MB = "attachment_mb";
-/** The instance's Web Push (VAPID) key pair, created on first use. */
+/**
+ * The instance's Web Push (VAPID) key pair, created on first use and stored as
+ * one JSON value. It used to live in two rows; writing them separately let two
+ * concurrent creators each win one half, leaving a public key that did not
+ * match the private one. The two legacy keys are still read as a fallback.
+ */
+export const SETTING_VAPID_KEYS = "vapid_keys";
 export const SETTING_VAPID_PUBLIC = "vapid_public";
 export const SETTING_VAPID_PRIVATE = "vapid_private";
 /** Bumped when a one-off data migration has run, so it never runs twice. */

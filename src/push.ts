@@ -12,7 +12,7 @@
  * session secret.
  */
 
-import { getSetting, SETTING_VAPID_PRIVATE, SETTING_VAPID_PUBLIC, setSettingIfAbsent } from "./db";
+import { getSetting, setSetting, SETTING_VAPID_KEYS, SETTING_VAPID_PRIVATE, SETTING_VAPID_PUBLIC, setSettingIfAbsent } from "./db";
 import type { Env } from "./index";
 
 export interface PushPayload {
@@ -71,22 +71,47 @@ export interface VapidKeys {
   privateJwk: JsonWebKey;
 }
 
-/** The instance's VAPID key pair, created on first use. */
-export async function getVapidKeys(env: Env): Promise<VapidKeys> {
-  let pub = await getSetting(env.DB, SETTING_VAPID_PUBLIC);
-  let priv = await getSetting(env.DB, SETTING_VAPID_PRIVATE);
-  if (!pub || !priv) {
-    const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
-    const raw = (await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer;
-    const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as JsonWebKey;
-    // First writer wins; everyone then reads back the same pair.
-    await setSettingIfAbsent(env.DB, SETTING_VAPID_PRIVATE, JSON.stringify(jwk));
-    await setSettingIfAbsent(env.DB, SETTING_VAPID_PUBLIC, base64url(raw));
-    pub = await getSetting(env.DB, SETTING_VAPID_PUBLIC);
-    priv = await getSetting(env.DB, SETTING_VAPID_PRIVATE);
-    if (!pub || !priv) throw new Error("could not create the push keys");
+/** Reads a stored pair, returning null when it is absent or unusable. */
+function readKeys(raw: string | null, publicKey?: string | null): VapidKeys | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<VapidKeys> & JsonWebKey;
+    // Either shape: the new single value, or a legacy private JWK plus its public half.
+    const privateJwk = parsed.privateJwk ?? (parsed as JsonWebKey);
+    const pub = parsed.publicKey ?? publicKey ?? null;
+    if (!pub || typeof privateJwk !== "object" || privateJwk.kty !== "EC" || typeof privateJwk.d !== "string") return null;
+    return { publicKey: pub, privateJwk };
+  } catch {
+    return null;                       // a corrupt row regenerates rather than throwing
   }
-  return { publicKey: pub, privateJwk: JSON.parse(priv) as JsonWebKey };
+}
+
+/**
+ * The instance's VAPID key pair, created on first use.
+ *
+ * The pair is one settings value written with a single INSERT OR IGNORE, so
+ * concurrent creators cannot end up with mismatched halves: the loser's write
+ * is ignored and it reads back the winner's pair.
+ */
+export async function getVapidKeys(env: Env): Promise<VapidKeys> {
+  const existing = readKeys(await getSetting(env.DB, SETTING_VAPID_KEYS))
+    ?? readKeys(await getSetting(env.DB, SETTING_VAPID_PRIVATE), await getSetting(env.DB, SETTING_VAPID_PUBLIC));
+  if (existing) return existing;
+
+  const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
+  const raw = (await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer;
+  const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as JsonWebKey;
+  const mine: VapidKeys = { publicKey: base64url(raw), privateJwk: jwk };
+
+  await setSettingIfAbsent(env.DB, SETTING_VAPID_KEYS, JSON.stringify(mine));
+  let stored = readKeys(await getSetting(env.DB, SETTING_VAPID_KEYS));
+  if (!stored) {
+    // A row is there but unusable, so the insert above was ignored: replace it.
+    await setSetting(env.DB, SETTING_VAPID_KEYS, JSON.stringify(mine));
+    stored = readKeys(await getSetting(env.DB, SETTING_VAPID_KEYS));
+  }
+  if (!stored) throw new Error("could not create the push keys");
+  return stored;                       // the winner's pair, which may not be mine
 }
 
 /** `Authorization: vapid t=<jwt>, k=<key>` for one push service origin. */
