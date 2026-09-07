@@ -1109,7 +1109,7 @@ function prepareHtml(html, attachments, allowImages, messageId) {
     '<meta charset="utf-8">' +
     `<meta http-equiv="Content-Security-Policy" content="${csp}">` +
     '<base target="_blank">' +
-    "<style>html,body{margin:0}body{padding:18px;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#0e1220;background:#fff;overflow-wrap:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#4f46e5}</style>";
+    "<style>html,body{margin:0}body{padding:18px;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#0e1220;background:#fff;overflow-wrap:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#1a56db}</style>";
 
   // Always wrap. Looking for the message's own <head> with a regex meant a
   // "<head>" inside a comment or an attribute value could place the policy

@@ -71,33 +71,43 @@
 
   /* Neutral ramp, darkest surface to brightest text. Cool slate, so the
      indigo accent reads as part of the same family rather than an intrusion. */
-  --c1: #0a0a0f;   /* page */
-  --c2: #0f0f16;   /* panels */
-  --c3: #14141c;   /* cards */
-  --c4: #1a1a24;   /* hover */
-  --c5: #21212c;   /* pressed, wells */
-  --c6: #2a2a37;   /* hairlines */
-  --c7: #383847;   /* strong hairlines */
-  --c8: #50505f;   /* disabled ink */
+  --c1: #0b0b0c;   /* page */
+  --c2: #101011;   /* panels */
+  --c3: #151517;   /* cards */
+  --c4: #1c1c1e;   /* hover */
+  --c5: #232326;   /* pressed, wells */
+  --c6: #2c2c30;   /* hairlines */
+  --c7: #3b3b40;   /* strong hairlines */
+  --c8: #57575d;   /* disabled ink */
 
-  --ink: #eaeaf2;  /* primary text */
-  --ink2: #a4a4b8; /* secondary */
-  --ink3: #9090a4; /* tertiary, meta — 5.1:1 on the lightest dark surface */
+  --ink: #f2f2f3;  /* primary text — 14.0:1 on the lightest surface */
+  --ink2: #a9a9ae; /* secondary — 6.7:1 */
+  --ink3: #98989e; /* tertiary, meta — 5.5:1 */
 
-  --accent: #818cf8;
-  --accent-hi: #a5b4fc;
-  --accent-ink: #0a0a0f;
-  --accent-a10: rgb(129 140 248 / 0.10);
-  --accent-a16: rgb(129 140 248 / 0.16);
-  --accent-a28: rgb(129 140 248 / 0.28);
+  /* The accent is ink, not a hue. It marks the one action worth taking on a
+     screen and nothing else, which is why it can afford to be the only solid
+     fill in the app. */
+  --accent: #f2f2f3;
+  --accent-hi: #ffffff;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(255 255 255 / 0.07);
+  --accent-a16: rgb(255 255 255 / 0.12);
+  --accent-a28: rgb(255 255 255 / 0.22);
 
-  --ok: #34d399;
+  /* Colour is reserved for things the system reports on its own: mail landing,
+     a socket that is open, a code worth copying. If it is coloured, something
+     happened. --ok is an alias so the six existing usages keep working. */
+  --signal: #3ddc97;
+  --signal-a12: rgb(61 220 151 / 0.12);
+  --ok: var(--signal);
+  --warn: #eab308;
   --danger: #fb7185;
   --danger-a12: rgb(251 113 133 / 0.13);
+  --scrim: rgb(0 0 0 / 0.62);
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
-  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / 0.55);
-  --shadow-3: 0 24px 64px -12px rgb(0 0 0 / 0.72);
+  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / 0.5);
+  --shadow-3: 0 16px 40px -12px rgb(0 0 0 / 0.6);
   --ring: 0 0 0 3px var(--accent-a28);
 
   /* A hairline that reads as a light edge rather than a drawn border. */
@@ -176,33 +186,39 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --c1: #f6f7f9;
+  --c1: #f5f5f4;
   --c2: #ffffff;
-  --c3: #fbfcfd;
-  --c4: #f1f3f7;
-  --c5: #e6e9ef;
-  --c6: #dee2ea;
-  --c7: #c8cedb;
-  --c8: #98a0b0;
+  --c3: #fafaf9;
+  --c4: #efefed;
+  --c5: #e6e6e3;
+  --c6: #dcdcd9;
+  --c7: #c4c4c0;
+  --c8: #989894;
 
-  --ink: #0e1220;
-  --ink2: #4a5268;
-  --ink3: #5a6379; /* tertiary, meta — 4.7:1 on the darkest light surface */
+  --ink: #121213;  /* 15.0:1 on the darkest surface */
+  --ink2: #4c4c50; /* 6.8:1 */
+  --ink3: #5d5d61; /* 5.2:1 */
 
-  --accent: #4f46e5;
-  --accent-hi: #4338ca;
+  --accent: #121213;
+  --accent-hi: #000000;
   --accent-ink: #ffffff;
-  --accent-a10: rgb(79 70 229 / 0.08);
-  --accent-a16: rgb(79 70 229 / 0.13);
-  --accent-a28: rgb(79 70 229 / 0.22);
+  --accent-a10: rgb(0 0 0 / 0.05);
+  --accent-a16: rgb(0 0 0 / 0.09);
+  --accent-a28: rgb(0 0 0 / 0.18);
 
-  --ok: #059669;
-  --danger: #be123c; /* 5.3:1 on its own tinted chip, 6.3:1 on white */
+  /* Was #059669, which measured 3.18:1 as text on its own tint — under the
+     floor, and it is used as text on the authenticity badge. */
+  --signal: #0e6f47;
+  --signal-a12: rgb(14 111 71 / 0.10);
+  --ok: var(--signal);
+  --warn: #a16207;
+  --danger: #be123c;
   --danger-a12: rgb(225 29 72 / 0.09);
+  --scrim: rgb(18 18 19 / 0.42);
 
-  --shadow-1: 0 1px 2px rgb(20 28 50 / 0.06);
-  --shadow-2: 0 4px 16px -4px rgb(20 28 50 / 0.12);
-  --shadow-3: 0 24px 64px -12px rgb(20 28 50 / 0.22);
+  --shadow-1: 0 1px 2px rgb(18 18 19 / 0.06);
+  --shadow-2: 0 4px 16px -4px rgb(18 18 19 / 0.10);
+  --shadow-3: 0 16px 40px -12px rgb(18 18 19 / 0.16);
   --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.8);
 }
 
@@ -452,12 +468,14 @@ kbd {
 }
 .seg-btn[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
 
+/* An unread count is a number, not a button. Filling it made it compete with
+   the one action on the screen that is actually filled. */
 .badge {
   min-width: 19px;
   padding: 2px 6px;
-  border-radius: var(--r-full);
-  background: var(--accent);
-  color: var(--accent-ink);
+  border-radius: var(--r-sm);
+  background: var(--c5);
+  color: var(--ink);
   font-size: var(--t-xs);
   font-weight: 600;
   line-height: 1.35;
@@ -465,7 +483,7 @@ kbd {
 }
 /* A count that just changed gives a small pop rather than swapping silently. */
 .badge.bump { animation: bump var(--d-slow) var(--ease-spring); }
-@keyframes bump { 0% { scale: 1; } 45% { scale: 1.22; } 100% { scale: 1; } }
+@keyframes bump { 0% { scale: 1; } 45% { scale: 1.14; } 100% { scale: 1; } }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span { font-size: var(--t-md); font-weight: 500; color: var(--ink2); }
@@ -778,7 +796,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(0 0 0 / 0.55);
+  background: var(--scrim);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: fade-in var(--d-mid) var(--ease) both;
@@ -1515,7 +1533,7 @@ dialog.drawer {
   overflow: visible;
 }
 dialog.drawer::backdrop {
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim);
   opacity: 0;
   transition: opacity var(--d-sheet) var(--ease), display var(--d-sheet) allow-discrete, overlay var(--d-sheet) allow-discrete;
 }
@@ -1850,7 +1868,7 @@ dialog.mini {
   color: var(--ink);
 }
 dialog.mini::backdrop {
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim);
   opacity: 0;
   transition: opacity var(--d-slow) var(--ease), display var(--d-slow) allow-discrete, overlay var(--d-slow) allow-discrete;
 }
