@@ -563,13 +563,13 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
+  padding: 14px 14px 18px;
   border-radius: var(--r-lg);
   background:
     radial-gradient(120% 100% at 0% 0%, var(--accent-a10), transparent 60%),
     var(--c3);
   box-shadow: inset 0 0 0 1px var(--c6), var(--edge), var(--shadow-1);
-  overflow: hidden;
+  overflow: visible;
   container-type: inline-size;
   container-name: addr;
 }
@@ -607,7 +607,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .addr-value .text {
   min-width: 0;
   flex: 1;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .addr-value .text > span { white-space: normal; }
 .addr-value .at, .addr-value .domain { color: var(--ink2); }
@@ -709,14 +709,31 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 @media (prefers-reduced-motion: reduce) { .wait, .wait-card, .wait-dots span { animation: none; } }
 
 /* Lifetime picker under the address actions. */
-.roll-mode { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.roll-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  flex: none;
+}
 .roll-mode-label { font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
-.seg.full { display: flex; width: 100%; min-width: 0; }
+.seg.full {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  box-sizing: border-box;
+}
 .seg.full .seg-btn {
   flex: 1 1 0;
   min-width: 0;
-  padding: 6px 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 6px;
   font-size: var(--t-xs);
+  line-height: 1.2;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -1969,7 +1986,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .select-actions .icon-btn.plain { margin-left: auto; }
 
   /* Comfortable touch targets: 44px minimum on anything tappable. */
-  .addr-card { gap: 14px; padding: 16px; }
+  .addr-card { gap: 14px; padding: 16px 16px 20px; }
   .addr-actions { gap: 8px; }
   .addr-actions .btn { min-height: 64px; font-size: var(--t-sm); gap: 6px; }
   .icon-btn { width: 40px; height: 40px; }
@@ -1980,7 +1997,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .chip { padding: 9px 14px; font-size: var(--t-md); }
   .seg-btn { padding: 7px 15px; font-size: var(--t-md); }
   /* Lifetime picker stays compact so Always / 24h / 7d / Once share one row. */
-  .seg.full .seg-btn { padding: 7px 4px; font-size: var(--t-sm); }
+  .seg.full .seg-btn { padding: 8px 6px; font-size: var(--t-sm); }
   .setting-row { flex-direction: column; align-items: stretch; }
   .setting-row .seg { width: 100%; }
   .setting-row .seg-btn { flex: 1; }
