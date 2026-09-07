@@ -446,7 +446,11 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   top: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: 1fr minmax(0, 520px) 1fr;
+  /* The outer columns must not fall below their contents. Plain `1fr` lets a
+     track collapse under its own content once the 520px search box has taken
+     its share, and the brand then spills out of its column and under the box;
+     a max-content floor makes the search box give way instead. */
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 520px) minmax(max-content, 1fr);
   align-items: center;
   gap: 16px;
   height: var(--bar-h);
