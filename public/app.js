@@ -1429,9 +1429,7 @@ function rollMode() {
 function setRollMode(mode) {
   if (!(mode in ROLL_MODES)) return;
   store.set(PREFS.rollMode, mode);
-  const seg = $("roll-mode");
-  for (const button of seg.querySelectorAll(".seg-btn")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
-  moveSegHighlight(seg);
+  $("roll-mode").value = mode;
 }
 
 /** Beside the sender: what Cloudflare's SPF, DKIM and DMARC checks said. */
@@ -2291,10 +2289,7 @@ $("wait").addEventListener("click", (e) => { if (e.target === e.currentTarget) s
 $("set-push").addEventListener("change", (e) => togglePush(e.target.checked));
 $("msg-warn-plain").addEventListener("click", () => { state.showHtml = false; renderBody(); });
 $("btn-burn").addEventListener("click", () => { if (state.filter) toggleBlock(state.filter); });
-$("roll-mode").addEventListener("click", (e) => {
-  const button = e.target.closest(".seg-btn");
-  if (button) setRollMode(button.dataset.mode);
-});
+$("roll-mode").addEventListener("change", (e) => setRollMode(e.target.value));
 // Leak cards live inside the feed; their buttons route here.
 $("feed").addEventListener("click", (e) => {
   const burn = e.target.closest("[data-burn]");
@@ -2343,7 +2338,6 @@ window.addEventListener("popstate", () => closeMessage({ fromHistory: true }));
 window.addEventListener("resize", () => {
   moveRailHighlight();
   moveSegHighlight();
-  moveSegHighlight($("roll-mode"));
   if ($("settings").open) moveSegHighlight($("theme-seg"));
   if (state.open && state.showHtml) fitFrame($("msg-frame"));
 });
