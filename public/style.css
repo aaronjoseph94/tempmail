@@ -840,7 +840,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   font-size: var(--t-md);
 }
 .rail-item.all .name { font-family: var(--font); font-size: var(--t-md); font-weight: 600; }
-/* Lifecycle tag beside the name: hours left, 1-shot, used, blocked. */
+/* Lifecycle tag beside the name: time left, or blocked. */
 .life {
   display: inline-block;
   margin-left: 6px;

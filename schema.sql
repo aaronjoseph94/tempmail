@@ -43,11 +43,11 @@ CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages (deleted_at);
 CREATE TABLE IF NOT EXISTS addresses (
   address       TEXT PRIMARY KEY,
   label         TEXT,
-  mode          TEXT NOT NULL DEFAULT 'permanent', -- permanent | expires | sealed | blocked
+  mode          TEXT NOT NULL DEFAULT 'permanent', -- permanent | expires | blocked
   expires_at    INTEGER,                           -- for mode = expires
   owner_domain  TEXT,                              -- the service the address was given to
   created_at    INTEGER NOT NULL,
-  first_seen_at INTEGER                            -- first accepted message; a sealed address is used once this is set
+  first_seen_at INTEGER                            -- when the first accepted message arrived
 );
 
 -- One row per attachment (everything except the bytes), and the bytes as

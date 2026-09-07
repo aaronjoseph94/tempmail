@@ -615,7 +615,7 @@ function railRow({ address, label, name, count, unread, all = false, entry = nul
     </button>${tools}</div>`;
 }
 
-/** The small lifecycle tag on a rail row: "23h", "1-shot", "used", "blocked". */
+/** The small lifecycle tag on a rail row: "<1h", "23h", "6d", "blocked". */
 function lifeChip(entry) {
   if (!entry) return "";
   if (entry.mode === "blocked") return '<span class="life dead">blocked</span>';
@@ -673,9 +673,8 @@ async function toggleBlock(address) {
   const entry = state.addresses.find((a) => a.address === address);
   const blocking = entry?.mode !== "blocked";
   const previous = entry?.mode ?? "permanent";
-  // What Undo should send. A sealed address is never re-sent: the server reads
-  // mode "sealed" as "re-arm this one-shot", which would hand back an address
-  // the user had already spent. An expiry in the past would be rejected.
+  // What Undo should send. An expiry already in the past would be rejected,
+  // so there is nothing to restore for an address that has since expired.
   let revert = null;
   if (previous === "blocked") revert = { mode: "blocked" };
   else if (previous === "expires") revert = entry?.expiresAt > Date.now() ? { mode: "expires", expiresAt: entry.expiresAt } : null;

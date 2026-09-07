@@ -19,8 +19,8 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 ## What you get
 
 - **Catch-all**: every address at your domain lands in one inbox. Filter by address, name one, or wipe it in a click.
-- **Instant addresses**: the sidebar generates a fresh, memorable address (`quiet-otter-42@…`) and copies it for you.
-- **Burner addresses**: a generated address can last forever, a day, a week, or take exactly one message. Afterwards mail to it bounces at the door, and you can block any address the same way.
+- **Instant inboxes**: **New Inbox** in the sidebar makes a fresh, memorable address (`quiet-otter-42@…`) and copies it for you.
+- **Burner addresses**: a new inbox can last forever, a day or a week. Once it expires, mail to it bounces at the door, and you can block any address the same way.
 - **Leak detector**: each address remembers the service it was given to. Hear from anyone else and the **Leaks** view names them, one tap from blocking the address.
 - **Sender check**: a badge next to the sender says whether Cloudflare's SPF, DKIM and DMARC checks passed, and a strip warns when a link's text, characters or domain are pretending to be something else.
 - **One-tap unsubscribe**: when a sender supports one-click unsubscribe, the inbox sends the request for you; otherwise it opens their link.
@@ -113,8 +113,8 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
 
 | | |
 |---|---|
-| **Your address** | The card in the sidebar. Click it to copy, **Generate** for another (it is copied for you), **Go to box** to see only its mail. **New addresses last** decides whether a generated address lives forever, a day, a week, or takes exactly one message. |
-| **Wait for code** | Tap before you sign up somewhere. The next message to that address shows its code full-screen and copies it. |
+| **Your inbox** | The card in the sidebar. Click the address to copy it, **New Inbox** for another (it is copied for you), **Open** to see only its mail. **New inboxes last** decides whether a new inbox lives forever, a day or a week. |
+| **Get code** | Tap before you sign up somewhere. The next message to that address shows its code full-screen and copies it, whatever the list is filtered to. |
 | **Read** | Click a message. `J` / `K` move through the list, `Esc` closes. |
 | **Star** | The star on any row, or `S` in the reading pane. Starred mail survives the nightly cleanup. |
 | **Select** | The tick icon in the list header, or `X`. Then **All**, mark read or unread, star or unstar, or delete in bulk. |
@@ -128,7 +128,7 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
 | **Search** | The box in the top bar, or press `/`. **All / Unread / Starred / Leaks** switch the view. |
 | **Leaks** | Every address remembers the first service that wrote to it. Mail from anyone else lists the address here with the offenders; **Block address** bounces everything to it from then on. |
 | **Block** | The ⃠ icon on an address row, in the list header, or under a leaked message. Blocked addresses bounce at the door; the toast offers Undo. |
-| **Addresses** | The sidebar lists every address that has received mail or been generated as a burner, with a tag for its lifetime (`23h`, `1-shot`, `used`, `blocked`). Give one a name with the tag icon. On phones they become chips above the list. |
+| **Inboxes** | The sidebar lists every address that has received mail or been made as a burner, with a tag for its lifetime (`<1h`, `23h`, `6d`, `blocked`). Name one with the tag icon, or delete it and its mail with the trash icon. On phones they become chips above the list. |
 | **Refresh** | New mail arrives live while the tab is open (the green dot by the domain). The refresh icon, or `R`, checks by hand. |
 | **Settings** | Gear icon (or `,`): mail domain, password, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), remote images, storage limits. |
 
