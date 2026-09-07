@@ -3,16 +3,15 @@
  *
  * The inbox is a catch-all, so an address exists the moment mail arrives for
  * it. This module adds a lifecycle on top: an address can be permanent, can
- * expire, can seal itself after its first message (a one-shot for sign-ups),
- * or can be blocked. Mail to a dead address is refused at SMTP time, so it
- * never lands and the sender gets a bounce.
+ * expire, or can be blocked. Mail to a dead address is refused at SMTP time,
+ * so it never lands and the sender gets a bounce.
  *
  * Each address also remembers the first domain that wrote to it. That is the
  * service the address was handed to; mail from anyone else means the address
  * leaked, and the leak view shows who has it.
  */
 
-export const ADDRESS_MODES = ["permanent", "expires", "sealed", "blocked"] as const;
+export const ADDRESS_MODES = ["permanent", "expires", "blocked"] as const;
 export type AddressMode = (typeof ADDRESS_MODES)[number];
 
 export interface AddressRow {
@@ -43,7 +42,6 @@ export function isDead(row: AddressRow, now: number): boolean {
   switch (row.mode) {
     case "blocked": return true;
     case "expires": return row.expires_at != null && row.expires_at <= now;
-    case "sealed": return row.first_seen_at != null;
     default: return false;
   }
 }

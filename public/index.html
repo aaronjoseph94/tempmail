@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="robots" content="noindex" />
   <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -56,6 +56,7 @@
       <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
       <symbol id="i-unsub" viewBox="0 0 24 24"><path d="M20.5 12.5V7a2 2 0 0 0-2-2h-13a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h7"/><path d="m3.5 7.5 8.5 6 8.5-6"/><path d="M15 18.5h6"/></symbol>
       <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 2.8 4.5 5.9v5.4c0 4.6 3.1 8.9 7.5 10 4.4-1.1 7.5-5.4 7.5-10V5.9z"/><path d="m8.8 12.2 2.2 2.2 4.3-4.6"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
       <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3.5 8.5h8a5 5 0 0 1 0 10h-4"/><path d="M7 4.5l-4 4 4 4"/></symbol>
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11V4.5H10l10 10-6.5 6.5z"/><circle cx="7.3" cy="7.8" r="1.3"/></symbol>
@@ -104,11 +105,11 @@
   <main class="shell">
     <!-- Left rail: the address you hand out, then every address that has mail -->
     <aside class="rail">
-      <section class="addr-card" aria-labelledby="addr-card-label">
-        <span class="card-label" id="addr-card-label">
-          <svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>Your address
-        </span>
-        <button id="btn-copy" class="addr-value" title="Copy address (c)">
+      <!-- The inbox you hand out: what it is, then what you can do with it. -->
+      <section class="inbox-card" aria-labelledby="inbox-card-label">
+        <span class="card-label" id="inbox-card-label">Your inbox</span>
+
+        <button id="btn-copy" class="addr-value" title="Copy this address (C)">
           <span class="text"><span id="addr-local"></span><span class="domain" id="addr-domain"></span></span>
           <span class="copy-slot" aria-hidden="true">
             <svg class="icon copy"><use href="#i-copy"/></svg>
@@ -118,27 +119,27 @@
         <p class="hint" id="addr-hint" hidden>
           Add your mail domain in <button type="button" class="link" id="link-domain">Settings</button> to finish the address.
         </p>
-        <!-- Generating is the primary action; the other two are secondary and
-             share a row beneath it. -->
-        <button id="btn-roll" class="btn primary block" title="Generate a different address (N)">
-          <svg class="icon sm spin"><use href="#i-dice"/></svg><span>Generate a new address</span>
+
+        <button id="btn-roll" class="btn primary block" title="Make a new inbox (N)">
+          <svg class="icon sm spin"><use href="#i-plus"/></svg><span>New Inbox</span>
         </button>
+
         <div class="addr-actions">
-          <button id="btn-mine" class="btn sm ghost" title="Show only the messages sent to this address" aria-label="Go to this address's box">
-            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Go to box</span>
+          <button id="btn-mine" class="btn sm ghost" title="Show only the mail sent to this address" aria-label="Open this inbox">
+            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Open</span>
           </button>
-          <button id="btn-wait" class="btn sm ghost" title="Watch this address and show the next code as soon as it lands" aria-label="Wait for a code">
-            <svg class="icon sm"><use href="#i-key"/></svg><span>Wait for code</span>
+          <button id="btn-wait" class="btn sm ghost" title="Watch this inbox and show the next code the moment it lands" aria-label="Wait for a code">
+            <svg class="icon sm"><use href="#i-key"/></svg><span>Get code</span>
           </button>
         </div>
+
         <div class="roll-mode">
-          <label class="roll-mode-label" for="roll-mode">New addresses last</label>
+          <label class="roll-mode-label" for="roll-mode">New inboxes last</label>
           <div class="select-wrap">
             <select id="roll-mode" class="select">
-              <option value="permanent">Always</option>
+              <option value="permanent">Forever</option>
               <option value="24h">24 hours</option>
               <option value="7d">7 days</option>
-              <option value="once">One message</option>
             </select>
             <svg class="icon sm chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
           </div>
@@ -151,13 +152,13 @@
           Unread<span class="pip" id="pip-unread" hidden></span>
         </button>
         <button class="view-chip" data-view="starred" aria-pressed="false">Starred</button>
-        <button class="view-chip" data-view="leaks" aria-pressed="false" title="Addresses that hear from someone other than the service they were made for">
+        <button class="view-chip" data-view="leaks" aria-pressed="false" title="Inboxes that hear from someone other than the service they were made for">
           Leaks<span class="pip warn" id="pip-leaks" hidden></span>
         </button>
       </div>
 
-      <nav class="rail-group" aria-label="Addresses">
-        <div class="rail-head"><span>Addresses</span><span id="addr-count"></span></div>
+      <nav class="rail-group" aria-label="Inboxes">
+        <div class="rail-head"><span>Inboxes</span><span id="addr-count"></span></div>
         <div class="rail-list" id="rail-list" data-ready="false"></div>
       </nav>
     </aside>
@@ -185,7 +186,7 @@
           <button id="btn-burn" class="icon-btn" aria-label="Block this address" title="Block this address" aria-pressed="false" hidden>
             <svg class="icon sm"><use href="#i-ban"/></svg>
           </button>
-          <button id="btn-wipe" class="icon-btn danger" aria-label="Delete every message to this address" title="Wipe this address" hidden>
+          <button id="btn-wipe" class="icon-btn danger" aria-label="Delete this inbox and all its mail" title="Delete this inbox" hidden>
             <svg class="icon sm"><use href="#i-trash"/></svg>
           </button>
         </div>

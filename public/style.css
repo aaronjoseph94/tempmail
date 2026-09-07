@@ -19,35 +19,35 @@
 :root {
   color-scheme: dark;
 
-  /* Neutral ramp, darkest surface to brightest text. Slightly warm so it
-     sits next to the amber accent without looking blue. */
-  --c1: #08080a;   /* page */
-  --c2: #0d0d10;   /* panels */
-  --c3: #121216;   /* cards */
-  --c4: #17171c;   /* hover */
-  --c5: #1e1e24;   /* pressed, wells */
-  --c6: #26262e;   /* hairlines */
-  --c7: #32323c;   /* strong hairlines */
-  --c8: #4a4a57;   /* disabled ink */
+  /* Neutral ramp, darkest surface to brightest text. Cool slate, so the
+     indigo accent reads as part of the same family rather than an intrusion. */
+  --c1: #0a0a0f;   /* page */
+  --c2: #0f0f16;   /* panels */
+  --c3: #14141c;   /* cards */
+  --c4: #1a1a24;   /* hover */
+  --c5: #21212c;   /* pressed, wells */
+  --c6: #2a2a37;   /* hairlines */
+  --c7: #383847;   /* strong hairlines */
+  --c8: #50505f;   /* disabled ink */
 
-  --ink: #ededf0;  /* primary text */
-  --ink2: #a2a2ad; /* secondary */
-  --ink3: #6f6f7c;  /* tertiary, meta */
+  --ink: #eaeaf2;  /* primary text */
+  --ink2: #a4a4b8; /* secondary */
+  --ink3: #78788c; /* tertiary, meta */
 
-  --accent: #f5b544;
-  --accent-hi: #ffc766;
-  --accent-ink: #1a1200;
-  --accent-a10: rgb(245 181 68 / 0.10);
-  --accent-a16: rgb(245 181 68 / 0.16);
-  --accent-a28: rgb(245 181 68 / 0.28);
+  --accent: #818cf8;
+  --accent-hi: #a5b4fc;
+  --accent-ink: #0a0a0f;
+  --accent-a10: rgb(129 140 248 / 0.10);
+  --accent-a16: rgb(129 140 248 / 0.16);
+  --accent-a28: rgb(129 140 248 / 0.28);
 
-  --ok: #4ade80;
+  --ok: #34d399;
   --danger: #fb7185;
-  --danger-a12: rgb(251 113 133 / 0.12);
+  --danger-a12: rgb(251 113 133 / 0.13);
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / 0.5);
-  --shadow-3: 0 24px 64px -12px rgb(0 0 0 / 0.7);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / 0.55);
+  --shadow-3: 0 24px 64px -12px rgb(0 0 0 / 0.72);
   --ring: 0 0 0 3px var(--accent-a28);
 
   /* A hairline that reads as a light edge rather than a drawn border. */
@@ -78,6 +78,9 @@
   /* Motion */
   --ease: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* A rotation that accelerates and settles rather than running at a constant
+     rate, so a short refresh does not look like it stopped dead. */
+  --ease-spin: cubic-bezier(0.55, 0.15, 0.35, 0.9);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --d-fast: 0.12s;   /* exits */
   --d-mid: 0.18s;
@@ -88,34 +91,34 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --c1: #f7f6f3;
+  --c1: #f6f7f9;
   --c2: #ffffff;
-  --c3: #fbfaf8;
-  --c4: #f2f0eb;
-  --c5: #eae7e0;
-  --c6: #e2ded5;
-  --c7: #d3cec2;
-  --c8: #a8a297;
+  --c3: #fbfcfd;
+  --c4: #f1f3f7;
+  --c5: #e6e9ef;
+  --c6: #dee2ea;
+  --c7: #c8cedb;
+  --c8: #98a0b0;
 
-  --ink: #15140f;
-  --ink2: #57544c;
-  --ink3: #86827a;
+  --ink: #0e1220;
+  --ink2: #4a5268;
+  --ink3: #737d92;
 
-  --accent: #a16207;
-  --accent-hi: #854d0e;
+  --accent: #4f46e5;
+  --accent-hi: #4338ca;
   --accent-ink: #ffffff;
-  --accent-a10: rgb(161 98 7 / 0.09);
-  --accent-a16: rgb(161 98 7 / 0.14);
-  --accent-a28: rgb(161 98 7 / 0.24);
+  --accent-a10: rgb(79 70 229 / 0.08);
+  --accent-a16: rgb(79 70 229 / 0.13);
+  --accent-a28: rgb(79 70 229 / 0.22);
 
-  --ok: #15803d;
-  --danger: #be123c;
-  --danger-a12: rgb(190 18 60 / 0.09);
+  --ok: #059669;
+  --danger: #e11d48;
+  --danger-a12: rgb(225 29 72 / 0.09);
 
-  --shadow-1: 0 1px 2px rgb(60 50 30 / 0.06);
-  --shadow-2: 0 4px 16px -4px rgb(60 50 30 / 0.12);
-  --shadow-3: 0 24px 64px -12px rgb(60 50 30 / 0.22);
-  --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.7);
+  --shadow-1: 0 1px 2px rgb(20 28 50 / 0.06);
+  --shadow-2: 0 4px 16px -4px rgb(20 28 50 / 0.12);
+  --shadow-3: 0 24px 64px -12px rgb(20 28 50 / 0.22);
+  --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.8);
 }
 
 /* ================================================================== 2. base */
@@ -558,21 +561,29 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 /* ---- your-address card ---- */
 
-.addr-card {
+.inbox-card {
   position: relative;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 14px 18px;
+  gap: 10px;
+  padding: 16px 14px;
   border-radius: var(--r-lg);
-  background:
-    radial-gradient(120% 100% at 0% 0%, var(--accent-a10), transparent 60%),
-    var(--c3);
-  box-shadow: inset 0 0 0 1px var(--c6), var(--edge), var(--shadow-1);
+  background: var(--c3);
+  box-shadow: inset 0 0 0 1px var(--c6), var(--edge);
   overflow: hidden;
   container-type: inline-size;
   container-name: addr;
+}
+/* A hairline of accent along the top edge, so the card reads as the primary
+   surface without a heavy fill competing with the message list. */
+.inbox-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent 70%);
+  opacity: 0.9;
 }
 .card-label {
   display: flex;
@@ -637,10 +648,12 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 }
 .addr-actions .btn {
   min-width: 0;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 7px 9px;
   gap: 6px;
+  font-size: var(--t-sm);
   justify-content: center;
+  background: var(--c2);
   box-shadow: inset 0 0 0 1px var(--c6);
 }
 .addr-actions .btn span {
@@ -650,11 +663,11 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   white-space: nowrap;
 }
 .addr-actions .btn .icon { flex: none; }
-#btn-roll { min-height: 42px; }
+#btn-roll { min-height: 40px; font-size: var(--t-base); letter-spacing: -0.01em; }
 
 /* Too narrow for two labels side by side: give each its own row rather than
    truncating one of them. */
-@container addr (max-width: 274px) {
+@container addr (max-width: 212px) {
   .addr-actions { grid-template-columns: 1fr; }
 }
 /* Narrower still (a very thin rail): keep the icons and let the tooltip and
@@ -713,7 +726,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 @media (prefers-reduced-motion: reduce) { .wait, .wait-card, .wait-dots span { animation: none; } }
 
 /* Lifetime picker under the address actions. */
-.roll-mode { display: flex; flex-direction: column; gap: 6px; }
+.roll-mode { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
 .roll-mode-label {
   font-size: var(--t-xs);
   font-weight: 600;
@@ -730,7 +743,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   min-width: 0;
   appearance: none;
   -webkit-appearance: none;
-  padding: 9px 34px 9px 12px;
+  padding: 8px 32px 8px 11px;
   border: 0;
   border-radius: var(--r-md);
   background: var(--c2);
@@ -885,6 +898,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   display: none;
 }
 .rail-row .burn.on, #btn-burn.on { color: var(--danger); background: var(--danger-a12); }
+@media (hover: hover) and (pointer: fine) {
+  .rail-row .wipe:hover { color: var(--danger); background: var(--danger-a12); }
+}
 @media (hover: hover) and (pointer: fine) {
   .rail-row .wipe:hover { color: var(--danger); background: var(--danger-a12); }
   .rail-row .burn:hover { color: var(--danger); background: var(--danger-a12); }
@@ -1373,7 +1389,9 @@ a.attachment:active { transform: scale(0.97); }
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--c6); }
 
 /* The refresh icon turns while a manual check runs. */
-.icon-btn.spinning .icon { animation: spin 0.8s linear infinite; }
+.icon-btn .icon { transition: rotate var(--d-mid) var(--ease); }
+.icon-btn.spinning .icon { animation: spin 900ms var(--ease-spin) infinite; }
+@keyframes spin { to { rotate: 360deg; } }
 
 /* A label beside a control that is not a switch (the theme picker). */
 .setting-row {
@@ -1584,7 +1602,6 @@ body.gate {
   border-top-color: transparent;
   animation: spin 0.7s linear infinite;
 }
-@keyframes spin { to { rotate: 360deg; } }
 
 /* ====================================================== 6b. new controls */
 
@@ -2002,7 +2019,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .select-actions .icon-btn.plain { margin-left: auto; }
 
   /* Comfortable touch targets: 44px minimum on anything tappable. */
-  .addr-card { gap: 14px; padding: 16px 16px 20px; }
+  .inbox-card { gap: 14px; padding: 16px 16px 20px; }
   .addr-actions { gap: 8px; }
   .addr-actions .btn { min-height: 44px; font-size: var(--t-md); }
   #btn-roll { min-height: 46px; }

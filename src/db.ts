@@ -26,7 +26,7 @@ export const SETTING_VAPID_PUBLIC = "vapid_public";
 export const SETTING_VAPID_PRIVATE = "vapid_private";
 /** Bumped when a one-off data migration has run, so it never runs twice. */
 export const SETTING_SCHEMA_VERSION = "schema_v";
-const SCHEMA_VERSION = "2";
+const SCHEMA_VERSION = "3";
 
 const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   id           TEXT PRIMARY KEY,
@@ -190,6 +190,9 @@ async function migrateAddresses(db: D1Database): Promise<void> {
       `INSERT OR IGNORE INTO addresses (address, mode, created_at, first_seen_at)
          SELECT address, 'permanent', MIN(received_at), MIN(received_at) FROM messages GROUP BY address`
     ),
+    // The one-shot lifetime was removed; addresses that used it become
+    // ordinary ones rather than silently bouncing forever.
+    db.prepare("UPDATE addresses SET mode = 'permanent' WHERE mode = 'sealed'"),
   ]);
 }
 

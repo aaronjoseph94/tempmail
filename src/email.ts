@@ -104,7 +104,7 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     console.log("rejecting oversized mail for", to, `(${mail.rawSize} bytes)`);
     return { ok: false, reason: "Message too large" };
   }
-  // Expired, used-up and blocked addresses bounce before the body is even read.
+  // Expired and blocked addresses bounce before the body is even read.
   const now = Date.now();
   const verdict = await addressVerdict(env.DB, to, now);
   if (!verdict.accept) {

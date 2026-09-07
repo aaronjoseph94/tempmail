@@ -318,7 +318,6 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
       firstSeenAt: row.first_seen_at ?? null,
       createdAt: row.created_at,
       expired: row.mode === "expires" && row.expires_at != null && row.expires_at <= now,
-      used: row.mode === "sealed" && row.first_seen_at != null,
       dead: isDead(row, now),
       leaks: (leaksFor.get(row.address) ?? []).sort((a, b) => b.last - a.last),
     })),
@@ -364,8 +363,6 @@ async function putAddress({ request, env, params }: Ctx): Promise<Response> {
   if (mode) {
     sets.push(`mode = ?${binds.push(mode)}`);
     sets.push(`expires_at = ?${binds.push(expiresAt)}`);
-    // Re-arming a one-shot lets it take one more message.
-    if (mode === "sealed") sets.push("first_seen_at = NULL");
   }
   if (body.ownerDomain !== undefined) {
     const owner = normalizeDomain(body.ownerDomain);

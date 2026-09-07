@@ -315,16 +315,16 @@ describe("address lifecycle API", () => {
     expect((await put("a@mail.example.test", { mode: "expires" })).status).toBe(400);
     expect((await put("a@mail.example.test", { mode: "expires", expiresAt: Date.now() - 1 })).status).toBe(400);
     expect((await put("a@mail.example.test", { mode: "expires", ttlHours: 24 * 31 })).status).toBe(400);
-    expect((await put("not an address", { mode: "sealed" })).status).toBe(400);
+    expect((await put("not an address", { mode: "expires", ttlHours: 1 })).status).toBe(400);
     const ok = await json(await put("a@mail.example.test", { mode: "expires", ttlHours: 2, label: "Two hours" }));
     expect(ok).toMatchObject({ mode: "expires", label: "Two hours", dead: false });
     expect(ok.expiresAt).toBeGreaterThan(Date.now() + 60 * 60 * 1000);
   });
 
   it("lists a fresh burner before any mail arrives and forgets it on request", async () => {
-    await put("burner@mail.example.test", { mode: "sealed" });
+    await put("burner@mail.example.test", { mode: "expires", ttlHours: 24 });
     let rail = (await json(await call("/api/addresses", { cookie }))).addresses;
-    expect(rail.find((a: any) => a.address === "burner@mail.example.test")).toMatchObject({ count: 0, mode: "sealed", used: false });
+    expect(rail.find((a: any) => a.address === "burner@mail.example.test")).toMatchObject({ count: 0, mode: "expires", expired: false });
     await deliver(buildMail(), "burner@mail.example.test");
     expect((await call("/api/addresses/burner@mail.example.test", { cookie, method: "DELETE" })).status).toBe(200);
     rail = (await json(await call("/api/addresses", { cookie }))).addresses;
@@ -365,18 +365,25 @@ describe("regressions", () => {
     expect((await listAll("?limit=500")).messages).toHaveLength(250);
   });
 
-  it("keeps a one-shot address spent when it is blocked and unblocked", async () => {
+  it("keeps a blocked inbox blocked when the block is undone", async () => {
     const put = (body: Record<string, unknown>) =>
-      call("/api/addresses/spent@mail.example.test", { cookie, method: "PUT", json: body });
-    await put({ mode: "sealed" });
-    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual([]);
-    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual(["No such mailbox"]);
-
-    // Block, then undo the block. Undo must not re-arm the one-shot.
+      call("/api/addresses/blocked@mail.example.test", { cookie, method: "PUT", json: body });
     await put({ mode: "blocked" });
-    await put({ mode: "blocked" });   // what the client's Undo now sends for a previously blocked address
+    expect(await deliver(buildMail(), "blocked@mail.example.test")).toEqual(["No such mailbox"]);
+    // Undoing a block on an already-blocked address re-sends "blocked".
+    await put({ mode: "blocked" });
     const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
-    expect(rail.find((a: any) => a.address === "spent@mail.example.test")).toMatchObject({ mode: "blocked", dead: true });
-    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual(["No such mailbox"]);
+    expect(rail.find((a: any) => a.address === "blocked@mail.example.test")).toMatchObject({ mode: "blocked", dead: true });
+    expect(await deliver(buildMail(), "blocked@mail.example.test")).toEqual(["No such mailbox"]);
+  });
+
+  it("removes an inbox and its mail together", async () => {
+    await deliver(buildMail(), "gone@mail.example.test");
+    expect((await json(await call("/api/messages?address=gone@mail.example.test", { cookie }))).messages).toHaveLength(1);
+    await call("/api/messages?address=gone@mail.example.test", { cookie, method: "DELETE" });
+    await call("/api/addresses/gone@mail.example.test", { cookie, method: "DELETE" });
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.some((a: any) => a.address === "gone@mail.example.test")).toBe(false);
+    expect((await json(await call("/api/messages?address=gone@mail.example.test", { cookie }))).messages).toHaveLength(0);
   });
 });

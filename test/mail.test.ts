@@ -318,15 +318,6 @@ describe("address lifecycles", () => {
     expect(row).toMatchObject({ address: "new@mail.example.test", mode: "permanent", ownerDomain: "github.com", count: 1, dead: false, leaks: [] });
   });
 
-  it("seals a one-shot address after its first message", async () => {
-    await setMode("once@mail.example.test", { mode: "sealed" });
-    expect(await deliver(buildMail({ subject: "first" }), "once@mail.example.test")).toEqual([]);
-    expect(await deliver(buildMail({ subject: "second" }), "once@mail.example.test")).toEqual(["No such mailbox"]);
-    const { messages } = await json(await call("/api/messages?address=once@mail.example.test", { cookie }));
-    expect(messages.map((m: any) => m.subject)).toEqual(["first"]);
-    expect((await rail()).find((a: any) => a.address === "once@mail.example.test")).toMatchObject({ used: true, dead: true });
-  });
-
   it("bounces mail once an expiring address has expired, and accepts it before", async () => {
     await env.DB.prepare("INSERT INTO addresses (address, mode, expires_at, created_at) VALUES (?1, 'expires', ?2, ?3)")
       .bind("gone@mail.example.test", Date.now() - 1000, Date.now() - 100000).run();

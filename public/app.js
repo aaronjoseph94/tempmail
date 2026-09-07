@@ -63,7 +63,6 @@ const ROLL_MODES = {
   permanent: null,
   "24h": { mode: "expires", ttlHours: 24 },
   "7d": { mode: "expires", ttlHours: 24 * 7 },
-  once: { mode: "sealed" },
 };
 
 /* ---------------------------------------------------------------- helpers */
@@ -585,7 +584,7 @@ function railRow({ address, label, name, count, unread, all = false, entry = nul
   const tools = all ? "" : `<div class="rail-tools">
     <button class="rename" data-rename="${escapeHtml(address)}" aria-label="Name ${escapeHtml(address)}" title="Give this address a name"><svg class="icon sm"><use href="#i-tag"/></svg></button>
     <button class="burn${blocked ? " on" : ""}" data-burn="${escapeHtml(address)}" aria-pressed="${blocked}" aria-label="${blocked ? "Unblock" : "Block"} ${escapeHtml(address)}" title="${blocked ? "Unblock this address" : "Block this address: mail to it bounces"}"><svg class="icon sm"><use href="#i-ban"/></svg></button>
-    <button class="wipe" data-wipe="${escapeHtml(address)}" aria-label="Delete all mail to ${escapeHtml(address)}" title="Delete all mail to this address"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+    <button class="wipe" data-kill="${escapeHtml(address)}" aria-label="Delete the inbox ${escapeHtml(address)}" title="Delete this inbox and all its mail"><svg class="icon sm"><use href="#i-trash"/></svg></button>
   </div>`;
   const icon = all ? '<svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>' : "";
   const dead = entry?.dead ? " dead" : "";
@@ -599,7 +598,6 @@ function railRow({ address, label, name, count, unread, all = false, entry = nul
 function lifeChip(entry) {
   if (!entry) return "";
   if (entry.mode === "blocked") return '<span class="life dead">blocked</span>';
-  if (entry.mode === "sealed") return entry.used ? '<span class="life dead">used</span>' : '<span class="life">1-shot</span>';
   if (entry.mode === "expires") {
     const left = entry.expiresAt - Date.now();
     if (left <= 0) return '<span class="life dead">expired</span>';
@@ -625,6 +623,28 @@ function relatedDomain(a, b) {
   return a === b || a.endsWith("." + b) || b.endsWith("." + a);
 }
 
+/**
+ * Removes an inbox outright: its mail, then the address row itself, so it stops
+ * appearing in the rail. Not undoable, so it asks first.
+ */
+async function deleteInbox(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const count = entry?.count ?? 0;
+  const what = count ? `${address} and ${plural(count, "message")}` : address;
+  if (!confirm(`Delete ${what}? This cannot be undone.`)) return;
+  try {
+    if (count) await send("DELETE", `/api/messages?address=${encodeURIComponent(address)}`);
+    await send("DELETE", `/api/addresses/${encodeURIComponent(address)}`);
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  if (state.open?.address === address) closeMessage();
+  if (state.filter === address) setFilter("");
+  toast(`Deleted ${address.split("@")[0]}`, "i-trash");
+  refresh().catch(() => {});
+}
+
 /** Blocks an address, or unblocks a blocked one, with an Undo on the toast. */
 async function toggleBlock(address) {
   const entry = state.addresses.find((a) => a.address === address);
@@ -635,7 +655,6 @@ async function toggleBlock(address) {
   // the user had already spent. An expiry in the past would be rejected.
   let revert = null;
   if (previous === "blocked") revert = { mode: "blocked" };
-  else if (previous === "sealed") revert = entry?.used ? null : { mode: "sealed" };
   else if (previous === "expires") revert = entry?.expiresAt > Date.now() ? { mode: "expires", expiresAt: entry.expiresAt } : null;
   else revert = { mode: "permanent" };
   try {
@@ -744,7 +763,7 @@ function renderListHead() {
   const unread = state.filter ? entry?.unread ?? 0 : totals().unread;
   $("list-title").textContent = state.filter || "All mail";
   $("list-sub").textContent = count ? `${plural(count, "message")}${unread ? ` · ${unread} unread` : ""}` : "";
-  $("btn-wipe").hidden = !state.filter || !count;
+  $("btn-wipe").hidden = !state.filter;
   $("btn-rename").hidden = !state.filter;
   const blocked = entry?.mode === "blocked";
   $("btn-burn").hidden = !state.filter;
@@ -990,10 +1009,7 @@ function renderViewer() {
   const daysLeft = Math.max(0, Math.ceil((msg.receivedAt + retentionDays * 86400000 - Date.now()) / 86400000));
   $("msg-expiry").textContent = `deletes in ${plural(daysLeft, "day")}`;
 
-  const star = $("btn-star");
-  star.setAttribute("aria-pressed", String(!!msg.starred));
-  star.querySelector("span").textContent = msg.starred ? "Starred" : "Star";
-  star.classList.toggle("accent", !!msg.starred);
+  paintStar();
   $("btn-export").href = `/api/messages/${encodeURIComponent(msg.id)}/export`;
 
   $("btn-code").hidden = !msg.code;
@@ -1063,7 +1079,7 @@ function prepareHtml(html, attachments, allowImages, messageId) {
     '<meta charset="utf-8">' +
     `<meta http-equiv="Content-Security-Policy" content="${csp}">` +
     '<base target="_blank">' +
-    "<style>html,body{margin:0}body{padding:18px;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#15140f;background:#fff;overflow-wrap:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#a16207}</style>";
+    "<style>html,body{margin:0}body{padding:18px;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#0e1220;background:#fff;overflow-wrap:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#4f46e5}</style>";
 
   // Always wrap. Looking for the message's own <head> with a regex meant a
   // "<head>" inside a comment or an attribute value could place the policy
@@ -1089,7 +1105,10 @@ function renderBody() {
   text.hidden = useHtml;
 
   if (useHtml) {
-    frame.style.height = "";
+    // Hold the height the frame already has while the new document loads, so
+    // toggling images does not collapse the reader and bounce the page.
+    const held = frame.getBoundingClientRect().height;
+    if (held > 0) frame.style.height = `${held}px`;
     frame.onload = () => fitFrame(frame);
     frame.srcdoc = prepareHtml(msg.htmlBody, msg.attachments || [], state.imagesAllowed, msg.id);
   } else {
@@ -1097,6 +1116,16 @@ function renderBody() {
     frame.srcdoc = "";
     text.innerHTML = linkify(msg.textBody || (msg.htmlBody ? "(no plain-text version)" : "(empty message)"));
   }
+}
+
+/** The star control in the open message, from state.open. */
+function paintStar() {
+  const msg = state.open;
+  if (!msg) return;
+  const star = $("btn-star");
+  star.setAttribute("aria-pressed", String(!!msg.starred));
+  star.querySelector("span").textContent = msg.starred ? "Starred" : "Star";
+  star.classList.toggle("accent", !!msg.starred);
 }
 
 /** Opens an image from the message at full size, dismissed by click or Esc. */
@@ -1268,7 +1297,7 @@ async function toggleStar(id, button) {
   if (listed) listed.starred = next;
   if (state.open?.id === id) {
     state.open.starred = next;
-    renderViewer();
+    paintStar();                   // not renderViewer: reloading the body would jump the page
   }
   // The starred view drops the row as soon as it is unstarred.
   if (state.view === "starred" && !next) refresh().catch(() => {});
@@ -1791,19 +1820,6 @@ async function deleteAll() {
   refresh().catch(() => {});
 }
 
-async function wipeAddress(address) {
-  if (!confirm(`Delete every message sent to ${address}?`)) return;
-  try {
-    await send("DELETE", `/api/messages?address=${encodeURIComponent(address)}`);
-  } catch (err) {
-    toast(err.message, "i-warn");
-    return;
-  }
-  if (state.open?.address === address) closeMessage();
-  toast(`Wiped ${address}`, "i-trash");
-  refresh().catch(() => {});
-}
-
 async function markAllRead() {
   const query = state.filter ? `?address=${encodeURIComponent(state.filter)}` : "";
   try {
@@ -2268,8 +2284,8 @@ $("feed").addEventListener("keydown", (e) => {
 $("rail-list").addEventListener("click", (e) => {
   const rename = e.target.closest("[data-rename]");
   if (rename) { openLabelDialog(rename.dataset.rename); return; }
-  const wipe = e.target.closest("[data-wipe]");
-  if (wipe) { wipeAddress(wipe.dataset.wipe); return; }
+  const kill = e.target.closest("[data-kill]");
+  if (kill) { deleteInbox(kill.dataset.kill); return; }
   const burn = e.target.closest("[data-burn]");
   if (burn) { toggleBlock(burn.dataset.burn); return; }
   const item = e.target.closest("[data-address]");
@@ -2279,7 +2295,7 @@ $("rail-list").addEventListener("scroll", moveRailHighlight, { passive: true });
 
 $("btn-more").addEventListener("click", loadOlder);
 $("btn-read-all").addEventListener("click", markAllRead);
-$("btn-wipe").addEventListener("click", () => state.filter && wipeAddress(state.filter));
+$("btn-wipe").addEventListener("click", () => state.filter && deleteInbox(state.filter));
 $("btn-rename").addEventListener("click", () => state.filter && openLabelDialog(state.filter));
 $("search").addEventListener("input", (e) => setQuery(e.target.value));
 $("search-clear").addEventListener("click", () => { $("search").value = ""; setQuery(""); $("search").focus(); });
