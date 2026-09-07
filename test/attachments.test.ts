@@ -1,4 +1,6 @@
 /** Chunked attachment storage: the path that makes 25 MB mail useful. */
+import { createScheduledController } from "cloudflare:test";
+import worker from "../src/index";
 import { beforeEach, describe, expect, it } from "vitest";
 import { toBase64Chunks } from "../src/email";
 import { ATTACHMENT_CHUNK_CHARS } from "../src/limits";
@@ -153,7 +155,16 @@ describe("large attachments", () => {
     const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM attachment_chunks").first<{ n: number }>();
     expect(before!.n).toBeGreaterThan(0);
 
+    // Deleting moves the message to the trash: the bytes stay for the undo
+    // window but can no longer be downloaded.
     await call(`/api/messages/${messages[0].id}`, { method: "DELETE", cookie });
+    expect((await call(`/api/messages/${messages[0].id}/attachments/0`, { cookie })).status).toBe(404);
+    const trashed = await env.DB.prepare("SELECT COUNT(*) AS n FROM attachment_chunks").first<{ n: number }>();
+    expect(trashed!.n).toBe(before!.n);
+
+    // Once the undo window has passed, the cron removes everything.
+    await env.DB.prepare("UPDATE messages SET deleted_at = ?1").bind(Date.now() - 2 * 24 * 60 * 60 * 1000).run();
+    await worker.scheduled(createScheduledController(), env, { waitUntil() {}, passThroughOnException() {} } as any);
     const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM attachment_chunks").first<{ n: number }>();
     const metaAfter = await env.DB.prepare("SELECT COUNT(*) AS n FROM attachments").first<{ n: number }>();
     expect(after!.n).toBe(0);

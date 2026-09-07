@@ -29,7 +29,8 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   attachments  TEXT,
   received_at  INTEGER NOT NULL,
   read         INTEGER NOT NULL DEFAULT 0,
-  starred      INTEGER NOT NULL DEFAULT 0
+  starred      INTEGER NOT NULL DEFAULT 0,
+  deleted_at   INTEGER
 )`;
 
 const CREATE_SETTINGS = `CREATE TABLE IF NOT EXISTS settings (
@@ -83,6 +84,13 @@ const ADDED_COLUMNS = [
   { name: "snippet", ddl: "ALTER TABLE messages ADD COLUMN snippet TEXT" },
   { name: "code", ddl: "ALTER TABLE messages ADD COLUMN code TEXT" },
   { name: "starred", ddl: "ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0" },
+  // Soft delete: a trashed message keeps its row for a day so it can be undone.
+  { name: "deleted_at", ddl: "ALTER TABLE messages ADD COLUMN deleted_at INTEGER" },
+];
+
+/** Indexes on columns that older databases only gain from ADDED_COLUMNS. */
+const LATE_INDEXES = [
+  "CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages (deleted_at)",
 ];
 
 /** Creates or upgrades the schema. Safe to call as often as you like. */
@@ -103,6 +111,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
   for (const column of ADDED_COLUMNS) {
     if (!present.has(column.name)) await db.prepare(column.ddl).run();
   }
+  for (const sql of LATE_INDEXES) await db.prepare(sql).run();
 }
 
 let bootstrap: Promise<void> | null = null;

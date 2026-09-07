@@ -12,7 +12,7 @@ import { hasValidSession } from "./auth";
 import { deleteAttachmentsFor, ensureSchema, sweepOrphanAttachments } from "./db";
 import { handleEmail } from "./email";
 import { json, withSecurityHeaders } from "./http";
-import { resolveLimits } from "./limits";
+import { resolveLimits, TRASH_TTL_MS } from "./limits";
 
 export interface Env {
   DB: D1Database;
@@ -84,6 +84,8 @@ export default {
     const limits = await resolveLimits(env.DB);
     const cutoff = Date.now() - limits.retentionDays * 24 * 60 * 60 * 1000;
 
+    // Trashed mail past its undo window goes first, starred or not.
+    await purge(env, "SELECT id FROM messages WHERE deleted_at IS NOT NULL AND deleted_at < ?1", [Date.now() - TRASH_TTL_MS]);
     await purge(env, "SELECT id FROM messages WHERE received_at < ?1 AND starred = 0", [cutoff]);
     await purge(
       env,

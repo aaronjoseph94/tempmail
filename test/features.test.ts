@@ -234,3 +234,63 @@ describe("export", () => {
     expect((await call("/api/messages/nope/export", { cookie })).status).toBe(404);
   });
 });
+
+describe("trash", () => {
+  const day = 24 * 60 * 60 * 1000;
+
+  it("hides a deleted message everywhere and restores it on request", async () => {
+    await seed(2, { address: "trash@mail.example.test" });
+    const [victim] = (await listAll()).messages;
+    expect((await call(`/api/messages/${victim.id}`, { cookie, method: "DELETE" })).status).toBe(200);
+
+    expect((await listAll()).messages.map((m: any) => m.id)).not.toContain(victim.id);
+    expect((await call(`/api/messages/${victim.id}`, { cookie })).status).toBe(404);
+    expect((await call(`/api/messages/${victim.id}/export`, { cookie })).status).toBe(404);
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.find((a: any) => a.address === "trash@mail.example.test").count).toBe(1);
+    expect((await call(`/api/messages/${victim.id}`, { cookie, method: "DELETE" })).status).toBe(404);
+
+    const restore = await call(`/api/messages/${victim.id}/restore`, { cookie, method: "POST" });
+    expect(restore.status).toBe(200);
+    expect((await listAll()).messages.map((m: any) => m.id)).toContain(victim.id);
+    expect((await call(`/api/messages/${victim.id}/restore`, { cookie, method: "POST" })).status).toBe(404);
+  });
+
+  it("trashes and restores many at once", async () => {
+    await seed(4, { address: "bulk@mail.example.test" });
+    const ids = (await listAll()).messages.map((m: any) => m.id);
+    const del = await json(await call("/api/messages", { cookie, method: "DELETE", json: { ids: ids.slice(0, 3) } }));
+    expect(del.deleted).toBe(3);
+    expect((await listAll()).messages).toHaveLength(1);
+    const back = await json(await call("/api/messages/restore", { cookie, json: { ids } }));
+    expect(back.restored).toBe(3);
+    expect((await listAll()).messages).toHaveLength(4);
+  });
+
+  it("purges trashed mail after a day, attachments included, and keeps newer trash", async () => {
+    await deliver(buildMail({ subject: "With file", attachments: [{ name: "a.bin", type: "application/octet-stream", bytes: new Uint8Array(3000) }] }), "old@mail.example.test");
+    await deliver(buildMail({ subject: "Fresh" }), "new@mail.example.test");
+    const old = (await listAll("?address=old@mail.example.test")).messages[0];
+    const fresh = (await listAll("?address=new@mail.example.test")).messages[0];
+    await env.DB.prepare("UPDATE messages SET deleted_at = ?1 WHERE id = ?2").bind(Date.now() - 25 * 60 * 60 * 1000, old.id).run();
+    await env.DB.prepare("UPDATE messages SET deleted_at = ?1 WHERE id = ?2").bind(Date.now() - 60 * 60 * 1000, fresh.id).run();
+
+    await worker.scheduled(createScheduledController(), env, ctx);
+
+    const rows = await env.DB.prepare("SELECT id FROM messages").all<{ id: string }>();
+    expect(rows.results.map((r) => r.id)).toEqual([fresh.id]);
+    const chunks = await env.DB.prepare("SELECT COUNT(*) AS n FROM attachment_chunks").first<{ n: number }>();
+    expect(chunks?.n).toBe(0);
+    expect((await call(`/api/messages/${fresh.id}/restore`, { cookie, method: "POST" })).status).toBe(200);
+  });
+
+  it("removes stars and marks unread in bulk", async () => {
+    await seed(2);
+    const ids = (await listAll()).messages.map((m: any) => m.id);
+    await call("/api/messages", { cookie, method: "PATCH", json: { ids, starred: true, read: true } });
+    expect((await listAll("?starred=1")).messages).toHaveLength(2);
+    await call("/api/messages", { cookie, method: "PATCH", json: { ids, starred: false, read: false } });
+    expect((await listAll("?starred=1")).messages).toHaveLength(0);
+    expect((await listAll("?unread=1")).messages).toHaveLength(2);
+  });
+});

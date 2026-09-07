@@ -110,6 +110,8 @@ const ROUTES = [
   route("DELETE", "/api/messages", deleteMessages),
   route("PATCH", "/api/messages", patchMessages),
   route("POST", "/api/read-all", markAllRead),
+  route("POST", "/api/messages/restore", restoreMessages),
+  route("POST", "/api/messages/:id/restore", restoreMessage),
   route("GET", "/api/messages/:id", getMessage),
   route("PATCH", "/api/messages/:id", updateMessage),
   route("DELETE", "/api/messages/:id", deleteMessage),
@@ -147,7 +149,7 @@ async function observedDomains(db: D1Database): Promise<string[]> {
   const { results } = await db
     .prepare(
       `SELECT substr(address, instr(address, '@') + 1) AS domain, COUNT(*) AS n
-         FROM messages GROUP BY domain ORDER BY n DESC LIMIT 10`
+         FROM messages WHERE deleted_at IS NULL GROUP BY domain ORDER BY n DESC LIMIT 10`
     )
     .all<{ domain: string }>();
   return results.map((row) => row.domain);
@@ -250,7 +252,7 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
     env.DB.prepare(
       `SELECT address, COUNT(*) AS count, SUM(read = 0) AS unread,
               SUM(starred) AS starred, MAX(received_at) AS last_received_at
-         FROM messages GROUP BY address ORDER BY last_received_at DESC`
+         FROM messages WHERE deleted_at IS NULL GROUP BY address ORDER BY last_received_at DESC`
     ).all<{ address: string; count: number; unread: number | null; starred: number | null; last_received_at: number }>(),
     getLabels(env.DB),
   ]);
@@ -335,7 +337,7 @@ async function listMessages({ env, url }: Ctx): Promise<Response> {
   const cursor = parseCursor(cursorText);
   if (cursorText && !cursor) return json({ error: "Bad cursor" }, 400);
 
-  const where: string[] = [];
+  const where: string[] = ["deleted_at IS NULL"];
   const binds: unknown[] = [];
   if (address) where.push(`address = ?${binds.push(address)}`);
   if (url.searchParams.get("unread") === "1") where.push("read = 0");
@@ -415,7 +417,7 @@ async function attachmentsFor(db: D1Database, row: MessageRow): Promise<StoredAt
 
 /** GET /api/messages/:id — the full message. Opening it marks it read. */
 async function getMessage({ env, params }: Ctx): Promise<Response> {
-  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1").bind(params.id).first<MessageRow>();
+  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow>();
   if (!row) return json({ error: "Message not found" }, 404);
   if (!row.read) await env.DB.prepare("UPDATE messages SET read = 1 WHERE id = ?1").bind(row.id).run();
 
@@ -443,17 +445,48 @@ async function updateMessage({ request, env, params }: Ctx): Promise<Response> {
   if (typeof body.starred === "boolean") sets.push(`starred = ?${binds.push(body.starred ? 1 : 0)}`);
   if (!sets.length) return json({ error: "Nothing to update" }, 400);
 
-  const result = await env.DB.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?${binds.push(params.id)}`)
+  const result = await env.DB.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?${binds.push(params.id)} AND deleted_at IS NULL`)
     .bind(...binds)
     .run();
   if (result.meta.changes === 0) return json({ error: "Message not found" }, 404);
   return json({ ok: true });
 }
 
+/**
+ * DELETE /api/messages/:id moves the message to the trash. The row and its
+ * attachments stay for TRASH_TTL_MS so the delete can be undone; the nightly
+ * cron removes them for real.
+ */
 async function deleteMessage({ env, params }: Ctx): Promise<Response> {
-  await deleteAttachmentsFor(env.DB, [params.id]);
-  await env.DB.prepare("DELETE FROM messages WHERE id = ?1").bind(params.id).run();
+  const result = await env.DB.prepare("UPDATE messages SET deleted_at = ?1 WHERE id = ?2 AND deleted_at IS NULL")
+    .bind(Date.now(), params.id)
+    .run();
+  if (result.meta.changes === 0) return json({ error: "Message not found" }, 404);
   return json({ ok: true });
+}
+
+/** POST /api/messages/:id/restore brings one message back from the trash. */
+async function restoreMessage({ env, params }: Ctx): Promise<Response> {
+  const result = await env.DB.prepare("UPDATE messages SET deleted_at = NULL WHERE id = ?1 AND deleted_at IS NOT NULL")
+    .bind(params.id)
+    .run();
+  if (result.meta.changes === 0) return json({ error: "Nothing to restore" }, 404);
+  return json({ ok: true });
+}
+
+/** POST /api/messages/restore { ids } restores many at once. */
+async function restoreMessages({ request, env }: Ctx): Promise<Response> {
+  const ids = idsFrom(await readJson(request));
+  if (!ids.length) return json({ error: "No message ids given" }, 400);
+  let restored = 0;
+  for (const chunk of idChunks(ids)) {
+    const holes = chunk.map((_, n) => `?${n + 1}`).join(",");
+    const result = await env.DB.prepare(`UPDATE messages SET deleted_at = NULL WHERE id IN (${holes}) AND deleted_at IS NOT NULL`)
+      .bind(...chunk)
+      .run();
+    restored += result.meta.changes;
+  }
+  return json({ ok: true, restored });
 }
 
 
@@ -518,11 +551,14 @@ async function deleteMessages({ request, env, url }: Ctx): Promise<Response> {
   if (request.headers.get("content-type")?.includes("json")) {
     const ids = idsFrom(await readJson(request));
     if (ids.length) {
-      await deleteAttachmentsFor(env.DB, ids);
+      // Selected messages go to the trash, like a single delete.
+      const now = Date.now();
       let deleted = 0;
-      for (const chunk of idChunks(ids)) {
-        const holes = chunk.map((_, n) => `?${n + 1}`).join(",");
-        const result = await env.DB.prepare(`DELETE FROM messages WHERE id IN (${holes})`).bind(...chunk).run();
+      for (const chunk of idChunks(ids, 1)) {
+        const holes = chunk.map((_, n) => `?${n + 2}`).join(",");
+        const result = await env.DB.prepare(`UPDATE messages SET deleted_at = ?1 WHERE id IN (${holes}) AND deleted_at IS NULL`)
+          .bind(now, ...chunk)
+          .run();
         deleted += result.meta.changes;
       }
       return json({ ok: true, deleted });
@@ -552,9 +588,9 @@ async function deleteMessages({ request, env, url }: Ctx): Promise<Response> {
 async function markAllRead({ env, url }: Ctx): Promise<Response> {
   const address = url.searchParams.get("address")?.trim().toLowerCase();
   if (address) {
-    await env.DB.prepare("UPDATE messages SET read = 1 WHERE address = ?1 AND read = 0").bind(address).run();
+    await env.DB.prepare("UPDATE messages SET read = 1 WHERE address = ?1 AND read = 0 AND deleted_at IS NULL").bind(address).run();
   } else {
-    await env.DB.prepare("UPDATE messages SET read = 1 WHERE read = 0").run();
+    await env.DB.prepare("UPDATE messages SET read = 1 WHERE read = 0 AND deleted_at IS NULL").run();
   }
   return json({ ok: true });
 }
@@ -572,7 +608,11 @@ async function downloadAttachment({ env, params, url }: Ctx): Promise<Response> 
   if (!Number.isInteger(idx) || idx < 0) return json({ error: "Bad attachment index" }, 400);
 
   const meta = await env.DB
-    .prepare("SELECT filename, content_type, size, chunks FROM attachments WHERE message_id = ?1 AND idx = ?2")
+    .prepare(
+      `SELECT a.filename, a.content_type, a.size, a.chunks FROM attachments a
+         JOIN messages m ON m.id = a.message_id AND m.deleted_at IS NULL
+        WHERE a.message_id = ?1 AND a.idx = ?2`
+    )
     .bind(params.id, idx)
     .first<{ filename: string; content_type: string; size: number; chunks: number }>();
   if (!meta) return json({ error: "Attachment not found" }, 404);
@@ -620,7 +660,7 @@ async function downloadAttachment({ env, params, url }: Ctx): Promise<Response> 
 
 /** GET /api/messages/:id/export — the message as a plain .txt file. */
 async function exportMessage({ env, params }: Ctx): Promise<Response> {
-  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1").bind(params.id).first<MessageRow>();
+  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow>();
   if (!row) return json({ error: "Message not found" }, 404);
 
   const attachments = await attachmentsFor(env.DB, row);

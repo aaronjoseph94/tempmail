@@ -15,6 +15,9 @@ import {
 /** Messages older than this are deleted by the nightly cron. Starred mail is kept. */
 export const MESSAGE_TTL_DAYS = 100;
 
+/** Deleted mail stays restorable for this long before the cron removes it for real. */
+export const TRASH_TTL_MS = 24 * 60 * 60 * 1000;
+
 /** Hard ceiling on stored messages, enforced nightly. Keeps D1 usage bounded. */
 export const GLOBAL_MESSAGE_CAP = 5000;
 
