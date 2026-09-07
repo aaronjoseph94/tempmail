@@ -23,8 +23,12 @@
 
 /* ================================================================= 0. type */
 
-/* Geist and Geist Mono, self-hosted. Both are variable (100-900 in one file),
-   so every weight the app uses comes from a single request per face.
+/* Geist, self-hosted. It is variable (100-900 in one file), so every weight
+   the app uses comes from a single request.
+
+   One face, no monospace anywhere. What the mono was really buying was digits
+   that line up in a column; font-variant-numeric: tabular-nums buys the same
+   thing from Geist itself, and drops two font files with it.
 
    Self-hosted rather than pulled from Google Fonts for two reasons. The CSP in
    src/http.ts allows fonts only from 'self', and a mail service that promises
@@ -50,24 +54,6 @@
   font-weight: 100 900;
   font-display: swap;
   src: url("/fonts/geist-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/geist-mono-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -119,7 +105,9 @@
 
 
   --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Addresses, codes and shortcut keys: Geist, with figures on a fixed
+     advance so digits stay in column. Not a second family. */
+  --tabular: var(--font);
 
   /* Type scale. Whole pixels: half-pixel sizes round differently per browser
      and per zoom level, so the line box was never quite predictable. Geist
@@ -169,6 +157,11 @@
   --r-md: 8px;
   --r-lg: 12px;
   --r-xl: 16px;
+  /* Reserved for things that slide or fill along a track: the segmented
+     controls and their highlight, the switch, the meter, the sheet's grab
+     handle. A pill on a plain button next to a rounded rectangle is the
+     square-beside-oval problem; everything else takes a radius from the
+     scale above. */
   --r-full: 999px;
 
   /* Minimum tap target, raised to 44px for coarse pointers further down.
@@ -277,7 +270,7 @@ h1, h2, h3, p, dl, dd { margin: 0; }
 
 .dim { color: var(--ink2); }
 .hint { color: var(--ink3); font-size: var(--t-md); line-height: 1.5; }
-.mono { font-family: var(--mono); }
+.mono { font-family: var(--tabular); font-variant-numeric: tabular-nums; }
 .sr-only {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -2px; overflow: hidden;
@@ -288,7 +281,8 @@ kbd {
   display: inline-block;
   min-width: 20px;
   padding: 2px 6px;
-  font: 500 var(--t-xs)/1.4 var(--mono);
+  font: 500 var(--t-xs)/1.4 var(--tabular);
+  font-variant-numeric: tabular-nums;
   text-align: center;
   color: var(--ink2);
   background: var(--c4);
@@ -356,7 +350,12 @@ kbd {
 
 /* ============================================================ 3. primitives */
 
+/* An <a> is a legitimate way to spell a control that navigates or downloads
+   (#btn-export is one), so these have to shed the browser's link underline.
+   Without it Export sat in a row of buttons wearing an underline none of its
+   neighbours had. */
 .btn, .icon-btn, .chip {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -437,14 +436,14 @@ kbd {
 /* Chips are a deliberate toggle, so those do get a filled active state. */
 .chip[aria-pressed="true"] { color: var(--accent); background: var(--accent-a10); box-shadow: inset 0 0 0 1px var(--accent-a28); }
 
-.chip { border-radius: var(--r-full); padding: 8px 12px; font-size: var(--t-sm); }
+.chip { border-radius: var(--r-md); padding: 8px 12px; font-size: var(--t-sm); }
 .chip.accent {
   background: var(--accent-a10);
   color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent-a28);
   font-weight: 600;
 }
-.chip.accent b { font-family: var(--mono); font-weight: 600; letter-spacing: var(--track-code); }
+.chip.accent b { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: var(--track-code); }
 
 .link {
   color: var(--accent);
@@ -649,13 +648,13 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   padding: 0 12px;
   margin-right: 6px;
   max-width: 230px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-md);
   background: var(--c3);
   box-shadow: inset 0 0 0 1px var(--c6);
   font-size: var(--t-sm);
   color: var(--ink2);
 }
-.domain-pill b { font-family: var(--mono); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.domain-pill b { font-variant-numeric: tabular-nums; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-dot {
   position: relative;
   width: 6px; height: 6px;
@@ -750,7 +749,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   border-radius: var(--r-md);
   background: var(--c2);
   box-shadow: inset 0 0 0 1px var(--c6);
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--t-sm);
   line-height: 1.45;
   transition: box-shadow var(--d-mid) var(--ease), background var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
@@ -932,7 +931,7 @@ body.waiting { overflow: hidden; }
   white-space: nowrap;
 }
 .rail-item .sub {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--t-xs);
   color: var(--ink3);
   overflow: hidden;
@@ -1014,16 +1013,16 @@ body.waiting { overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--t-md);
 }
-.rail-item.all .name { font-family: var(--font); font-size: var(--t-md); font-weight: 600; }
+.rail-item.all .name { font-variant-numeric: normal; font-size: var(--t-md); font-weight: 600; }
 /* Lifecycle tag beside the name: time left, or blocked. */
 .life {
   display: inline-block;
   margin-left: 6px;
   padding: 2px 6px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   background: var(--c5);
   color: var(--ink3);
   font: 600 var(--t-xs)/1.5 var(--font);
@@ -1089,7 +1088,7 @@ body.waiting { overflow: hidden; }
   gap: 4px;
   margin-left: 8px;
   padding: 2px 8px 2px 6px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   font-size: var(--t-xs);
   font-weight: 600;
   vertical-align: 2px;
@@ -1130,7 +1129,7 @@ body.waiting { overflow: hidden; }
   display: flex; flex-direction: column; gap: 10px;
 }
 .leak h3 { font-size: var(--t-base); font-weight: 600; margin: 0 0 2px; }
-.leak h3 .sub { font-family: var(--mono); font-weight: 400; color: var(--ink3); font-size: var(--t-sm); margin-left: 6px; }
+.leak h3 .sub { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--ink3); font-size: var(--t-sm); margin-left: 6px; }
 .leak header p { margin: 0; font-size: var(--t-md); }
 .leak ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .leak li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--c3); font-size: var(--t-md); }
@@ -1442,7 +1441,7 @@ body.selecting .mail .star { display: none; }
   font-size: var(--t-xs);
   line-height: 1.5;
 }
-.tag.addr { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag.addr { font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag.addr .at { color: var(--ink3); opacity: 0.6; }
 /* The one filled object in the list. A verification code is the entire reason
    most of this mail exists, and filling it says take this, in a design where
@@ -1452,7 +1451,7 @@ body.selecting .mail .star { display: none; }
   background: var(--accent);
   color: var(--accent-ink);
   box-shadow: none;
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   letter-spacing: var(--track-code);
   transition: background var(--d-mid) var(--ease), scale var(--d-fast) var(--ease-spring);
@@ -1700,7 +1699,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   gap: 8px;
   max-width: calc(100vw - 32px);
   padding: 12px 16px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-lg);
   background: var(--c4);
   box-shadow: inset 0 0 0 1px var(--c7), var(--shadow-3);
   font-size: var(--t-md);
@@ -1713,7 +1712,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 .toast-act {
   margin-left: 4px;
   padding: 4px 12px;
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   background: var(--accent-a10);
   color: var(--accent);
   font-size: var(--t-sm);

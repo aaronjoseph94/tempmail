@@ -48,7 +48,6 @@ const PUBLIC_FILES = new Set([
   "/style.css", "/theme.js", "/login.js", "/icon.svg", "/manifest.webmanifest", "/sw.js",
   "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
   "/fonts/geist-latin.woff2", "/fonts/geist-latin-ext.woff2",
-  "/fonts/geist-mono-latin.woff2", "/fonts/geist-mono-latin-ext.woff2",
 ]);
 
 export default {
