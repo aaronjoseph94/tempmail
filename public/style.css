@@ -743,6 +743,28 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .rail-row .burn.on, #btn-burn.on { color: var(--danger); background: var(--danger-a12); }
 @media (hover: hover) and (pointer: fine) { .rail-row .burn:hover { color: var(--danger); background: var(--danger-a12); } }
 
+/* What the SPF/DKIM/DMARC checks said, beside the sender's name. */
+.auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--r-full);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  vertical-align: 2px;
+  white-space: nowrap;
+  cursor: help;
+}
+.auth .icon { width: 12px; height: 12px; }
+.auth.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.auth.bad { color: var(--danger); background: var(--danger-a12); }
+.auth.none { color: var(--ink3); background: var(--c5); }
+.leak-strip.warn { background: var(--accent-a10); }
+.leak-strip.warn .icon { color: var(--accent); }
+
 /* The warning strip under a message from someone other than the address's owner. */
 .leak-strip {
   display: flex;

@@ -895,6 +895,9 @@ function renderViewer() {
   avatar.style.setProperty("--hue", hueFor((msg.fromAddress || from).toLowerCase()));
   $("msg-from-name").textContent = msg.fromName || msg.fromAddress;
   renderLeakStrip(msg);
+  renderAuthBadge(msg);
+  renderUnsubChip(msg);
+  renderWarnStrip(msg);
   $("msg-from-addr").textContent = msg.fromName ? `<${msg.fromAddress}>` : "";
   $("msg-to").textContent = msg.address;
   $("msg-date").textContent = formatWhen(msg.receivedAt);
@@ -1345,6 +1348,137 @@ function setRollMode(mode) {
   const seg = $("roll-mode");
   for (const button of seg.querySelectorAll(".seg-btn")) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
   moveSegHighlight(seg);
+}
+
+/** Beside the sender: what Cloudflare's SPF, DKIM and DMARC checks said. */
+function renderAuthBadge(msg) {
+  const badge = $("msg-auth");
+  const auth = msg.auth;
+  const verdicts = auth ? Object.values(auth) : [];
+  let cls, text, title;
+  if (!auth) {
+    cls = "none"; text = "Unverified"; title = "This message carried no authentication results.";
+  } else if (verdicts.includes("fail") || auth.dmarc === "fail") {
+    cls = "bad"; text = "Failed authentication";
+    title = `The sender could not be verified: ${Object.entries(auth).map(([k, v]) => `${k} ${v}`).join(", ")}. Treat links and requests in it with care.`;
+  } else if (auth.dmarc === "pass" || (auth.dkim === "pass" && auth.spf === "pass")) {
+    cls = "ok"; text = "Verified sender";
+    title = `Authenticated as ${domainOf(msg.fromAddress) || "the sending domain"}: ${Object.entries(auth).map(([k, v]) => `${k} ${v}`).join(", ")}.`;
+  } else {
+    cls = "none"; text = "Unverified";
+    title = `Checks were inconclusive: ${Object.entries(auth).map(([k, v]) => `${k} ${v}`).join(", ")}.`;
+  }
+  badge.className = `auth ${cls}`;
+  badge.querySelector("span").textContent = text;
+  badge.title = title;
+  badge.hidden = false;
+}
+
+function renderUnsubChip(msg) {
+  const chip = $("btn-unsub");
+  chip.hidden = !msg.unsubscribe;
+  chip.disabled = false;
+  chip.querySelector("span").textContent = "Unsubscribe";
+  chip.title = msg.unsubscribe?.oneClick
+    ? "The sender supports one-click unsubscribe; this inbox will send the request for you"
+    : "Opens the sender's unsubscribe link";
+}
+
+/** Asks the Worker to unsubscribe, or opens what the sender offered. */
+async function unsubscribeOpen() {
+  const msg = state.open;
+  if (!msg?.unsubscribe) return;
+  const chip = $("btn-unsub");
+  chip.disabled = true;
+  let result;
+  try {
+    result = await send("POST", `/api/messages/${encodeURIComponent(msg.id)}/unsubscribe`);
+  } catch (err) {
+    chip.disabled = false;
+    // The sender's service failed; fall back to opening the link if there is one.
+    if (msg.unsubscribe.https) { window.open(msg.unsubscribe.https, "_blank", "noopener"); toast("Their unsubscribe service failed; opened the link instead", "i-warn"); }
+    else toast(err.message, "i-warn");
+    return;
+  }
+  if (result.method === "post") {
+    chip.querySelector("span").textContent = "Unsubscribed";
+    toast(`Unsubscribed from ${senderLabel(msg)}`, "i-tick");
+    return;
+  }
+  chip.disabled = false;
+  if (result.method === "open") { window.open(result.url, "_blank", "noopener"); toast("Opened the sender's unsubscribe page", "i-unsub"); }
+  else if (result.method === "mailto") { location.href = result.url; toast("Opened an unsubscribe email to send", "i-unsub"); }
+}
+
+/**
+ * Links whose visible text, characters or domain are trying to look like
+ * something else. `references` are the domains a link might impersonate:
+ * the service the address was given to, and whoever the message claims
+ * to be from.
+ */
+function analyseLinks(html, references) {
+  if (!html) return [];
+  const flags = new Set();
+  let doc;
+  try { doc = new DOMParser().parseFromString(html, "text/html"); } catch { return []; }
+  const refs = [...new Set(references.filter(Boolean))];
+  for (const a of doc.querySelectorAll("a[href]")) {
+    let href;
+    try { href = new URL(a.getAttribute("href"), "https://x.invalid/"); } catch { continue; }
+    if (!/^https?:$/.test(href.protocol) || href.hostname === "x.invalid") continue;
+    const host = href.hostname.toLowerCase();
+    const text = (a.textContent || "").trim();
+    const shown = text.match(/^(?:https?:\/\/)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?:[/?#:]|$)/i);
+    if (shown && !relatedDomain(shown[1].toLowerCase(), host)) flags.add(`A link reads ${shown[1].toLowerCase()} but goes to ${host}`);
+    if (host.split(".").some((l) => l.startsWith("xn--")) || /[^\x00-\x7f]/.test(host)) flags.add(`${host} uses look-alike characters`);
+    for (const ref of refs) {
+      if (relatedDomain(host, ref)) continue;
+      if (impersonates(registrableLabel(host), registrableLabel(ref))) flags.add(`${host} looks like ${ref} but is not`);
+    }
+    if (flags.size >= 3) break;
+  }
+  return [...flags].slice(0, 3);
+}
+
+/** "paypa1-secure" vs "paypal": a token that is the real name, one typo off, or wrapped in extras. */
+function impersonates(label, refLabel) {
+  if (!label || !refLabel || label === refLabel) return false;
+  const tokens = [label, ...label.split(/[-_]/)].filter((t) => t.length >= 4);
+  return tokens.some((t) => t !== refLabel && (t.includes(refLabel) || editDistance(t, refLabel) <= (refLabel.length >= 8 ? 2 : 1)));
+}
+
+function registrableLabel(host) {
+  if (!host) return null;
+  const parts = host.toLowerCase().split(".").filter(Boolean);
+  if (parts.length < 2) return parts[0] || null;
+  // "co.uk"-style suffixes: take the label before the last two when the second-last is short.
+  const label = parts[parts.length - 2].length <= 3 && parts.length >= 3 ? parts[parts.length - 3] : parts[parts.length - 2];
+  return label.length >= 4 ? label : null;   // very short labels give too many false matches
+}
+
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let last = prev[0]; prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, last + (a[i - 1] === b[j - 1] ? 0 : 1));
+      last = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+/** A strip when the message's links look deceptive. */
+function renderWarnStrip(msg) {
+  const strip = $("msg-warn");
+  const entry = state.addresses.find((a) => a.address === msg.address);
+  const flags = analyseLinks(msg.htmlBody, [entry?.ownerDomain, domainOf(msg.fromAddress)]);
+  strip.hidden = flags.length === 0;
+  if (!flags.length) return;
+  $("msg-warn-text").textContent = `Links in this message look suspicious. ${flags.join(". ")}.`;
+  $("msg-warn-plain").hidden = !msg.textBody;
 }
 
 /** Under the sender: a warning when this message is from someone other than the address's owner. */
@@ -1814,6 +1948,8 @@ $("sel-all").addEventListener("click", pickAll);
 $("sel-unread").addEventListener("click", () => bulk("unread"));
 $("sel-unstar").addEventListener("click", () => bulk("unstar"));
 $("btn-refresh").addEventListener("click", manualRefresh);
+$("btn-unsub").addEventListener("click", unsubscribeOpen);
+$("msg-warn-plain").addEventListener("click", () => { state.showHtml = false; renderBody(); });
 $("btn-burn").addEventListener("click", () => { if (state.filter) toggleBlock(state.filter); });
 $("roll-mode").addEventListener("click", (e) => {
   const button = e.target.closest(".seg-btn");

@@ -22,6 +22,8 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 - **Instant addresses**: the sidebar generates a fresh, memorable address (`quiet-otter-42@…`) and copies it for you.
 - **Burner addresses**: a generated address can last forever, a day, a week, or take exactly one message. Afterwards mail to it bounces at the door, and you can block any address the same way.
 - **Leak detector**: each address remembers the service it was given to. Hear from anyone else and the **Leaks** view names them, one tap from blocking the address.
+- **Sender check**: a badge next to the sender says whether Cloudflare's SPF, DKIM and DMARC checks passed, and a strip warns when a link's text, characters or domain are pretending to be something else.
+- **One-tap unsubscribe**: when a sender supports one-click unsubscribe, the inbox sends the request for you; otherwise it opens their link.
 - **Codes, spotted**: verification codes are detected and shown as a one-click copy chip in the list and the message.
 - **Star anything**: starred mail is exempt from the nightly cleanup, so a receipt can sit here indefinitely.
 - **Bulk actions**: select several messages to mark read, star or delete them together.
