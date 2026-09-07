@@ -34,12 +34,20 @@ export function parseAuthResults(value: string | null): AuthSummary | null {
   return Object.keys(summary).length ? summary : null;
 }
 
-/** "<https://x/unsub?u=1>, <mailto:leave@x>" → the first https and the first mailto link. */
+/**
+ * "<https://x/unsub?u=1>, <mailto:leave@x>" → the first https and the first
+ * mailto link.
+ *
+ * The links are read as RFC 2369 angle-bracket groups rather than by splitting
+ * on commas, because a comma is legal inside a URL — a mailto: with two
+ * recipients, or a query string carrying one, would otherwise be cut in half
+ * and both halves discarded.
+ */
 export function parseListUnsubscribe(value: string | null): ListUnsubscribe | null {
   if (!value) return null;
   const out: ListUnsubscribe = { https: null, mailto: null };
-  for (const part of value.split(",")) {
-    const link = part.trim().replace(/^<|>$/g, "").trim();
+  for (const match of value.matchAll(/<([^>]*)>/g)) {
+    const link = match[1].trim();
     if (!out.https && /^https:\/\//i.test(link)) out.https = link;
     else if (!out.mailto && /^mailto:/i.test(link)) out.mailto = link;
   }

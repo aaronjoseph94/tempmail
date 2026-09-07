@@ -300,14 +300,32 @@ function applyList(data) {
     for (const m of data.messages) if (m.receivedAt > state.newestSeen) arrived.add(m.id);
   }
   state.messages = data.messages;
-  if (state.waiting) {
-    const hit = data.messages.find((m) => m.address === state.waiting.address && m.receivedAt > state.waiting.since);
-    if (hit) codeArrived(hit);
-  }
+  if (state.waiting) checkWaiting(data.messages);
   state.hasMore = data.hasMore;
   state.nextCursor = data.nextCursor;
   $("feed").setAttribute("aria-busy", "false");
   renderFeed(arrived);
+}
+
+/**
+ * Looks for the message the code overlay is waiting for.
+ *
+ * The list it is handed is whatever the current view asked for, so a filter on
+ * another address — or any search — hid the arrival and the overlay waited for
+ * ever. When the view cannot answer, the address is queried directly.
+ */
+async function checkWaiting(messages) {
+  const waiting = state.waiting;
+  if (!waiting) return;
+  const matches = (m) => m.address === waiting.address && m.receivedAt > waiting.since;
+  const hit = messages.find(matches);
+  if (hit) { codeArrived(hit); return; }
+  if (!state.filter && !state.query && state.view === "all") return;  // the list above was authoritative
+  try {
+    const scoped = await api(`/api/messages?address=${encodeURIComponent(waiting.address)}&limit=10`);
+    const late = scoped.messages.find(matches);
+    if (late && state.waiting === waiting) codeArrived(late);
+  } catch { /* the next poll tries again */ }
 }
 
 function applyRail(addresses) {
@@ -488,7 +506,10 @@ async function loadOlder() {
 // The last known state paints instantly on the next visit; the network follows.
 function saveCache() {
   store.set(CACHE_KEY, JSON.stringify({
-    messages: state.messages.slice(0, PAGE_SIZE),
+    // The extracted verification code is dropped: it is the one field here
+    // worth stealing, it is worthless within minutes, and the network response
+    // restores it a moment after the cached list paints.
+    messages: state.messages.slice(0, PAGE_SIZE).map(({ code, ...rest }) => rest),
     addresses: state.addresses,
     mailDomain: state.mailDomain,
   }));
@@ -607,8 +628,10 @@ function lifeChip(entry) {
 }
 
 function timeLeft(ms) {
+  // Rounding up first made every surviving address at least "1h", so an
+  // address with four minutes left looked as safe as one with fifty-nine.
+  if (ms < 3600000) return "<1h";
   const h = Math.ceil(ms / 3600000);
-  if (h < 1) return "<1h";
   if (h < 48) return `${h}h`;
   return `${Math.ceil(h / 24)}d`;
 }
@@ -950,14 +973,20 @@ function toggleSearch() {
 
 /* ----------------------------------------------------------------- viewer */
 
+let openSeq = 0;
+
 async function openMessage(id) {
+  // Two quick clicks race, and the slower fetch used to win: whichever message
+  // answered last was the one shown, regardless of which was asked for last.
+  const seq = ++openSeq;
   let msg;
   try {
     msg = await api(`/api/messages/${encodeURIComponent(id)}`);
   } catch (err) {
-    toast(err.message, "i-warn");
+    if (seq === openSeq) toast(err.message, "i-warn");
     return;
   }
+  if (seq !== openSeq) return;
   const wasOpen = !!state.open;
   state.open = msg;
   state.showHtml = !!msg.htmlBody;
@@ -1041,7 +1070,9 @@ function renderAttachments(list) {
 }
 
 function hasRemoteImages(html) {
-  return /(?:src|background)\s*=\s*["']?https?:/i.test(html) || /url\(\s*["']?https?:/i.test(html);
+  // "//cdn.example/pixel.gif" inherits the page's scheme and is just as remote
+  // as an https: one, so the scheme has to be optional in both patterns.
+  return /(?:src|background)\s*=\s*["']?(?:https?:)?\/\//i.test(html) || /url\(\s*["']?(?:https?:)?\/\//i.test(html);
 }
 
 /**
@@ -1190,16 +1221,18 @@ async function deleteOpen() {
 }
 
 async function deleteMessage(id) {
-  const msg = state.messages.find((m) => m.id === id);
-  if (!msg) return;
+  // The message need not be in the loaded window: one opened from a push
+  // notification, or from a link, used to hit an early return and do nothing.
   const list = visibleMessages();
   const index = list.findIndex((m) => m.id === id);
-  const next = list[index + 1] || list[index - 1];
+  const next = index >= 0 ? list[index + 1] || list[index - 1] : null;
   // Slide the row out before the list is rebuilt without it.
-  $("feed").querySelector(`.mail[data-id="${CSS.escape(id)}"]`)?.classList.add("leaving");
+  const row = $("feed").querySelector(`.mail[data-id="${CSS.escape(id)}"]`);
+  row?.classList.add("leaving");
   try {
     await send("DELETE", `/api/messages/${encodeURIComponent(id)}`);
   } catch (err) {
+    row?.classList.remove("leaving");   // it is still here; stop it looking gone
     toast(err.message, "i-warn");
     return;
   }
@@ -1821,15 +1854,33 @@ async function deleteAll() {
 }
 
 async function markAllRead() {
-  const query = state.filter ? `?address=${encodeURIComponent(state.filter)}` : "";
+  // With a search or a view filter up, "all" has to mean the messages actually
+  // on screen — it used to clear the whole inbox and leave the reader with no
+  // idea that mail they had not seen was now marked read.
+  const narrowed = !!state.query || state.view === "starred" || state.view === "unread";
+  const shown = visibleMessages().filter((m) => !m.read);
+  if (narrowed && !shown.length) { toast("Nothing unread here", "i-check-all"); return; }
+
   try {
-    await send("POST", `/api/read-all${query}`);
+    if (narrowed) {
+      await sendInSlices("PATCH", "/api/messages", shown.map((m) => m.id), { read: true });
+    } else {
+      const query = state.filter ? `?address=${encodeURIComponent(state.filter)}` : "";
+      await send("POST", `/api/read-all${query}`);
+    }
   } catch (err) {
     toast(err.message, "i-warn");
     return;
   }
-  for (const m of state.messages) m.read = true;
-  for (const a of state.addresses) if (!state.filter || a.address === state.filter) a.unread = 0;
+
+  if (narrowed) {
+    const cleared = new Set(shown.map((m) => m.id));
+    for (const m of state.messages) if (cleared.has(m.id)) m.read = true;
+    for (const m of shown) bumpUnread(m.address, -1);
+  } else {
+    for (const m of state.messages) m.read = true;
+    for (const a of state.addresses) if (!state.filter || a.address === state.filter) a.unread = 0;
+  }
   renderFeed();
   renderRail();
   renderTitle();
@@ -1946,11 +1997,18 @@ async function codeArrived(m) {
 let swRegistration = null;
 
 /** Registers the service worker that shows pushes; harmless where unsupported. */
+let swListening = false;
+
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
+  // Registering twice — two callers racing, or a retry after a failure — used
+  // to add a second listener, and every notification tap then fired twice.
+  if (!swListening) {
+    swListening = true;
+    navigator.serviceWorker.addEventListener("message", (e) => handleWorkerMessage(e.data));
+  }
   try {
     swRegistration = await navigator.serviceWorker.register("/sw.js");
-    navigator.serviceWorker.addEventListener("message", (e) => handleWorkerMessage(e.data));
     return swRegistration;
   } catch (err) {
     console.warn("service worker unavailable", err);

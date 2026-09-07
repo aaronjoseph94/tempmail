@@ -29,6 +29,12 @@ describe("parsers", () => {
     expect(parseListUnsubscribe("<mailto:leave@list.example>, <https://list.example/u?id=7>")).toEqual({ https: "https://list.example/u?id=7", mailto: "mailto:leave@list.example" });
     expect(parseListUnsubscribe("<http://insecure.example/u>")).toBeNull();
     expect(parseListUnsubscribe("")).toBeNull();
+    // A comma is legal inside both link types, so the links are read as
+    // bracket groups rather than by splitting the header on commas.
+    expect(parseListUnsubscribe("<mailto:a@list.example,b@list.example>")).toEqual({ https: null, mailto: "mailto:a@list.example,b@list.example" });
+    expect(parseListUnsubscribe("<https://list.example/u?a=1,2&b=3>, <mailto:leave@list.example>")).toEqual({
+      https: "https://list.example/u?a=1,2&b=3", mailto: "mailto:leave@list.example",
+    });
   });
 
   it("only lets the Worker call public https hosts, refusing every IP literal", () => {

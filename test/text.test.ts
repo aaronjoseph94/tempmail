@@ -77,6 +77,10 @@ describe("extractCode", () => {
 describe("normalizeDomain", () => {
   it("cleans up and lower-cases", () => {
     expect(normalizeDomain("  @Mail.Example.COM ")).toBe("mail.example.com");
+    // Email Routing addresses a domain by its A-label, so an internationalised
+    // name is punycoded rather than refused for not being ASCII.
+    expect(normalizeDomain("münchen.de")).toBe("xn--mnchen-3ya.de");
+    expect(normalizeDomain("почта.рф")).toBe("xn--80a1acny.xn--p1ai");
   });
 
   it("treats empty input as 'no domain'", () => {
@@ -86,6 +90,7 @@ describe("normalizeDomain", () => {
 
   it("rejects things that are not domains", () => {
     expect(normalizeDomain("not a domain")).toBeNull();
+    expect(normalizeDomain("http://example.com")).toBeNull();
     expect(normalizeDomain("localhost")).toBeNull();
     expect(normalizeDomain("example..com")).toBeNull();
     expect(normalizeDomain(42)).toBeNull();

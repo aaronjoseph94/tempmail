@@ -194,44 +194,58 @@ async function getConfig({ env }: Ctx): Promise<Response> {
   return json(await buildConfig(env));
 }
 
-/** Numeric setting: a value in range is stored, null clears it back to default. */
-async function applyNumber(
-  db: D1Database, body: Record<string, unknown>, field: string, key: string,
+/**
+ * Numeric setting: works out what the write should be without performing it,
+ * so a form with one bad field can be rejected whole. Returns a complaint, a
+ * write to run, or null when the field was not sent at all.
+ */
+type Write = { key: string; value: string | null };
+function planNumber(
+  body: Record<string, unknown>, field: string, key: string,
   range: { min: number; max: number }
-): Promise<string | null> {
+): { error: string } | { write: Write } | null {
   if (!(field in body)) return null;
   const raw = body[field];
-  if (raw === null || raw === "") {
-    await deleteSetting(db, key);
-    return null;
-  }
+  if (raw === null || raw === "") return { write: { key, value: null } };
   const n = Number(raw);
   if (!Number.isFinite(n) || n < range.min || n > range.max) {
-    return `${field} must be between ${range.min} and ${range.max}.`;
+    return { error: `${field} must be between ${range.min} and ${range.max}.` };
   }
-  await setSetting(db, key, String(n));
-  return null;
+  return { write: { key, value: String(n) } };
 }
 
+/**
+ * Settings save all-or-nothing. Every field is checked first and only then
+ * written, because the form sends them together: validating and writing in one
+ * pass meant a rejected `total` still left a changed `retentionDays` behind,
+ * and the 400 told the reader nothing had been saved.
+ */
 async function updateSettings({ request, env }: Ctx): Promise<Response> {
   const body = await readJson(request);
+  const writes: Write[] = [];
 
   if ("mailDomain" in body) {
     const domain = normalizeDomain(body.mailDomain);
     if (domain === null) return json({ error: "That doesn't look like a domain name." }, 400);
-    if (domain) await setSetting(env.DB, SETTING_MAIL_DOMAIN, domain);
-    else await deleteSetting(env.DB, SETTING_MAIL_DOMAIN);
+    writes.push({ key: SETTING_MAIL_DOMAIN, value: domain || null });
   }
 
-  const problems = [
-    await applyNumber(env.DB, body, "retentionDays", SETTING_RETENTION_DAYS, LIMIT_RANGES.retentionDays),
-    await applyNumber(env.DB, body, "perAddress", SETTING_PER_ADDRESS, LIMIT_RANGES.perAddress),
-    await applyNumber(env.DB, body, "total", SETTING_GLOBAL_CAP, LIMIT_RANGES.total),
-    await applyNumber(env.DB, body, "rawMb", SETTING_RAW_MB, LIMIT_RANGES.rawMb),
-    await applyNumber(env.DB, body, "attachmentMb", SETTING_ATTACHMENT_MB, LIMIT_RANGES.attachmentMb),
-  ].filter(Boolean);
-  if (problems.length) return json({ error: problems[0] }, 400);
+  for (const [field, key, range] of [
+    ["retentionDays", SETTING_RETENTION_DAYS, LIMIT_RANGES.retentionDays],
+    ["perAddress", SETTING_PER_ADDRESS, LIMIT_RANGES.perAddress],
+    ["total", SETTING_GLOBAL_CAP, LIMIT_RANGES.total],
+    ["rawMb", SETTING_RAW_MB, LIMIT_RANGES.rawMb],
+    ["attachmentMb", SETTING_ATTACHMENT_MB, LIMIT_RANGES.attachmentMb],
+  ] as const) {
+    const planned = planNumber(body, field, key, range);
+    if (planned && "error" in planned) return json({ error: planned.error }, 400);
+    if (planned) writes.push(planned.write);
+  }
 
+  for (const w of writes) {
+    if (w.value === null) await deleteSetting(env.DB, w.key);
+    else await setSetting(env.DB, w.key, w.value);
+  }
   return json(await buildConfig(env));
 }
 
@@ -240,12 +254,13 @@ async function changePassword({ request, env }: Ctx): Promise<Response> {
     return json({ error: "The password is set by the AUTH_PASSWORD secret. Change it in the Cloudflare dashboard." }, 400);
   }
   const ip = clientIp(request);
-  const locked = lockoutSecondsLeft(ip);
+  // A mistyped current password must not lock this IP out of signing in.
+  const locked = lockoutSecondsLeft(ip, "password-change");
   if (locked > 0) return json({ error: `Too many attempts. Try again in ${describeWait(locked)}.` }, 429);
 
   const body = await readJson(request);
   if (!(await checkPassword(env, String(body.currentPassword ?? "")))) {
-    noteFailedLogin(ip);
+    noteFailedLogin(ip, "password-change");
     await sleep(500);
     return json({ error: "The current password is wrong." }, 401);
   }
@@ -253,6 +268,7 @@ async function changePassword({ request, env }: Ctx): Promise<Response> {
   if (problem) return json({ error: problem }, 400);
 
   await replacePassword(env, body.newPassword as string);
+  clearFailedLogins(ip, "password-change");
   // Every other device is now signed out; keep this one signed in.
   return json({ ok: true }, 200, { "set-cookie": await sessionCookie(env) });
 }
@@ -378,7 +394,10 @@ async function putAddress({ request, env, params }: Ctx): Promise<Response> {
   await env.DB.prepare("INSERT OR IGNORE INTO addresses (address, mode, created_at) VALUES (?1, 'permanent', ?2)").bind(address, now).run();
   await env.DB.prepare(`UPDATE addresses SET ${sets.join(", ")} WHERE address = ?${binds.push(address)}`).bind(...binds).run();
 
-  const row = (await env.DB.prepare("SELECT * FROM addresses WHERE address = ?1").bind(address).first<AddressRow>())!;
+  const row = await env.DB.prepare("SELECT * FROM addresses WHERE address = ?1").bind(address).first<AddressRow>();
+  // Deleting the inbox in another tab between the write above and this read
+  // leaves nothing to describe; say so instead of throwing on a null row.
+  if (!row) return json({ error: "That address no longer exists" }, 404);
   return json({
     ok: true,
     address: row.address,
@@ -398,9 +417,13 @@ async function forgetAddress({ env, params }: Ctx): Promise<Response> {
 
 
 async function putLabel({ request, env, params }: Ctx): Promise<Response> {
+  // Without this, any path segment became an addresses row: PUT
+  // /api/addresses/../label wrote a lifecycle for the literal string "..".
+  const address = params.address.trim().toLowerCase();
+  if (!ADDRESS_SHAPE.test(address)) return json({ error: "That is not an address" }, 400);
   const body = await readJson(request);
   const label = String(body.label ?? "").trim().slice(0, MAX_LABEL_LENGTH);
-  await setLabel(env.DB, params.address.toLowerCase(), label);
+  await setLabel(env.DB, address, label);
   return json({ ok: true, label: label || null });
 }
 
@@ -714,7 +737,7 @@ async function patchMessages({ request, env }: Ctx): Promise<Response> {
   let updated = 0;
   for (const chunk of idChunks(ids, values.length)) {
     const holes = chunk.map((_, n) => `?${values.length + n + 1}`).join(",");
-    const result = await env.DB.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id IN (${holes})`)
+    const result = await env.DB.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id IN (${holes}) AND deleted_at IS NULL`)
       .bind(...values, ...chunk)
       .run();
     updated += result.meta.changes;
@@ -771,7 +794,11 @@ async function deleteMessages({ request, env, url }: Ctx): Promise<Response> {
 
 /** POST /api/read-all?address=x marks one address read; without it, everything. */
 async function markAllRead({ env, url }: Ctx): Promise<Response> {
-  const address = url.searchParams.get("address")?.trim().toLowerCase();
+  const raw = url.searchParams.get("address");
+  // "?address=" is a caller that meant to scope the call and lost the value;
+  // treating it as "no address" would silently clear the entire inbox.
+  if (raw !== null && !raw.trim()) return json({ error: "No address given" }, 400);
+  const address = raw?.trim().toLowerCase();
   if (address) {
     await env.DB.prepare("UPDATE messages SET read = 1 WHERE address = ?1 AND read = 0 AND deleted_at IS NULL").bind(address).run();
   } else {
@@ -801,7 +828,9 @@ async function downloadAttachment({ env, params, url }: Ctx): Promise<Response> 
     .bind(params.id, idx)
     .first<{ filename: string; content_type: string; size: number; chunks: number }>();
   if (!meta) return json({ error: "Attachment not found" }, 404);
-  if (meta.chunks === 0) return json({ error: "This attachment was too large to keep" }, 410);
+  // No chunks and a non-zero size means the bytes were dropped at delivery for
+  // being over the limit. No chunks and no size is simply an empty file.
+  if (meta.chunks === 0 && meta.size > 0) return json({ error: "This attachment was too large to keep" }, 410);
 
   let seq = 0;
   const stream = new ReadableStream<Uint8Array>({

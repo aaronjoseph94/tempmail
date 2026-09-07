@@ -214,27 +214,41 @@ export const CLEAR_SESSION_COOKIE = `${SESSION_COOKIE}=; HttpOnly; Secure; Path=
 
 const MAX_FAILURES = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Sign-in and "change my password" count separately.
+ *
+ * They are different risks with the same shape. A wrong password at the sign-in
+ * screen may be an attacker guessing, so it has to cost something. A wrong
+ * *current* password in Settings comes from someone who is already signed in,
+ * and charging it to the same counter let a signed-in user mistype four times
+ * and lock every device — their own included — out of signing in at all.
+ */
+export type Gate = "login" | "password-change";
 const failures = new Map<string, { count: number; lockedUntil: number }>();
+const bucket = (gate: Gate, ip: string) => `${gate}:${ip}`;
 
 export function clientIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
-/** Seconds left on this IP's lockout, or 0 when it may try again. */
-export function lockoutSecondsLeft(ip: string): number {
-  const entry = failures.get(ip);
+/** Seconds left on this IP's lockout for one gate, or 0 when it may try again. */
+export function lockoutSecondsLeft(ip: string, gate: Gate = "login"): number {
+  const key = bucket(gate, ip);
+  const entry = failures.get(key);
   if (!entry) return 0;
   if (entry.lockedUntil > Date.now()) return Math.ceil((entry.lockedUntil - Date.now()) / 1000);
-  if (entry.lockedUntil) failures.delete(ip); // the lockout has expired; start fresh
+  if (entry.lockedUntil) failures.delete(key); // the lockout has expired; start fresh
   return 0;
 }
 
 /** Records a wrong password. Says how many tries are left, or how long the lockout is. */
-export function noteFailedLogin(ip: string): { attemptsLeft: number; lockedForSeconds: number } {
+export function noteFailedLogin(ip: string, gate: Gate = "login"): { attemptsLeft: number; lockedForSeconds: number } {
   if (failures.size > 1000) failures.clear(); // bound memory against spoofed floods
-  const entry = failures.get(ip) ?? { count: 0, lockedUntil: 0 };
+  const key = bucket(gate, ip);
+  const entry = failures.get(key) ?? { count: 0, lockedUntil: 0 };
   entry.count += 1;
-  failures.set(ip, entry);
+  failures.set(key, entry);
   if (entry.count >= MAX_FAILURES) {
     entry.lockedUntil = Date.now() + LOCKOUT_MS;
     return { attemptsLeft: 0, lockedForSeconds: LOCKOUT_MS / 1000 };
@@ -242,6 +256,6 @@ export function noteFailedLogin(ip: string): { attemptsLeft: number; lockedForSe
   return { attemptsLeft: MAX_FAILURES - entry.count, lockedForSeconds: 0 };
 }
 
-export function clearFailedLogins(ip: string): void {
-  failures.delete(ip);
+export function clearFailedLogins(ip: string, gate: Gate = "login"): void {
+  failures.delete(bucket(gate, ip));
 }

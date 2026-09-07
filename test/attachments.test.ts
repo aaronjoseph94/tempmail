@@ -105,6 +105,19 @@ describe("large attachments", () => {
     expect((await fetchAttachment(messages[0].id, 1)).status).toBe(410); // gone, deliberately
   }, 120_000);
 
+  it("serves an empty attachment as an empty file, not as one that was dropped", async () => {
+    // Both an over-budget attachment and a genuinely 0-byte one have no chunk
+    // rows; only the recorded size tells them apart.
+    await deliver(
+      buildMail({ attachments: [{ name: "empty.txt", type: "text/plain", bytes: new Uint8Array(0) }] }),
+      "empty-att@mail.example.test"
+    );
+    const { messages } = await json(await call("/api/messages?address=empty-att@mail.example.test", { cookie }));
+    const res = await fetchAttachment(messages[0].id, 0);
+    expect(res.status).toBe(200);
+    expect((await res.arrayBuffer()).byteLength).toBe(0);
+  }, 60_000);
+
   it("serves inline images inline and everything else as a download", async () => {
     await deliver(
       buildMail({

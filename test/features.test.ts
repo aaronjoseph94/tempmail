@@ -210,6 +210,20 @@ describe("editable limits", () => {
     expect((await listAll()).messages).toHaveLength(0);
   }, 60_000);
 
+  it("saves nothing at all when one field in the form is out of range", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { retentionDays: 30, perAddress: 50 } });
+    // The form sends every field together; `total` is rejected, so the two
+    // valid fields ahead of it must not be written either.
+    const res = await call("/api/settings", {
+      method: "PUT", cookie,
+      json: { retentionDays: 7, perAddress: 25, total: 99999 },
+    });
+    expect(res.status).toBe(400);
+    const cfg = await json(await call("/api/config", { cookie }));
+    expect(cfg.retentionDays).toBe(30);
+    expect(cfg.limits.perAddress).toBe(50);
+  });
+
   it("publishes the ranges so the UI can bound its inputs", async () => {
     const cfg = await json(await call("/api/config", { cookie }));
     expect(cfg.ranges.retentionDays).toEqual({ min: 1, max: 365 });
@@ -345,6 +359,29 @@ describe("address lifecycle API", () => {
 });
 
 describe("regressions", () => {
+  it("leaves trashed mail alone during a bulk star or read", async () => {
+    await seed(3, { address: "trash-patch@mail.example.test" });
+    const ids = (await listAll("?address=trash-patch@mail.example.test")).messages.map((m: any) => m.id);
+    await call("/api/messages", { cookie, method: "DELETE", json: { ids: [ids[0]] } });
+    const patched = await json(await call("/api/messages", { cookie, method: "PATCH", json: { ids, starred: true } }));
+    expect(patched.updated).toBe(2);                       // the trashed one is untouched
+    const row = await env.DB.prepare("SELECT starred FROM messages WHERE id = ?1").bind(ids[0]).first<{ starred: number }>();
+    expect(row?.starred).toBe(0);
+  });
+
+  it("refuses a read-all whose address went missing rather than clearing everything", async () => {
+    await seed(2, { address: "keep-unread@mail.example.test" });
+    expect((await call("/api/read-all?address=", { cookie, method: "POST" })).status).toBe(400);
+    expect((await listAll("?unread=1")).messages.length).toBeGreaterThan(0);
+  });
+
+  it("refuses to hang a label on something that is not an address", async () => {
+    expect((await call("/api/addresses/..%2Flabel/label", { cookie, method: "PUT", json: { label: "x" } })).status).toBe(400);
+    expect((await call("/api/addresses/not-an-address/label", { cookie, method: "PUT", json: { label: "x" } })).status).toBe(400);
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.some((a: any) => a.address === "not-an-address")).toBe(false);
+  });
+
   it("restores every message when more than one server page was deleted", async () => {
     // The server takes 200 ids per call and silently drops the rest, so the
     // client has to undo a big delete in the same slices it made it in.

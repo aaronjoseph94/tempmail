@@ -74,6 +74,20 @@ describe("signing in", () => {
     expect(other.status).toBe(200);
   }, 15_000);
 
+  it("does not let a mistyped current password lock the account out of signing in", async () => {
+    const cookie = await signIn("correct horse battery");
+    const ip = freshIp();
+    // Five wrong tries in Settings by someone who is already signed in.
+    for (let i = 0; i < 5; i++) {
+      const res = await call("/api/password", { cookie, ip, json: { currentPassword: "nope", newPassword: "a much longer one" } });
+      expect([401, 429]).toContain(res.status);
+    }
+    expect((await call("/api/password", { cookie, ip, json: { currentPassword: "nope", newPassword: "a much longer one" } })).status).toBe(429);
+
+    // Signing in from that same IP still works: the two gates count separately.
+    expect((await call("/api/login", { json: { password: "correct horse battery" }, ip })).status).toBe(200);
+  }, 15_000);
+
   it("treats a missing or malformed body as a wrong password, not a crash", async () => {
     await signIn();
     const res = await call("/api/login", { method: "POST", body: "not json", headers: { "content-type": "application/json" }, ip: freshIp() });

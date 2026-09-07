@@ -110,7 +110,17 @@ const DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9
 export function normalizeDomain(input: unknown): string | null {
   if (input == null) return "";
   if (typeof input !== "string") return null;
-  const domain = input.trim().toLowerCase().replace(/^@/, "");
-  if (!domain) return "";
+  const trimmed = input.trim().replace(/^@/, "");
+  if (!trimmed) return "";
+  // Email Routing addresses domains by their A-label, and so does the regex
+  // below, so an internationalised name is punycoded first: "münchen.de"
+  // becomes "xn--mnchen-3ya.de" rather than being rejected as non-ASCII.
+  let domain: string;
+  try {
+    domain = new URL(`https://${trimmed}`).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return null;
+  }
+  if (!domain) return null;
   return DOMAIN.test(domain) ? domain : null;
 }
