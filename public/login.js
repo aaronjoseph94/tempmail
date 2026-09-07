@@ -1,0 +1,143 @@
+/* Sign-in and first-run setup. */
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const errorBox = $("gate-error");
+  const loginForm = $("login-form");
+  const setupForm = $("setup-form");
+
+  function showError(text) {
+    if (!text) {
+      errorBox.hidden = true;
+      return;
+    }
+    errorBox.innerHTML = '<svg class="icon sm" aria-hidden="true"><use href="#i-warn"/></svg><span></span>';
+    errorBox.querySelector("span").textContent = text;
+    errorBox.hidden = false;
+    // Re-trigger the shake even when the same message comes back twice.
+    errorBox.style.animation = "none";
+    void errorBox.offsetWidth;
+    errorBox.style.animation = "";
+  }
+
+  /** Disables the form and spins the submit button while a request is out.
+      The label is matched by class so the spinner, which is also a span,
+      can never be mistaken for it. */
+  function setBusy(form, busy) {
+    for (const el of form.elements) el.disabled = busy;
+    const button = form.querySelector('button[type="submit"]');
+    const label = button.querySelector(".label");
+    label.hidden = busy;
+    button.querySelector(".spinner")?.remove();
+    if (busy) button.insertAdjacentHTML("afterbegin", '<span class="spinner" aria-hidden="true"></span>');
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+
+  async function submit(form, path, body) {
+    showError("");
+    setBusy(form, true);
+    try {
+      await post(path, body);
+      location.replace("/");
+    } catch (err) {
+      showError(err.message);
+      setBusy(form, false);
+      form.querySelector("input").focus();
+    }
+  }
+
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submit(loginForm, "/api/login", { password: $("login-password").value });
+  });
+
+  setupForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const password = $("setup-password").value;
+    if (password !== $("setup-confirm").value) {
+      showError("The passwords don't match.");
+      $("setup-confirm").focus();
+      return;
+    }
+    submit(setupForm, "/api/setup", { password, mailDomain: $("setup-domain").value.trim() });
+  });
+
+  // Reveal toggles, shared by both forms.
+  for (const button of document.querySelectorAll("[data-reveal]")) {
+    button.addEventListener("click", () => {
+      const input = $(button.dataset.reveal);
+      const shown = input.type === "text";
+      input.type = shown ? "password" : "text";
+      button.querySelector("use").setAttribute("href", shown ? "#i-eye" : "#i-eye-off");
+      button.setAttribute("aria-label", shown ? "Show password" : "Hide password");
+      input.focus();
+    });
+  }
+
+  /* A rough four-step strength read: length carries most of the weight,
+     with a nudge for mixing character classes. It only guides the choice —
+     the server enforces the actual minimum. */
+  function strengthOf(password) {
+    if (!password) return 0;
+    const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(password)).length;
+    let score = 0;
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    if (password.length >= 16) score += 1;
+    if (classes >= 3 && password.length >= 8) score += 1;
+    return Math.min(4, score);
+  }
+
+  const STRENGTH_TEXT = [
+    "Use at least 8 characters.",
+    "Weak — longer is better than complicated.",
+    "Fair. A few more words would help.",
+    "Good.",
+    "Strong.",
+  ];
+
+  $("setup-password").addEventListener("input", (e) => {
+    const level = strengthOf(e.target.value);
+    $("strength").dataset.level = String(level);
+    $("strength-text").textContent = STRENGTH_TEXT[level];
+  });
+
+  /** A sensible first guess: mail.example.com → example.com. */
+  function guessDomain() {
+    const host = location.hostname;
+    if (!host.includes(".") || host.endsWith(".workers.dev") || /^[\d.]+$/.test(host)) return "";
+    return host.replace(/^(mail|inbox|www|app|temp|tempmail)\./, "");
+  }
+
+  function show(form) {
+    $("gate-loading").hidden = true;
+    form.hidden = false;
+    $("gate-foot").hidden = false;
+    form.querySelector("input").focus();
+  }
+
+  fetch("/api/status")
+    .then((res) => res.json())
+    .then((status) => {
+      if (status.authed) {
+        location.replace("/");
+      } else if (status.setupRequired) {
+        $("setup-domain").value = guessDomain();
+        show(setupForm);
+      } else {
+        show(loginForm);
+      }
+    })
+    .catch(() => show(loginForm));
+})();

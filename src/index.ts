@@ -1,0 +1,151 @@
+/**
+ * tempmail — a private catch-all inbox on Cloudflare Workers.
+ *
+ * One Worker does everything:
+ *   fetch()      serves the site and its JSON API, behind a password
+ *   email()      receives mail from Email Routing and stores it in D1
+ *   scheduled()  nightly housekeeping: retention and the global cap
+ */
+
+import { handleApi, handlePublicApi } from "./api";
+import { hasValidSession } from "./auth";
+import { deleteAttachmentsFor, ensureSchema, sweepOrphanAttachments } from "./db";
+import { handleEmail } from "./email";
+import { json, withSecurityHeaders } from "./http";
+import { resolveLimits } from "./limits";
+
+export interface Env {
+  DB: D1Database;
+  ASSETS: Fetcher;
+  /**
+   * Optional allow-list of mail domains, comma separated. Leave it unset to
+   * accept everything Email Routing sends here (the usual case).
+   */
+  MAIL_DOMAIN?: string;
+  /**
+   * Optional. Set it as a secret to manage the password outside the app;
+   * otherwise the first visitor creates one on the setup screen.
+   */
+  AUTH_PASSWORD?: string;
+  /** Optional. Enables POST /api/dev/ingest for local testing. */
+  INGEST_KEY?: string;
+}
+
+/** Files the sign-in page needs before anyone is signed in. */
+const PUBLIC_FILES = new Set([
+  "/style.css", "/theme.js", "/login.js", "/icon.svg", "/manifest.webmanifest",
+  "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
+]);
+
+export default {
+  async fetch(request, env): Promise<Response> {
+    const url = new URL(request.url);
+    try {
+      await ensureSchema(env.DB);
+
+      if (request.method === "OPTIONS") return withSecurityHeaders(new Response(null, { status: 204 }));
+      if (isCrossSiteWrite(request)) return json({ error: "Cross-site requests are not allowed" }, 403);
+
+      const publicResponse = await handlePublicApi(request, env, url);
+      if (publicResponse) return publicResponse;
+
+      if (!(await hasValidSession(request, env))) {
+        if (url.pathname.startsWith("/api/")) return json({ error: "Unauthorized" }, 401);
+        if (PUBLIC_FILES.has(url.pathname)) return serveAsset(env, url, url.pathname, request);
+        // Every other page shows the sign-in (or first-run setup) screen.
+        return serveAsset(env, url, "/login.html", request);
+      }
+
+      const apiResponse = await handleApi(request, env, url);
+      if (apiResponse) return apiResponse;
+      if (url.pathname.startsWith("/api/")) return json({ error: "Not found" }, 404);
+
+      if (url.pathname === "/login" || url.pathname === "/login.html") {
+        return withSecurityHeaders(Response.redirect(url.origin + "/", 302));
+      }
+      return serveAsset(env, url, url.pathname, request);
+    } catch (err) {
+      console.error("request failed", err);
+      return json({ error: "Internal error" }, 500);
+    }
+  },
+
+  // Called by Cloudflare Email Routing for every message the catch-all rule sends here.
+  // This works whether or not anyone has signed in to the site.
+  async email(message, env): Promise<void> {
+    await ensureSchema(env.DB);
+    await handleEmail(message, env);
+  },
+
+  // Nightly housekeeping. Starred mail is exempt from both sweeps, so anything
+  // worth keeping survives however long it sits here.
+  async scheduled(_controller, env): Promise<void> {
+    await ensureSchema(env.DB);
+    const limits = await resolveLimits(env.DB);
+    const cutoff = Date.now() - limits.retentionDays * 24 * 60 * 60 * 1000;
+
+    await purge(env, "SELECT id FROM messages WHERE received_at < ?1 AND starred = 0", [cutoff]);
+    await purge(
+      env,
+      `SELECT id FROM messages WHERE starred = 0 AND id NOT IN
+         (SELECT id FROM messages ORDER BY starred DESC, received_at DESC, id DESC LIMIT ?1)`,
+      [limits.total]
+    );
+
+    // Catches anything a failed delete left behind earlier.
+    await sweepOrphanAttachments(env.DB);
+  },
+} satisfies ExportedHandler<Env>;
+
+/** Deletes the messages a query selects, along with their attachment rows. */
+async function purge(env: Env, sql: string, binds: unknown[]): Promise<void> {
+  const { results } = await env.DB.prepare(sql).bind(...binds).all<{ id: string }>();
+  if (!results.length) return;
+  const ids = results.map((row) => row.id);
+  await deleteAttachmentsFor(env.DB, ids);
+  for (let i = 0; i < ids.length; i += 50) {
+    const slice = ids.slice(i, i + 50);
+    const holes = slice.map((_, n) => `?${n + 1}`).join(",");
+    await env.DB.prepare(`DELETE FROM messages WHERE id IN (${holes})`).bind(...slice).run();
+  }
+}
+
+
+/**
+ * The session cookie is SameSite=Lax, which already keeps cross-site POSTs
+ * from carrying it. Browsers that send Sec-Fetch-Site let us refuse such
+ * requests outright as a second line of defence.
+ */
+function isCrossSiteWrite(request: Request): boolean {
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
+  return request.headers.get("sec-fetch-site") === "cross-site";
+}
+
+/**
+ * Serves a file from the static assets binding.
+ *
+ * The binding may answer with a redirect of its own (for example
+ * "/login.html" → "/login" under the default html_handling). We follow those
+ * here so the browser never sees them and can't end up looping between the
+ * asset layer and our sign-in routing.
+ */
+async function serveAsset(env: Env, url: URL, path: string, original: Request): Promise<Response> {
+  const headers = new Headers();
+  for (const name of ["accept", "accept-encoding", "if-none-match", "if-modified-since"]) {
+    const value = original.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+
+  let res = await env.ASSETS.fetch(new Request(url.origin + path, { headers }));
+  for (let hops = 0; hops < 3 && [301, 302, 307, 308].includes(res.status); hops++) {
+    const location = res.headers.get("location");
+    if (!location) break;
+    res = await env.ASSETS.fetch(new Request(new URL(location, url.origin), { headers }));
+  }
+
+  // Unknown page URLs fall back to the app shell; unknown files stay 404.
+  if (res.status === 404 && path !== "/" && headers.get("accept")?.includes("text/html")) {
+    return serveAsset(env, url, "/", original);
+  }
+  return withSecurityHeaders(res);
+}

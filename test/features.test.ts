@@ -1,0 +1,236 @@
+/** Starring, labels, bulk actions, runtime limits and retention. */
+import { createScheduledController } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import worker from "../src/index";
+import { MESSAGE_TTL_DAYS } from "../src/limits";
+import { buildMail, call, deliver, env, freshDatabase, json, signIn } from "./helpers";
+
+let cookie: string;
+beforeEach(async () => {
+  await freshDatabase();
+  cookie = await signIn();
+});
+
+const ctx = { waitUntil() {}, passThroughOnException() {} } as any;
+
+async function seed(count: number, options: { address?: string; startAt?: number } = {}) {
+  const { address = "seed@mail.example.test", startAt = Date.now() - count * 1000 } = options;
+  const batch = crypto.randomUUID().slice(0, 8);
+  const statements = [];
+  for (let i = 0; i < count; i++) {
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO messages (id, address, from_name, from_address, subject, snippet, received_at, read) VALUES (?1,?2,?3,?4,?5,?6,?7,0)"
+      ).bind(`s-${batch}-${i.toString().padStart(4, "0")}`, address, "Seeder", "seed@example.org", `Seed ${i}`, "x", startAt + i * 1000)
+    );
+  }
+  for (let i = 0; i < statements.length; i += 50) await env.DB.batch(statements.slice(i, i + 50));
+}
+
+const listAll = async (q = "") => json(await call(`/api/messages${q}`, { cookie }));
+
+describe("retention", () => {
+  it("defaults to 100 days", async () => {
+    expect(MESSAGE_TTL_DAYS).toBe(100);
+    expect((await json(await call("/api/config", { cookie }))).retentionDays).toBe(100);
+  });
+
+  it("keeps mail at 99 days and drops it at 101", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    await seed(1, { address: "young@mail.example.test", startAt: Date.now() - 99 * day });
+    await seed(1, { address: "old@mail.example.test", startAt: Date.now() - 101 * day });
+    await worker.scheduled(createScheduledController(), env, ctx);
+
+    const left = (await listAll()).messages.map((m: any) => m.address);
+    expect(left).toContain("young@mail.example.test");
+    expect(left).not.toContain("old@mail.example.test");
+  });
+
+  it("never deletes starred mail, however old", async () => {
+    const ancient = Date.now() - 900 * 24 * 60 * 60 * 1000;
+    await seed(1, { address: "keep@mail.example.test", startAt: ancient });
+    await seed(1, { address: "toss@mail.example.test", startAt: ancient });
+    const { messages } = await listAll();
+    const keeper = messages.find((m: any) => m.address === "keep@mail.example.test");
+    await call(`/api/messages/${keeper.id}`, { method: "PATCH", cookie, json: { starred: true } });
+
+    await worker.scheduled(createScheduledController(), env, ctx);
+    const left = (await listAll()).messages;
+    expect(left).toHaveLength(1);
+    expect(left[0].starred).toBe(true);
+  });
+
+  it("honours a retention override from settings", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { retentionDays: 2 } });
+    await seed(1, { address: "gone@mail.example.test", startAt: Date.now() - 3 * 24 * 60 * 60 * 1000 });
+    await worker.scheduled(createScheduledController(), env, ctx);
+    expect((await listAll()).messages).toHaveLength(0);
+  });
+
+  it("spares starred mail when the global cap trims the inbox", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { total: 100 } });
+    await seed(120, { address: "bulk@mail.example.test" });
+    const oldest = (await listAll("?limit=500")).messages.slice(-1)[0];
+    await call(`/api/messages/${oldest.id}`, { method: "PATCH", cookie, json: { starred: true } });
+
+    await worker.scheduled(createScheduledController(), env, ctx);
+    const left = (await listAll("?limit=500")).messages;
+    expect(left.length).toBeLessThanOrEqual(101);
+    expect(left.some((m: any) => m.id === oldest.id)).toBe(true);
+  }, 60_000);
+
+  it("spares starred mail from the per-address prune on new arrivals", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { perAddress: 10 } });
+    await seed(10, { address: "tight@mail.example.test" });
+    const oldest = (await listAll("?limit=500")).messages.slice(-1)[0];
+    await call(`/api/messages/${oldest.id}`, { method: "PATCH", cookie, json: { starred: true } });
+
+    for (let i = 0; i < 5; i++) await deliver(buildMail({ subject: `new ${i}` }), "tight@mail.example.test");
+    const left = (await listAll("?limit=500")).messages;
+    expect(left.some((m: any) => m.id === oldest.id)).toBe(true);
+  }, 60_000);
+});
+
+describe("starring", () => {
+  it("stars, unstars and filters", async () => {
+    await deliver(buildMail({ subject: "keep me" }), "a@mail.example.test");
+    await deliver(buildMail({ subject: "ordinary" }), "a@mail.example.test");
+    const { messages } = await listAll();
+    const target = messages.find((m: any) => m.subject === "keep me");
+
+    expect(target.starred).toBe(false);
+    await call(`/api/messages/${target.id}`, { method: "PATCH", cookie, json: { starred: true } });
+    expect((await listAll("?starred=1")).messages.map((m: any) => m.subject)).toEqual(["keep me"]);
+
+    await call(`/api/messages/${target.id}`, { method: "PATCH", cookie, json: { starred: false } });
+    expect((await listAll("?starred=1")).messages).toHaveLength(0);
+  });
+
+  it("reports a starred count per address", async () => {
+    await deliver(buildMail(), "counted@mail.example.test");
+    const { messages } = await listAll();
+    await call(`/api/messages/${messages[0].id}`, { method: "PATCH", cookie, json: { starred: true } });
+    const { addresses } = await json(await call("/api/addresses", { cookie }));
+    expect(addresses[0].starred).toBe(1);
+  });
+});
+
+describe("unread filter", () => {
+  it("returns only unread when asked", async () => {
+    await deliver(buildMail({ subject: "one" }), "u@mail.example.test");
+    await deliver(buildMail({ subject: "two" }), "u@mail.example.test");
+    const { messages } = await listAll();
+    await call(`/api/messages/${messages[0].id}`, { cookie }); // opening marks it read
+
+    const unread = await listAll("?unread=1");
+    expect(unread.messages).toHaveLength(1);
+    expect(unread.messages[0].id).toBe(messages[1].id);
+  });
+});
+
+describe("bulk actions", () => {
+  it("marks many read and stars many at once", async () => {
+    await seed(5);
+    const ids = (await listAll()).messages.map((m: any) => m.id);
+    const res = await json(await call("/api/messages", { method: "PATCH", cookie, json: { ids, read: true, starred: true } }));
+    expect(res.updated).toBe(5);
+    const after = (await listAll()).messages;
+    expect(after.every((m: any) => m.read && m.starred)).toBe(true);
+  });
+
+  it("deletes many at once and leaves the rest", async () => {
+    await seed(5);
+    const ids = (await listAll()).messages.slice(0, 3).map((m: any) => m.id);
+    const res = await json(await call("/api/messages", { method: "DELETE", cookie, json: { ids } }));
+    expect(res.deleted).toBe(3);
+    expect((await listAll()).messages).toHaveLength(2);
+  });
+
+  it("rejects an empty or malformed id list rather than touching everything", async () => {
+    await seed(3);
+    expect((await call("/api/messages", { method: "PATCH", cookie, json: { ids: [], read: true } })).status).toBe(400);
+    expect((await call("/api/messages", { method: "PATCH", cookie, json: { ids: ["x"] } })).status).toBe(400);
+    expect((await call("/api/messages", { method: "DELETE", cookie, json: { ids: [] } })).status).toBe(400);
+    expect((await listAll()).messages).toHaveLength(3); // nothing was touched
+  });
+
+  it("caps a single bulk call at 200 ids", async () => {
+    await seed(3);
+    const ids = (await listAll()).messages.map((m: any) => m.id);
+    const padded = [...ids, ...Array.from({ length: 500 }, (_, i) => `ghost-${i}`)];
+    const res = await json(await call("/api/messages", { method: "PATCH", cookie, json: { ids: padded, read: true } }));
+    expect(res.updated).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("address labels", () => {
+  it("saves, returns, trims and clears a label", async () => {
+    await deliver(buildMail(), "shop@mail.example.test");
+    await call("/api/addresses/shop@mail.example.test/label", { method: "PUT", cookie, json: { label: "  Shopping  " } });
+    let { addresses } = await json(await call("/api/addresses", { cookie }));
+    expect(addresses[0].label).toBe("Shopping");
+
+    const long = "x".repeat(200);
+    const res = await json(await call("/api/addresses/shop@mail.example.test/label", { method: "PUT", cookie, json: { label: long } }));
+    expect(res.label.length).toBe(40);
+
+    await call("/api/addresses/shop@mail.example.test/label", { method: "PUT", cookie, json: { label: "" } });
+    ({ addresses } = await json(await call("/api/addresses", { cookie })));
+    expect(addresses[0].label).toBeNull();
+  });
+});
+
+describe("editable limits", () => {
+  it("accepts values in range and reports them back", async () => {
+    const cfg = await json(await call("/api/settings", {
+      method: "PUT", cookie,
+      json: { retentionDays: 30, perAddress: 50, total: 1000, rawMb: 10, attachmentMb: 5 },
+    }));
+    expect(cfg.retentionDays).toBe(30);
+    expect(cfg.limits).toMatchObject({ perAddress: 50, total: 1000, rawBytes: 10 * 1024 * 1024, attachmentBytes: 5 * 1024 * 1024 });
+  });
+
+  it("refuses values outside the published ranges", async () => {
+    for (const bad of [{ retentionDays: 0 }, { retentionDays: 400 }, { perAddress: 1 }, { total: 99999 }, { rawMb: 100 }, { attachmentMb: 0 }]) {
+      expect((await call("/api/settings", { method: "PUT", cookie, json: bad })).status, JSON.stringify(bad)).toBe(400);
+    }
+  });
+
+  it("ignores nonsense types and clears back to the default with null", async () => {
+    expect((await call("/api/settings", { method: "PUT", cookie, json: { retentionDays: "abc" } })).status).toBe(400);
+    await call("/api/settings", { method: "PUT", cookie, json: { retentionDays: 5 } });
+    const cleared = await json(await call("/api/settings", { method: "PUT", cookie, json: { retentionDays: null } }));
+    expect(cleared.retentionDays).toBe(MESSAGE_TTL_DAYS);
+  });
+
+  it("applies the raw-size limit to incoming mail", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { rawMb: 1 } });
+    const big = buildMail({ text: "x".repeat(2 * 1024 * 1024) });
+    expect(await deliver(big, "toobig@mail.example.test")).toEqual(["Message too large"]);
+    expect((await listAll()).messages).toHaveLength(0);
+  }, 60_000);
+
+  it("publishes the ranges so the UI can bound its inputs", async () => {
+    const cfg = await json(await call("/api/config", { cookie }));
+    expect(cfg.ranges.retentionDays).toEqual({ min: 1, max: 365 });
+    expect(cfg.ranges.rawMb.max).toBe(25);
+  });
+});
+
+describe("export", () => {
+  it("returns a readable text file with the headers and body", async () => {
+    await deliver(buildMail({ subject: "Receipt 42", text: "Thanks for your order." }), "x@mail.example.test");
+    const { messages } = await listAll();
+    const res = await call(`/api/messages/${messages[0].id}/export`, { cookie });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toContain("Receipt 42.txt");
+    const body = await res.text();
+    expect(body).toContain("Subject: Receipt 42");
+    expect(body).toContain("Thanks for your order.");
+    expect(body).toContain("to: x@mail.example.test".replace("to:", "To:"));
+  });
+
+  it("404s for a message that isn't there", async () => {
+    expect((await call("/api/messages/nope/export", { cookie })).status).toBe(404);
+  });
+});

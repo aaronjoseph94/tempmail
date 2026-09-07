@@ -1,0 +1,52 @@
+{
+  // Cloudflare Worker config for tempmail.
+  //
+  // This file has no personal values in it, so it's safe to share and to
+  // deploy straight from the "Deploy to Cloudflare" button. Everything
+  // personal (your password, your domain) is set up from the site itself the
+  // first time you open it.
+  //
+  // Deploying from the terminal instead?  npm install && npx wrangler deploy
+  // Wrangler creates the D1 database for you on the first deploy.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tempmail",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-01",
+
+  // Optional variables (add them here or in the dashboard under Settings →
+  // Variables and Secrets):
+  //   MAIL_DOMAIN    comma-separated allow-list of domains to accept mail for.
+  //                  Leave it out to accept everything Email Routing sends here.
+  //   AUTH_PASSWORD  set as a *secret* to manage the site password outside the
+  //                  app instead of creating it on the first-run screen.
+  "vars": {},
+
+  // The website lives in ./public. Every request goes through the Worker
+  // first so nothing is served before the password check.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  // Where the mail lives. Provisioned automatically by the deploy button and
+  // by `wrangler deploy`; the tables create themselves on first use.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tempmail"
+    }
+  ],
+
+  // Nightly housekeeping at 03:00 UTC (retention + global cap, see src/limits.ts).
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  },
+
+  "observability": {
+    "enabled": true
+  }
+
+  // Attach your own hostname afterwards in the dashboard:
+  // Workers & Pages → tempmail → Settings → Domains & Routes.
+}

@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>AJ's Temp Email</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/style.css?v=6" />
+</head>
+<body>
+  <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
+  <svg hidden aria-hidden="true">
+    <defs>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 7.4 5.2a2 2 0 0 0 2.2 0l7.4-5.2"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M5.5 4.5h13l2.5 8.5v6.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V13z"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+      <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.2v13.6L7.2 14.5H4z"/><path class="wave wave-1" d="M15.4 9.6a3.4 3.4 0 0 1 0 4.8"/><path class="wave wave-2" d="M18 7a7 7 0 0 1 0 10"/></symbol>
+      <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.2v13.6L7.2 14.5H4z"/><path d="m16 10 4.5 4.5M20.5 10 16 14.5"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2m0 14.4v2.2M2.6 12h2.2m14.4 0h2.2M5.3 5.3l1.6 1.6m10.2 10.2 1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.3A8.6 8.6 0 0 1 9.7 3.5a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 14.4a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.6a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 9.9 2.7v-.1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 2-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5.5 15A2.5 2.5 0 0 1 3 12.5v-7A2.5 2.5 0 0 1 5.5 3h7A2.5 2.5 0 0 1 15 5.5"/></symbol>
+      <symbol id="i-tick" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.75" cy="8.75" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.25" cy="15.25" r="1.35" fill="currentColor" stroke="none"/><circle cx="15.25" cy="8.75" r="1.35" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6.5h16"/><path d="M10 11v6m4-6v6"/><path d="M6 6.5 7 20a1.5 1.5 0 0 0 1.5 1.4h7A1.5 1.5 0 0 0 17 20l1-13.5"/><path d="M9.5 6.5v-2A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5v2"/></symbol>
+      <symbol id="i-clip" viewBox="0 0 24 24"><path d="M20.5 11.5 12 20a5.2 5.2 0 0 1-7.4-7.4l8.5-8.5a3.5 3.5 0 0 1 4.9 4.9l-8.4 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15.5" r="4.2"/><path d="m11.1 12.5 8.4-8.4"/><path d="m16.5 7.1 2.4 2.4"/><path d="m14 9.6 2.4 2.4"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="8.75" cy="10" r="1.6"/><path d="m21 15.5-4.6-4.6-7.9 8.6"/></symbol>
+      <symbol id="i-unread" viewBox="0 0 24 24"><path d="M20.9 10.6v7.9a2 2 0 0 1-2 2H5.1a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h8"/><path d="m3.5 8 7.4 5.2a2 2 0 0 0 2.2 0l3.3-2.3"/><circle cx="19.4" cy="5.6" r="2.9" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-check-all" viewBox="0 0 24 24"><path d="m2.5 13 3.5 3.5L13 9.5"/><path d="m11 16.5 1 1L21.5 8"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.9 5.8A9.5 9.5 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15 15 0 0 1-2.7 3.5M6.2 8A15 15 0 0 0 2.5 12S6 18.5 12 18.5a9 9 0 0 0 3.3-.6"/><path d="M10 10a2.9 2.9 0 0 0 4 4"/><path d="m3.5 3.5 17 17"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.5 5.9v5.4c0 4.6 3.1 8.9 7.5 10 4.4-1.1 7.5-5.4 7.5-10V5.9z"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.2 9.5h17.6M3.2 14.5h17.6"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9m4 0h3M4 17h4m4 0h8"/><circle cx="15" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></symbol>
+      <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.7h.01M10 12.7h.01M13.5 12.7h.01M17 12.7h.01M8.5 15.6h7"/></symbol>
+      <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></symbol>
+      <symbol id="i-exit" viewBox="0 0 24 24"><path d="M9.5 3.5h-4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h4"/><path d="M15.5 16.5 20 12l-4.5-4.5"/><path d="M20 12H9"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.8l5.9-.9z"/></symbol>
+      <symbol id="i-inbox-arrow" viewBox="0 0 24 24"><path d="M4 13h3.6l1.4 2.2h6L16.4 13H20"/><path d="M5.6 4.6h12.8l2.6 8.4v5.4a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 18.4V13z"/><path d="M12 3.2v5m0 0 2-2m-2 2-2-2"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 17v2.5h16V17"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 4v5h-5"/></symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11V4.5H10l10 10-6.5 6.5z"/><circle cx="7.3" cy="7.8" r="1.3"/></symbol>
+      <symbol id="i-select" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="m8 12 3 3 5-6"/></symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 1.8 20.5h20.4z"/><path d="M12 9.5v5m0 3h.01"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="AJ's Temp Email home">
+      <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-mail"/></svg></span>
+      <span class="brand-name">AJ's Temp Email</span>
+    </a>
+
+    <div class="searchbox">
+      <svg class="icon sm" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="search" type="search" placeholder="Search mail" autocomplete="off" spellcheck="false"
+             aria-label="Search mail" enterkeyhint="search" />
+      <span class="search-meta">
+        <span class="search-count" id="search-count"></span>
+        <button class="search-clear" id="search-clear" aria-label="Clear search" hidden>
+          <svg class="icon sm"><use href="#i-close"/></svg>
+        </button>
+      </span>
+    </div>
+
+    <div class="bar-actions">
+      <span class="domain-pill" id="domain-pill" hidden title="Any address at this domain arrives here">
+        <span class="live-dot" aria-hidden="true"></span><b id="domain-label"></b>
+      </span>
+      <button id="btn-search" class="icon-btn plain only-phone" aria-label="Search" aria-expanded="false">
+        <svg class="icon"><use href="#i-search"/></svg>
+      </button>
+      <button id="btn-sound" class="icon-btn plain sound-btn" aria-label="Sound when mail arrives" aria-pressed="true" title="Sound when mail arrives">
+        <svg class="icon"><use href="#i-sound"/></svg>
+      </button>
+      <button id="btn-theme" class="icon-btn plain" aria-label="Switch theme" title="Light / dark">
+        <svg class="icon"><use href="#i-sun"/></svg>
+      </button>
+      <button id="btn-settings" class="icon-btn plain" aria-label="Settings" title="Settings (,)">
+        <svg class="icon"><use href="#i-gear"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Left rail: the address you hand out, then every address that has mail -->
+    <aside class="rail">
+      <section class="addr-card" aria-labelledby="addr-card-label">
+        <span class="card-label" id="addr-card-label">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>Your address
+        </span>
+        <button id="btn-copy" class="addr-value" title="Copy address (c)">
+          <span class="text"><span id="addr-local"></span><span class="domain" id="addr-domain"></span></span>
+          <span class="copy-slot" aria-hidden="true">
+            <svg class="icon copy"><use href="#i-copy"/></svg>
+            <svg class="icon tick"><use href="#i-tick"/></svg>
+          </span>
+        </button>
+        <p class="hint" id="addr-hint" hidden>
+          Add your mail domain in <button type="button" class="link" id="link-domain">Settings</button> to finish the address.
+        </p>
+        <div class="addr-actions">
+          <button id="btn-roll" class="btn sm ghost" title="Generate a different address (N)">
+            <svg class="icon sm spin"><use href="#i-dice"/></svg>Generate
+          </button>
+          <button id="btn-mine" class="btn sm ghost" title="Show only the messages sent to this address">
+            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg>Go to box
+          </button>
+        </div>
+      </section>
+
+      <div class="view-filters" role="group" aria-label="Filter the list">
+        <button class="view-chip active" data-view="all" aria-pressed="true">All</button>
+        <button class="view-chip" data-view="unread" aria-pressed="false">
+          Unread<span class="pip" id="pip-unread" hidden></span>
+        </button>
+        <button class="view-chip" data-view="starred" aria-pressed="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>Starred
+        </button>
+      </div>
+
+      <nav class="rail-group" aria-label="Addresses">
+        <div class="rail-head"><span>Addresses</span><span id="addr-count"></span></div>
+        <div class="rail-list" id="rail-list" data-ready="false"></div>
+      </nav>
+    </aside>
+
+    <!-- Middle: the message list -->
+    <section class="list-col">
+      <div class="list-head">
+        <div>
+          <h2 id="list-title">All mail</h2>
+          <div class="list-sub" id="list-sub"></div>
+        </div>
+        <div class="list-tools">
+          <button id="btn-select" class="icon-btn" aria-label="Select messages" title="Select messages" aria-pressed="false">
+            <svg class="icon sm"><use href="#i-select"/></svg>
+          </button>
+          <button id="btn-read-all" class="icon-btn" aria-label="Mark everything here as read" title="Mark all read" hidden>
+            <svg class="icon sm"><use href="#i-check-all"/></svg>
+          </button>
+          <button id="btn-rename" class="icon-btn" aria-label="Name this address" title="Give this address a name" hidden>
+            <svg class="icon sm"><use href="#i-tag"/></svg>
+          </button>
+          <button id="btn-wipe" class="icon-btn danger" aria-label="Delete every message to this address" title="Wipe this address" hidden>
+            <svg class="icon sm"><use href="#i-trash"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="select-bar" id="select-bar" hidden>
+        <span class="select-count" id="select-count"></span>
+        <div class="select-actions">
+          <button id="sel-read" class="btn sm ghost"><svg class="icon sm"><use href="#i-check-all"/></svg>Read</button>
+          <button id="sel-star" class="btn sm ghost"><svg class="icon sm"><use href="#i-star"/></svg>Star</button>
+          <button id="sel-delete" class="btn sm ghost danger"><svg class="icon sm"><use href="#i-trash"/></svg>Delete</button>
+          <button id="sel-cancel" class="icon-btn plain" aria-label="Leave selection mode"><svg class="icon sm"><use href="#i-close"/></svg></button>
+        </div>
+      </div>
+
+      <div id="feed" class="feed" aria-busy="true" aria-label="Messages"></div>
+
+      <div id="feed-empty" class="empty" hidden>
+        <div class="empty-art" aria-hidden="true"><svg class="icon xl"><use href="#i-inbox"/></svg></div>
+        <h3 id="empty-title">No mail yet</h3>
+        <p class="dim" id="empty-text"></p>
+        <ol class="steps" id="empty-steps">
+          <li>Copy the address above, or invent any name at your domain.</li>
+          <li>Send it a message from anywhere.</li>
+          <li>It lands here within seconds — no refresh needed.</li>
+        </ol>
+        <p class="hint" id="empty-hint">
+          Nothing arriving? Open your domain in the Cloudflare dashboard →
+          <strong>Email</strong> → <strong>Email Routing</strong>, and point the
+          <strong>catch-all</strong> rule at this Worker.
+        </p>
+      </div>
+
+      <div class="list-foot">
+        <button id="btn-more" class="btn ghost block" hidden>Load older messages</button>
+      </div>
+    </section>
+
+    <!-- Right: reading pane on desktop, a full sheet on phones -->
+    <section class="viewer" id="viewer" aria-label="Message">
+      <div class="viewer-idle" id="viewer-idle">
+        <div class="empty-art" aria-hidden="true"><svg class="icon xl"><use href="#i-mail"/></svg></div>
+        <p>Pick a message to read it</p>
+        <p class="hint"><kbd>J</kbd> <kbd>K</kbd> to move · <kbd>Esc</kbd> to close</p>
+      </div>
+
+      <article class="message" id="message" hidden>
+        <header class="msg-head">
+          <button id="btn-back" class="icon-btn plain only-phone" aria-label="Back to the list">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <h1 class="msg-subject" id="msg-subject"></h1>
+          <button id="btn-close" class="icon-btn plain only-desktop" aria-label="Close message" title="Close (Esc)">
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </header>
+
+        <div class="msg-meta">
+          <div class="avatar" id="msg-avatar" aria-hidden="true"></div>
+          <div class="msg-who">
+            <div class="msg-from"><span id="msg-from-name"></span> <span class="addr" id="msg-from-addr"></span></div>
+            <div class="msg-to">to <button type="button" class="link mono" id="msg-to" title="Show only mail for this address"></button></div>
+          </div>
+          <div class="msg-when"><time id="msg-date"></time><span class="sep">·</span><span id="msg-expiry"></span></div>
+        </div>
+
+        <div class="msg-actions">
+          <button id="btn-code" class="chip accent" hidden title="Copy the verification code">
+            <svg class="icon sm"><use href="#i-key"/></svg><span>Copy code <b id="msg-code"></b></span>
+          </button>
+          <div class="seg" id="body-toggle" data-ready="false" role="group" aria-label="View message as" hidden>
+            <button id="btn-html" class="seg-btn" aria-pressed="true">Rich</button>
+            <button id="btn-text" class="seg-btn" aria-pressed="false">Plain</button>
+          </div>
+          <button id="btn-images" class="chip" hidden title="Remote images stay blocked until you ask for them">
+            <svg class="icon sm"><use href="#i-image"/></svg><span>Load images</span>
+          </button>
+          <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
+            <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
+          </button>
+          <a id="btn-export" class="chip" download title="Download as a text file">
+            <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
+          </a>
+          <button id="btn-unread" class="chip" title="Mark unread (u)">
+            <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
+          </button>
+          <button id="btn-delete" class="chip danger" title="Delete (#)">
+            <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
+          </button>
+        </div>
+
+        <div id="msg-attachments" class="attachments" hidden></div>
+
+        <div class="msg-body" id="msg-body">
+          <!-- Same-origin so the frame can be measured and sized to its content;
+               scripts and forms stay blocked by the sandbox, and links open in
+               a new tab. -->
+          <iframe id="msg-frame" title="Message content"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+          <div id="msg-text" class="msg-text" hidden></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- Settings: slides in from the right on desktop, up from the bottom on a phone -->
+  <dialog id="settings" class="drawer" aria-labelledby="settings-title">
+    <div class="drawer-panel" id="drawer-panel">
+      <div class="drawer-grip" id="drawer-grip" aria-hidden="true"></div>
+      <header class="drawer-head">
+        <h2 id="settings-title">Settings</h2>
+        <button id="btn-settings-close" class="icon-btn plain" aria-label="Close settings">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+
+      <div class="drawer-scroll">
+        <section class="drawer-sec" style="--i:0">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Mail domain</h3>
+          <p class="hint">The part after the @ in your addresses. It only shapes what is shown and generated — mail is accepted for every domain routed to this Worker.</p>
+          <form class="row" id="domain-form">
+            <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" aria-label="Mail domain" />
+            <button class="btn sm primary" type="submit">Save</button>
+          </form>
+          <p class="hint" id="domain-note" hidden></p>
+        </section>
+
+        <section class="drawer-sec" style="--i:1">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Password</h3>
+          <form class="stack" id="password-form">
+            <input id="pw-current" type="password" placeholder="Current password" autocomplete="current-password" aria-label="Current password" required />
+            <input id="pw-new" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" aria-label="New password" required />
+            <button class="btn sm" type="submit">Change password</button>
+          </form>
+          <p class="hint" id="pw-note"></p>
+        </section>
+
+        <section class="drawer-sec" style="--i:2">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
+          <label class="switch">
+            <input type="checkbox" id="set-sound" /><span class="track"></span>
+            <span class="label">Sound on arrival<small>A short chime when new mail lands</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-notify" /><span class="track"></span>
+            <span class="label">Desktop notifications<small>Only while this tab is in the background</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
+            <span class="label">Check for new mail automatically<small>Turn off to refresh only when you ask</small></span>
+          </label>
+        </section>
+
+        <section class="drawer-sec" style="--i:3">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
+          <label class="switch">
+            <input type="checkbox" id="set-theme" /><span class="track"></span>
+            <span class="label">Light theme<small>Follows your system until you change it</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-images" /><span class="track"></span>
+            <span class="label">Always load remote images<small>Off keeps tracking pixels blocked until you ask</small></span>
+          </label>
+        </section>
+
+        <section class="drawer-sec" style="--i:4">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-database"/></svg>Storage &amp; limits</h3>
+          <div class="meter">
+            <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
+            <div class="meter-row"><span id="storage-used">—</span><span id="storage-cap"></span></div>
+          </div>
+          <form class="limits" id="limits-form">
+            <label class="limit">
+              <span>Keep mail for<em>days</em></span>
+              <input id="lim-retention" type="number" inputmode="numeric" step="1" />
+            </label>
+            <label class="limit">
+              <span>Per address<em>messages</em></span>
+              <input id="lim-per-address" type="number" inputmode="numeric" step="1" />
+            </label>
+            <label class="limit">
+              <span>In total<em>messages</em></span>
+              <input id="lim-total" type="number" inputmode="numeric" step="1" />
+            </label>
+            <label class="limit">
+              <span>Max message<em>MB</em></span>
+              <input id="lim-raw" type="number" inputmode="decimal" step="1" />
+            </label>
+            <label class="limit">
+              <span>Attachments kept<em>MB per message</em></span>
+              <input id="lim-attachment" type="number" inputmode="decimal" step="1" />
+            </label>
+            <button class="btn sm primary" type="submit">Save limits</button>
+          </form>
+          <p class="hint" id="retention-note"></p>
+        </section>
+
+        <section class="drawer-sec" style="--i:5">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard</h3>
+          <dl class="keys">
+            <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous</dd></div>
+            <div><dt><kbd>Enter</kbd></dt><dd>open message</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>close / clear</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd>search</dd></div>
+            <div><dt><kbd>C</kbd></dt><dd>copy address</dd></div>
+            <div><dt><kbd>N</kbd></dt><dd>new address</dd></div>
+            <div><dt><kbd>U</kbd></dt><dd>mark unread</dd></div>
+            <div><dt><kbd>#</kbd></dt><dd>delete message</dd></div>
+            <div><dt><kbd>,</kbd></dt><dd>settings</dd></div>
+            <div><dt><kbd>T</kbd></dt><dd>switch theme</dd></div>
+          </dl>
+        </section>
+
+        <section class="drawer-sec" style="--i:6">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
+          <p class="hint">Starred messages are kept forever and are never removed by the nightly cleanup — but they do go when you delete everything.</p>
+          <div class="row">
+            <button id="btn-delete-all" class="btn sm danger" type="button">
+              <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
+            </button>
+            <button id="btn-logout" class="btn sm ghost" type="button">
+              <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="label-dialog" class="mini">
+    <form method="dialog" class="mini-inner" id="label-form">
+      <h2>Name this address</h2>
+      <p class="hint" id="label-target"></p>
+      <input id="label-input" type="text" maxlength="40" placeholder="Shopping, newsletters…" aria-label="Label" />
+      <div class="row end">
+        <button class="btn sm ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button class="btn sm primary" value="save" type="submit" id="label-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="/app.js?v=6"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Secrets and personal config, never commit
+.dev.vars
+wrangler.local.jsonc
+
+# Dependencies and build state
+node_modules/
+.wrangler/
+*.bak
+
+# Test artifacts
+*.eml
+test-results/
+
+# OS noise
+.DS_Store
+Thumbs.db

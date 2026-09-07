@@ -1,0 +1,9 @@
+# Copy to .dev.vars for local development (`npm run dev`). Never commit .dev.vars.
+
+# Lets you push test mail into the local inbox without Email Routing:
+#   curl -X POST "http://localhost:8787/api/dev/ingest?to=test@example.com" \
+#        -H "x-ingest-key: dev-key" --data-binary @message.eml
+INGEST_KEY=dev-key
+
+# Optional: skip the first-run setup screen locally.
+# AUTH_PASSWORD=correct horse battery
