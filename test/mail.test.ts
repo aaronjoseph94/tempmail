@@ -223,9 +223,10 @@ describe("reading and housekeeping", () => {
     expect((await listAll()).messages[0].read).toBe(true);
 
     const addresses = await json(await call("/api/addresses", { cookie }));
-    expect(addresses.addresses).toEqual([
-      { address: "r@mail.example.test", label: null, count: 1, unread: 0, starred: 0, lastReceivedAt: full.receivedAt },
-    ]);
+    expect(addresses.addresses).toHaveLength(1);
+    expect(addresses.addresses[0]).toMatchObject(
+      { address: "r@mail.example.test", label: null, count: 1, unread: 0, starred: 0, lastReceivedAt: full.receivedAt, mode: "permanent" }
+    );
 
     expect((await call(`/api/messages/${id}`, { cookie, method: "PATCH", json: { read: false } })).status).toBe(200);
     expect((await listAll()).messages[0].read).toBe(false);
@@ -303,5 +304,54 @@ describe("reading and housekeeping", () => {
     await call("/api/settings", { method: "PUT", cookie, json: { mailDomain: "" } });
     config = await json(await call("/api/config", { cookie }));
     expect(config.domainSource).toBe("observed");
+  });
+});
+
+describe("address lifecycles", () => {
+  const rail = async () => (await json(await call("/api/addresses", { cookie }))).addresses;
+  const setMode = (address: string, body: Record<string, unknown>) =>
+    call(`/api/addresses/${encodeURIComponent(address)}`, { cookie, method: "PUT", json: body });
+
+  it("gives an unknown address a permanent row owned by its first sender", async () => {
+    expect(await deliver(buildMail({ from: "GitHub <noreply@github.com>" }), "new@mail.example.test")).toEqual([]);
+    const [row] = await rail();
+    expect(row).toMatchObject({ address: "new@mail.example.test", mode: "permanent", ownerDomain: "github.com", count: 1, dead: false, leaks: [] });
+  });
+
+  it("seals a one-shot address after its first message", async () => {
+    await setMode("once@mail.example.test", { mode: "sealed" });
+    expect(await deliver(buildMail({ subject: "first" }), "once@mail.example.test")).toEqual([]);
+    expect(await deliver(buildMail({ subject: "second" }), "once@mail.example.test")).toEqual(["No such mailbox"]);
+    const { messages } = await json(await call("/api/messages?address=once@mail.example.test", { cookie }));
+    expect(messages.map((m: any) => m.subject)).toEqual(["first"]);
+    expect((await rail()).find((a: any) => a.address === "once@mail.example.test")).toMatchObject({ used: true, dead: true });
+  });
+
+  it("bounces mail once an expiring address has expired, and accepts it before", async () => {
+    await env.DB.prepare("INSERT INTO addresses (address, mode, expires_at, created_at) VALUES (?1, 'expires', ?2, ?3)")
+      .bind("gone@mail.example.test", Date.now() - 1000, Date.now() - 100000).run();
+    expect(await deliver(buildMail(), "gone@mail.example.test")).toEqual(["No such mailbox"]);
+    await setMode("soon@mail.example.test", { mode: "expires", ttlHours: 24 });
+    expect(await deliver(buildMail(), "soon@mail.example.test")).toEqual([]);
+    expect((await rail()).find((a: any) => a.address === "gone@mail.example.test")).toMatchObject({ expired: true, count: 0 });
+  });
+
+  it("refuses mail to a blocked address without storing anything", async () => {
+    await setMode("spam@mail.example.test", { mode: "blocked" });
+    expect(await deliver(buildMail(), "spam@mail.example.test")).toEqual(["No such mailbox"]);
+    const { messages } = await json(await call("/api/messages", { cookie }));
+    expect(messages).toHaveLength(0);
+    await setMode("spam@mail.example.test", { mode: "permanent" });
+    expect(await deliver(buildMail(), "spam@mail.example.test")).toEqual([]);
+  });
+
+  it("reports senders that are not the owner as leaks, ignoring the owner's subdomains", async () => {
+    await deliver(buildMail({ from: "Shop <orders@example.org>" }), "shop@mail.example.test");
+    await deliver(buildMail({ from: "Shop <news@mail.example.org>" }), "shop@mail.example.test");
+    await deliver(buildMail({ from: "Spammer <x@sketchy.net>" }), "shop@mail.example.test");
+    await deliver(buildMail({ from: "Spammer <y@sketchy.net>" }), "shop@mail.example.test");
+    const row = (await rail()).find((a: any) => a.address === "shop@mail.example.test");
+    expect(row.ownerDomain).toBe("example.org");
+    expect(row.leaks).toEqual([{ domain: "sketchy.net", count: 2, last: expect.any(Number) }]);
   });
 });

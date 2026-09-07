@@ -65,6 +65,8 @@ export const LIMIT_RANGES = {
   total: { min: 100, max: 20000 },
   rawMb: { min: 1, max: 25 },
   attachmentMb: { min: 1, max: 25 },
+  /** How long a generated burner address may live, in hours. */
+  burnerHours: { min: 1, max: 24 * 30 },
 } as const;
 
 function clampInt(raw: string | null, min: number, max: number, fallback: number): number {

@@ -15,6 +15,9 @@ export const SETTING_PER_ADDRESS = "per_address_cap";
 export const SETTING_GLOBAL_CAP = "global_cap";
 export const SETTING_RAW_MB = "raw_mb";
 export const SETTING_ATTACHMENT_MB = "attachment_mb";
+/** Bumped when a one-off data migration has run, so it never runs twice. */
+export const SETTING_SCHEMA_VERSION = "schema_v";
+const SCHEMA_VERSION = "2";
 
 const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   id           TEXT PRIMARY KEY,
@@ -38,7 +41,22 @@ const CREATE_SETTINGS = `CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 )`;
 
-/** Per-address nicknames, so "shop-otter-12" can read as "Shopping". */
+/**
+ * Every address the inbox knows about: its nickname, its lifecycle and the
+ * first domain that wrote to it. Rows appear on first mail or when the owner
+ * generates a burner; the catch-all still accepts unknown addresses.
+ */
+const CREATE_ADDRESSES = `CREATE TABLE IF NOT EXISTS addresses (
+  address       TEXT PRIMARY KEY,
+  label         TEXT,
+  mode          TEXT NOT NULL DEFAULT 'permanent',
+  expires_at    INTEGER,
+  owner_domain  TEXT,
+  created_at    INTEGER NOT NULL,
+  first_seen_at INTEGER
+)`;
+
+/** The pre-lifecycle label table; kept so the migration below can read it. */
 const CREATE_LABELS = `CREATE TABLE IF NOT EXISTS address_labels (
   address TEXT PRIMARY KEY,
   label   TEXT NOT NULL
@@ -98,6 +116,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
   await db.batch([
     db.prepare(CREATE_MESSAGES),
     db.prepare(CREATE_SETTINGS),
+    db.prepare(CREATE_ADDRESSES),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),
@@ -112,6 +131,27 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     if (!present.has(column.name)) await db.prepare(column.ddl).run();
   }
   for (const sql of LATE_INDEXES) await db.prepare(sql).run();
+  await migrateAddresses(db);
+}
+
+/**
+ * One-off: fold the old label table into `addresses` and give every address
+ * that already has mail a row. Runs once per database.
+ */
+async function migrateAddresses(db: D1Database): Promise<void> {
+  if (!(await setSettingIfAbsent(db, SETTING_SCHEMA_VERSION, SCHEMA_VERSION))) return;
+  const now = Date.now();
+  await db.batch([
+    db.prepare(
+      `INSERT OR IGNORE INTO addresses (address, label, mode, created_at)
+         SELECT address, label, 'permanent', ?1 FROM address_labels`
+    ).bind(now),
+    db.prepare("DELETE FROM address_labels"),
+    db.prepare(
+      `INSERT OR IGNORE INTO addresses (address, mode, created_at, first_seen_at)
+         SELECT address, 'permanent', MIN(received_at), MIN(received_at) FROM messages GROUP BY address`
+    ),
+  ]);
 }
 
 let bootstrap: Promise<void> | null = null;
@@ -154,18 +194,21 @@ export async function deleteSetting(db: D1Database, key: string): Promise<void> 
 /* --------------------------------------------------------------- labels */
 
 export async function getLabels(db: D1Database): Promise<Record<string, string>> {
-  const { results } = await db.prepare("SELECT address, label FROM address_labels").all<{ address: string; label: string }>();
+  const { results } = await db.prepare("SELECT address, label FROM addresses WHERE label IS NOT NULL").all<{ address: string; label: string }>();
   return Object.fromEntries(results.map((row) => [row.address, row.label]));
 }
 
 export async function setLabel(db: D1Database, address: string, label: string): Promise<void> {
   if (!label) {
-    await db.prepare("DELETE FROM address_labels WHERE address = ?1").bind(address).run();
+    await db.prepare("UPDATE addresses SET label = NULL WHERE address = ?1").bind(address).run();
     return;
   }
   await db
-    .prepare("INSERT INTO address_labels (address, label) VALUES (?1, ?2) ON CONFLICT(address) DO UPDATE SET label = excluded.label")
-    .bind(address, label)
+    .prepare(
+      `INSERT INTO addresses (address, label, mode, created_at) VALUES (?1, ?2, 'permanent', ?3)
+       ON CONFLICT(address) DO UPDATE SET label = excluded.label`
+    )
+    .bind(address, label, Date.now())
     .run();
 }
 

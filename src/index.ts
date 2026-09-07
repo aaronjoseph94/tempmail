@@ -94,6 +94,13 @@ export default {
       [limits.total]
     );
 
+    // Burners that expired a week ago, were never named and hold no mail
+    // have nothing left to say; drop the rows.
+    await env.DB.prepare(
+      `DELETE FROM addresses WHERE mode = 'expires' AND expires_at < ?1 AND label IS NULL
+         AND address NOT IN (SELECT address FROM messages)`
+    ).bind(Date.now() - 7 * 24 * 60 * 60 * 1000).run();
+
     // Catches anything a failed delete left behind earlier.
     await sweepOrphanAttachments(env.DB);
   },

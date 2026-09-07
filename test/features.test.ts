@@ -294,3 +294,52 @@ describe("trash", () => {
     expect((await listAll("?unread=1")).messages).toHaveLength(2);
   });
 });
+
+describe("address lifecycle API", () => {
+  const put = (address: string, body: Record<string, unknown>) =>
+    call(`/api/addresses/${encodeURIComponent(address)}`, { cookie, method: "PUT", json: body });
+
+  it("folds the old label table into addresses once", async () => {
+    await env.DB.prepare("INSERT INTO address_labels (address, label) VALUES ('old@mail.example.test', 'Old name')").run();
+    await env.DB.prepare("DELETE FROM settings WHERE key = 'schema_v'").run();
+    const { bootstrapSchema } = await import("../src/db");
+    await bootstrapSchema(env.DB);
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.find((a: any) => a.address === "old@mail.example.test")).toMatchObject({ label: "Old name", mode: "permanent" });
+    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM address_labels").first<{ n: number }>();
+    expect(left?.n).toBe(0);
+  });
+
+  it("validates modes and expiries", async () => {
+    expect((await put("a@mail.example.test", { mode: "forever" })).status).toBe(400);
+    expect((await put("a@mail.example.test", { mode: "expires" })).status).toBe(400);
+    expect((await put("a@mail.example.test", { mode: "expires", expiresAt: Date.now() - 1 })).status).toBe(400);
+    expect((await put("a@mail.example.test", { mode: "expires", ttlHours: 24 * 31 })).status).toBe(400);
+    expect((await put("not an address", { mode: "sealed" })).status).toBe(400);
+    const ok = await json(await put("a@mail.example.test", { mode: "expires", ttlHours: 2, label: "Two hours" }));
+    expect(ok).toMatchObject({ mode: "expires", label: "Two hours", dead: false });
+    expect(ok.expiresAt).toBeGreaterThan(Date.now() + 60 * 60 * 1000);
+  });
+
+  it("lists a fresh burner before any mail arrives and forgets it on request", async () => {
+    await put("burner@mail.example.test", { mode: "sealed" });
+    let rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.find((a: any) => a.address === "burner@mail.example.test")).toMatchObject({ count: 0, mode: "sealed", used: false });
+    await deliver(buildMail(), "burner@mail.example.test");
+    expect((await call("/api/addresses/burner@mail.example.test", { cookie, method: "DELETE" })).status).toBe(200);
+    rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    // The row is gone but the mail is not: the next arrival recreates it as permanent.
+    expect((await json(await call("/api/messages?address=burner@mail.example.test", { cookie }))).messages).toHaveLength(1);
+  });
+
+  it("sets an owner domain by hand and drops dead burners in the nightly sweep", async () => {
+    expect((await json(await put("o@mail.example.test", { ownerDomain: "Example.COM" }))).ownerDomain).toBe("example.com");
+    expect((await put("o@mail.example.test", { ownerDomain: "not a domain" })).status).toBe(400);
+    await env.DB.prepare("INSERT INTO addresses (address, mode, expires_at, created_at) VALUES (?1, 'expires', ?2, ?2)")
+      .bind("dead@mail.example.test", Date.now() - 8 * 24 * 60 * 60 * 1000).run();
+    await worker.scheduled(createScheduledController(), env, ctx);
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.some((a: any) => a.address === "dead@mail.example.test")).toBe(false);
+    expect(rail.some((a: any) => a.address === "o@mail.example.test")).toBe(true);
+  });
+});

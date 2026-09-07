@@ -49,6 +49,7 @@ export async function freshDatabase(): Promise<void> {
     env.DB.prepare("DELETE FROM attachment_chunks"),
     env.DB.prepare("DELETE FROM attachments"),
     env.DB.prepare("DELETE FROM address_labels"),
+    env.DB.prepare("DELETE FROM addresses"),
     env.DB.prepare("DELETE FROM messages"),
     env.DB.prepare("DELETE FROM settings"),
   ]);

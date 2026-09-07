@@ -9,6 +9,7 @@
 
 import PostalMime, { type Email } from "postal-mime";
 import type { Env } from "./index";
+import { addressVerdict, recordArrival, senderDomain } from "./addresses";
 import { deleteAttachmentsFor } from "./db";
 import { ATTACHMENT_CHUNK_CHARS, MAX_BODY_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
@@ -32,7 +33,9 @@ export interface InboundMail {
   rawSize?: number;
 }
 
-export type IngestResult = { ok: true; id: string } | { ok: false; reason: string };
+export type IngestResult =
+  | { ok: true; id: string; address: string; code: string | null }
+  | { ok: false; reason: string };
 
 /**
  * Domains this instance accepts mail for, from MAIL_DOMAIN. An empty list
@@ -79,6 +82,13 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     console.log("rejecting oversized mail for", to, `(${mail.rawSize} bytes)`);
     return { ok: false, reason: "Message too large" };
   }
+  // Expired, used-up and blocked addresses bounce before the body is even read.
+  const now = Date.now();
+  const verdict = await addressVerdict(env.DB, to, now);
+  if (!verdict.accept) {
+    console.log("rejecting mail for", to, "(address no longer accepts mail)");
+    return { ok: false, reason: verdict.reason };
+  }
 
   const raw = await new Response(mail.raw).arrayBuffer();
   if (raw.byteLength > limits.rawBytes) return { ok: false, reason: "Message too large" };
@@ -90,6 +100,7 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   const text = clip(parsed.text);
   const html = clip(parsed.html);
   const subject = clip(parsed.subject)?.trim() || "(no subject)";
+  const code = extractCode(subject, text ?? (html ? htmlToText(html) : null));
   const id = crypto.randomUUID();
 
   // Metadata first, so the row is written even if an attachment write fails.
@@ -107,15 +118,17 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
       sender.address,
       subject,
       makeSnippet(text, html),
-      extractCode(subject, text ?? (html ? htmlToText(html) : null)),
+      code,
       text,
       html,
       JSON.stringify(attachments),
-      Date.now()
+      now
     )
     .run();
 
   await writeAttachments(env.DB, id, parsed, attachments);
+  // The first sender becomes the address's owner; later ones may be leaks.
+  await recordArrival(env.DB, to, senderDomain(sender.address), now);
 
   // Keep only the newest N per address, so a flood to one address cannot fill
   // the database. Starred mail is never pruned.
@@ -138,7 +151,7 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   }
 
   console.log("stored mail for", to, "subject:", subject);
-  return { ok: true, id };
+  return { ok: true, id, address: to, code };
 }
 
 /** Parses the MIME message, falling back to a bare record if it is malformed. */

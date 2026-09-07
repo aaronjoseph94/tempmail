@@ -11,7 +11,7 @@ import {
   lockoutSecondsLeft, noteFailedLogin, passwordProblem, passwordSource, replacePassword, sessionCookie,
 } from "./auth";
 import {
-  deleteAttachmentsFor, deleteSetting, getLabels, getSetting, setLabel, setSetting,
+  deleteAttachmentsFor, deleteSetting, getSetting, setLabel, setSetting,
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS,
 } from "./db";
@@ -22,6 +22,7 @@ import {
   ATTACHMENT_CHUNKS_PER_READ, LIMIT_RANGES, MAX_PAGE_SIZE, PAGE_SIZE, resolveLimits,
 } from "./limits";
 import { normalizeDomain } from "./text";
+import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
 
 interface Ctx {
   request: Request;
@@ -106,6 +107,8 @@ const ROUTES = [
   route("POST", "/api/password", changePassword),
   route("GET", "/api/addresses", listAddresses),
   route("PUT", "/api/addresses/:address/label", putLabel),
+  route("PUT", "/api/addresses/:address", putAddress),
+  route("DELETE", "/api/addresses/:address", forgetAddress),
   route("GET", "/api/messages", listMessages),
   route("DELETE", "/api/messages", deleteMessages),
   route("PATCH", "/api/messages", patchMessages),
@@ -247,28 +250,146 @@ async function changePassword({ request, env }: Ctx): Promise<Response> {
 
 /* ---------------------------------------------------------- addresses */
 
+const MAX_LABEL_LENGTH = 40;
+
+interface AddressListRow extends AddressRow {
+  count: number | null;
+  unread: number | null;
+  starred: number | null;
+  last_received_at: number | null;
+}
+
+/**
+ * GET /api/addresses — every address with its counts, lifecycle and leaks.
+ * Addresses without mail (fresh burners) are listed too.
+ */
 async function listAddresses({ env }: Ctx): Promise<Response> {
-  const [{ results }, labels] = await Promise.all([
+  const now = Date.now();
+  const [{ results: rows }, { results: senders }] = await Promise.all([
     env.DB.prepare(
-      `SELECT address, COUNT(*) AS count, SUM(read = 0) AS unread,
-              SUM(starred) AS starred, MAX(received_at) AS last_received_at
-         FROM messages WHERE deleted_at IS NULL GROUP BY address ORDER BY last_received_at DESC`
-    ).all<{ address: string; count: number; unread: number | null; starred: number | null; last_received_at: number }>(),
-    getLabels(env.DB),
+      // Every address with a row or with mail: a burner made a minute ago
+      // and an address that only ever received mail both belong here.
+      `SELECT u.address, a.label, COALESCE(a.mode, 'permanent') AS mode, a.expires_at, a.owner_domain,
+              COALESCE(a.created_at, m.first_received_at) AS created_at, a.first_seen_at,
+              m.count, m.unread, m.starred, m.last_received_at
+         FROM (SELECT address FROM addresses UNION SELECT address FROM messages WHERE deleted_at IS NULL) u
+         LEFT JOIN addresses a ON a.address = u.address
+         LEFT JOIN (SELECT address, COUNT(*) AS count, SUM(read = 0) AS unread, SUM(starred) AS starred,
+                           MAX(received_at) AS last_received_at, MIN(received_at) AS first_received_at
+                      FROM messages WHERE deleted_at IS NULL GROUP BY address) m ON m.address = u.address
+        ORDER BY COALESCE(m.last_received_at, a.created_at) DESC`
+    ).all<AddressListRow>(),
+    env.DB.prepare(
+      `SELECT address, substr(from_address, instr(from_address, '@') + 1) AS domain, COUNT(*) AS n, MAX(received_at) AS last
+         FROM messages WHERE deleted_at IS NULL GROUP BY address, domain`
+    ).all<{ address: string; domain: string; n: number; last: number }>(),
   ]);
+
+  const owners = new Map(rows.map((row) => [row.address, row.owner_domain]));
+  const leaksFor = new Map<string, { domain: string; count: number; last: number }[]>();
+  for (const sender of senders) {
+    const owner = owners.get(sender.address);
+    if (!owner || !sender.domain || relatedDomain(sender.domain, owner)) continue;
+    const list = leaksFor.get(sender.address) ?? [];
+    list.push({ domain: sender.domain.toLowerCase(), count: sender.n, last: sender.last });
+    leaksFor.set(sender.address, list);
+  }
+
   return json({
-    addresses: results.map((row) => ({
+    addresses: rows.map((row) => ({
       address: row.address,
-      label: labels[row.address] ?? null,
-      count: row.count,
+      label: row.label ?? null,
+      count: row.count ?? 0,
       unread: row.unread ?? 0,
       starred: row.starred ?? 0,
-      lastReceivedAt: row.last_received_at,
+      lastReceivedAt: row.last_received_at ?? null,
+      mode: row.mode,
+      expiresAt: row.expires_at ?? null,
+      ownerDomain: row.owner_domain ?? null,
+      firstSeenAt: row.first_seen_at ?? null,
+      createdAt: row.created_at,
+      expired: row.mode === "expires" && row.expires_at != null && row.expires_at <= now,
+      used: row.mode === "sealed" && row.first_seen_at != null,
+      dead: isDead(row, now),
+      leaks: (leaksFor.get(row.address) ?? []).sort((a, b) => b.last - a.last),
     })),
   });
 }
 
-const MAX_LABEL_LENGTH = 40;
+const ADDRESS_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * PUT /api/addresses/:address  { mode?, ttlHours?, expiresAt?, ownerDomain?, label? }
+ * Creates or updates an address's lifecycle. Block and unblock are just
+ * mode "blocked" and mode "permanent".
+ */
+async function putAddress({ request, env, params }: Ctx): Promise<Response> {
+  const address = params.address.trim().toLowerCase();
+  if (!ADDRESS_SHAPE.test(address)) return json({ error: "That is not an address" }, 400);
+  const body = await readJson(request);
+  const now = Date.now();
+
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  let mode: string | null = null;
+  if (body.mode !== undefined) {
+    if (!isAddressMode(body.mode)) return json({ error: "Unknown mode" }, 400);
+    mode = body.mode;
+  }
+  let expiresAt: number | null = null;
+  if (mode === "expires") {
+    const { min, max } = LIMIT_RANGES.burnerHours;
+    if (typeof body.ttlHours === "number") {
+      if (!Number.isFinite(body.ttlHours) || body.ttlHours < min || body.ttlHours > max) {
+        return json({ error: `ttlHours must be between ${min} and ${max}` }, 400);
+      }
+      expiresAt = now + body.ttlHours * 60 * 60 * 1000;
+    } else if (typeof body.expiresAt === "number") {
+      if (body.expiresAt <= now) return json({ error: "The expiry must be in the future" }, 400);
+      if (body.expiresAt > now + max * 60 * 60 * 1000) return json({ error: `A burner can live at most ${max} hours` }, 400);
+      expiresAt = Math.round(body.expiresAt);
+    } else {
+      return json({ error: "An expiring address needs ttlHours or expiresAt" }, 400);
+    }
+  }
+  if (mode) {
+    sets.push(`mode = ?${binds.push(mode)}`);
+    sets.push(`expires_at = ?${binds.push(expiresAt)}`);
+    // Re-arming a one-shot lets it take one more message.
+    if (mode === "sealed") sets.push("first_seen_at = NULL");
+  }
+  if (body.ownerDomain !== undefined) {
+    const owner = normalizeDomain(body.ownerDomain);
+    if (owner === null) return json({ error: "That is not a domain" }, 400);
+    sets.push(`owner_domain = ?${binds.push(owner || null)}`);
+  }
+  if (body.label !== undefined) {
+    const label = String(body.label ?? "").trim().slice(0, MAX_LABEL_LENGTH);
+    sets.push(`label = ?${binds.push(label || null)}`);
+  }
+  if (!sets.length) return json({ error: "Nothing to change" }, 400);
+
+  await env.DB.prepare("INSERT OR IGNORE INTO addresses (address, mode, created_at) VALUES (?1, 'permanent', ?2)").bind(address, now).run();
+  await env.DB.prepare(`UPDATE addresses SET ${sets.join(", ")} WHERE address = ?${binds.push(address)}`).bind(...binds).run();
+
+  const row = (await env.DB.prepare("SELECT * FROM addresses WHERE address = ?1").bind(address).first<AddressRow>())!;
+  return json({
+    ok: true,
+    address: row.address,
+    label: row.label ?? null,
+    mode: row.mode,
+    expiresAt: row.expires_at ?? null,
+    ownerDomain: row.owner_domain ?? null,
+    dead: isDead(row, now),
+  });
+}
+
+/** DELETE /api/addresses/:address forgets the lifecycle row; its mail stays. */
+async function forgetAddress({ env, params }: Ctx): Promise<Response> {
+  const result = await env.DB.prepare("DELETE FROM addresses WHERE address = ?1").bind(params.address.trim().toLowerCase()).run();
+  return json({ ok: true, forgotten: result.meta.changes });
+}
+
 
 async function putLabel({ request, env, params }: Ctx): Promise<Response> {
   const body = await readJson(request);
