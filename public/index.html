@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=6" />
+  <link rel="stylesheet" href="/style.css?v=7" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -236,15 +236,15 @@
           <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
             <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
           </button>
-          <a id="btn-export" class="chip" download title="Download as a text file">
-            <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
-          </a>
-          <button id="btn-unread" class="chip" title="Mark unread (u)">
-            <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
-          </button>
           <button id="btn-delete" class="chip danger" title="Delete (#)">
             <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
           </button>
+          <button id="btn-unread" class="chip" title="Mark unread (u)">
+            <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
+          </button>
+          <a id="btn-export" class="chip" download title="Download as a text file">
+            <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
+          </a>
         </div>
 
         <div id="msg-attachments" class="attachments" hidden></div>
@@ -399,6 +399,6 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="/app.js?v=6"></script>
+  <script src="/app.js?v=7"></script>
 </body>
 </html>

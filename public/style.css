@@ -1654,9 +1654,6 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .drawer-head { padding: 8px 18px 14px; }
   .keys { grid-template-columns: 1fr; }
 
-  /* 16px stops iOS zooming when a field takes focus. */
-  input[type="text"], input[type="password"], input[type="search"], input[type="email"] { font-size: 16px; }
-
   .empty { padding: 44px 22px; }
   .toast { bottom: calc(18px + env(safe-area-inset-bottom)); }
 
@@ -1699,4 +1696,19 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 /* Wide screens get a little more reading room rather than more list. */
 @media (min-width: 1600px) {
   :root { --rail-w: 300px; --list-w: 430px; }
+}
+
+/* ---- no focus zoom on touch devices ----
+   iOS Safari zooms the page whenever a field under 16px takes focus. Every
+   text-entry control is held at 16px on phones and on any coarse-pointer
+   device (tablets included), which stops the zoom without touching the
+   viewport, so pinch-zoom stays available for people who need it. */
+@media (max-width: 899px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea { font-size: 16px; }
+
+  /* The open-message actions are tapped, not clicked: hold every chip at a
+     40px target so Delete, now mid-row, is not a mis-tap away from Star. */
+  .msg-actions .chip, .msg-actions .seg-btn { min-height: 40px; }
 }
