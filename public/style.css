@@ -106,14 +106,25 @@
   --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-  /* Type scale: 1.2 minor third, rounded to whole pixels. */
-  --t-xs: 11.5px;
-  --t-sm: 12.5px;
-  --t-md: 13.5px;
-  --t-base: 14.5px;
+  /* Type scale. Whole pixels: half-pixel sizes round differently per browser
+     and per zoom level, so the line box was never quite predictable. Geist
+     carries a taller x-height than the system stacks this replaced, so the
+     smaller sizes read no smaller for having lost half a pixel. */
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-md: 13px;
+  --t-base: 14px;
   --t-lg: 17px;
   --t-xl: 21px;
-  --t-2xl: 26px;
+  --t-2xl: 27px;
+
+  /* Tracking, by size class rather than per element. Geist is spaced for
+     screens at UI sizes, so the default is to leave it alone; large text
+     needs pulling in, and uppercase needs opening out. */
+  --track-tight: -0.015em;   /* 21px and up */
+  --track-snug: -0.008em;    /* 17px */
+  --track-caps: 0.07em;      /* uppercase micro-labels */
+  --track-code: 0.06em;      /* verification codes */
 
   --r-sm: 8px;
   --r-md: 11px;
@@ -189,12 +200,12 @@ body {
   font-family: var(--font);
   font-size: var(--t-base);
   line-height: 1.5;
-  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
   font-variant-numeric: tabular-nums;
+  font-synthesis: none;   /* there is no italic Geist; refuse the sheared fake */
 }
 
 button, input, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
@@ -369,7 +380,7 @@ kbd {
   box-shadow: inset 0 0 0 1px var(--accent-a28);
   font-weight: 600;
 }
-.chip.accent b { font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; }
+.chip.accent b { font-family: var(--mono); font-weight: 600; letter-spacing: var(--track-code); }
 
 .link {
   color: var(--accent);
@@ -424,7 +435,7 @@ kbd {
   background: var(--accent);
   color: var(--accent-ink);
   font-size: var(--t-xs);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.35;
   text-align: center;
 }
@@ -525,8 +536,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   color: var(--ink);
   text-decoration: none;
   font-size: var(--t-lg);
-  font-weight: 680;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
 }
 /* One line, always. Wrapping doubles the bar's height and shoves the page
    down; running out of room should cost the tail of the name instead. */
@@ -648,8 +659,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   align-items: center;
   gap: 7px;
   font-size: var(--t-xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--ink3);
 }
@@ -721,7 +732,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   white-space: nowrap;
 }
 .addr-actions .btn .icon { flex: none; }
-#btn-roll { min-height: 40px; font-size: var(--t-base); letter-spacing: -0.01em; }
+#btn-roll { min-height: 40px; font-size: var(--t-base); }
 
 /* Too narrow for two labels side by side: give each its own row rather than
    truncating one of them. */
@@ -760,15 +771,15 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   animation: mini-in var(--d-slow) var(--ease-spring) both;
 }
 .wait-close { position: absolute; top: 10px; right: 10px; }
-.wait-eyebrow { margin: 0; font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); }
+.wait-eyebrow { margin: 0; font-size: var(--t-xs); font-weight: 600; letter-spacing: var(--track-caps); text-transform: uppercase; color: var(--ink3); }
 .wait-address { margin: 6px 0 18px; font-size: var(--t-md); color: var(--ink2); overflow-wrap: anywhere; }
 .wait-stage { min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .wait-title { margin: 0; font-size: var(--t-base); font-weight: 600; }
 .wait-code {
   margin: 0;
   font-size: clamp(38px, 9vw, 52px);
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-weight: 600;
+  letter-spacing: var(--track-code);
   color: var(--accent);
   line-height: 1.1;
 }
@@ -788,7 +799,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .roll-mode-label {
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--ink3);
 }
@@ -839,8 +850,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   justify-content: space-between;
   padding: 0 10px 4px;
   font-size: var(--t-xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--ink3);
 }
@@ -907,7 +918,6 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   background: var(--c5);
   color: var(--ink3);
   font: 600 var(--t-xs)/1.5 var(--font);
-  letter-spacing: 0.02em;
   vertical-align: 1px;
 }
 .life.soon { color: var(--accent); background: var(--accent-a10); }
@@ -974,7 +984,6 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   border-radius: var(--r-full);
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.01em;
   vertical-align: 2px;
   white-space: nowrap;
   cursor: help;
@@ -1045,8 +1054,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 }
 .list-head h2 {
   font-size: var(--t-lg);
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1065,8 +1074,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   z-index: 2;
   padding: 12px 18px 7px;
   font-size: var(--t-xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--ink3);
   background: linear-gradient(var(--c2) 62%, transparent);
@@ -1123,7 +1132,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   color: hsl(var(--hue, 40) 72% 76%);
   box-shadow: inset 0 0 0 1px hsl(var(--hue, 40) 40% 40% / 0.4);
   font-size: var(--t-md);
-  font-weight: 650;
+  font-weight: 600;
   text-transform: uppercase;
   user-select: none;
 }
@@ -1144,7 +1153,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   font-weight: 500;
   color: var(--ink2);
 }
-.mail.unread .mail-from { font-weight: 680; color: var(--ink); }
+.mail.unread .mail-from { font-weight: 600; color: var(--ink); }
 .mail-aside {
   display: flex;
   align-items: center;
@@ -1191,8 +1200,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent-a28);
   font-family: var(--mono);
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  letter-spacing: var(--track-code);
   transition: background var(--d-mid) var(--ease), scale var(--d-fast) var(--ease-spring);
 }
 .tag.code:active { scale: 0.94; }
@@ -1236,7 +1245,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent-a28);
 }
-.empty h3 { font-size: var(--t-lg); font-weight: 650; letter-spacing: -0.02em; }
+.empty h3 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
 .empty p { max-width: 42ch; }
 .steps {
   display: flex;
@@ -1267,7 +1276,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   box-shadow: inset 0 0 0 1px var(--c6);
   color: var(--ink2);
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* ---- reading pane ---- */
@@ -1302,9 +1311,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .msg-subject {
   flex: 1;
   font-size: var(--t-2xl);
-  font-weight: 660;
+  font-weight: 600;
   line-height: 1.22;
-  letter-spacing: -0.028em;
+  letter-spacing: var(--track-tight);
   overflow-wrap: anywhere;
 }
 
@@ -1527,7 +1536,7 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   background: var(--c2);
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
-.drawer-head h2 { font-size: var(--t-xl); font-weight: 650; letter-spacing: -0.025em; }
+.drawer-head h2 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
 .drawer-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
 
 /* Each section fades up a beat after the panel, the stagger SmoothUI uses
@@ -1547,8 +1556,8 @@ dialog.drawer[open] .drawer-sec { animation: sec-in var(--d-slow) var(--ease-out
   align-items: center;
   gap: 8px;
   font-size: var(--t-xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--ink3);
 }
@@ -1597,7 +1606,7 @@ body.gate {
 @keyframes gate-in { from { opacity: 0; translate: 0 14px; scale: 0.985; } to { opacity: 1; translate: 0 0; scale: 1; } }
 .gate-card .brand { font-size: var(--t-xl); justify-self: start; }
 .gate-form { display: flex; flex-direction: column; gap: 14px; }
-.gate-form h1 { font-size: var(--t-xl); font-weight: 660; letter-spacing: -0.025em; }
+.gate-form h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
 .gate-lead { color: var(--ink2); font-size: var(--t-base); }
 
 /* Password field with a reveal toggle tucked inside. */
@@ -1703,7 +1712,7 @@ body.gate {
 .view-chip.active {
   background: var(--c2);
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 600;
   box-shadow: var(--shadow-1), var(--edge);
 }
 .pip {
@@ -1833,7 +1842,7 @@ dialog.mini[open]::backdrop { opacity: 1; }
   border-radius: var(--r-lg);
   box-shadow: inset 0 0 0 1px var(--c6), var(--shadow-3);
 }
-.mini-inner h2 { font-size: var(--t-lg); font-weight: 650; letter-spacing: -0.02em; }
+.mini-inner h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
 dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spring) both; }
 @keyframes mini-in { from { opacity: 0; translate: 0 10px; scale: 0.97; } to { opacity: 1; translate: 0 0; scale: 1; } }
 .row.end { justify-content: flex-end; }
