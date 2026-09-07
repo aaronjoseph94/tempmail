@@ -630,19 +630,25 @@ async function toggleBlock(address) {
   const entry = state.addresses.find((a) => a.address === address);
   const blocking = entry?.mode !== "blocked";
   const previous = entry?.mode ?? "permanent";
-  const revert = previous === "expires" && entry?.expiresAt
-    ? { mode: "expires", expiresAt: entry.expiresAt }
-    : { mode: previous === "blocked" ? "permanent" : previous };
+  // What Undo should send. A sealed address is never re-sent: the server reads
+  // mode "sealed" as "re-arm this one-shot", which would hand back an address
+  // the user had already spent. An expiry in the past would be rejected.
+  let revert = null;
+  if (previous === "blocked") revert = { mode: "blocked" };
+  else if (previous === "sealed") revert = entry?.used ? null : { mode: "sealed" };
+  else if (previous === "expires") revert = entry?.expiresAt > Date.now() ? { mode: "expires", expiresAt: entry.expiresAt } : null;
+  else revert = { mode: "permanent" };
   try {
     await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, { mode: blocking ? "blocked" : "permanent" });
   } catch (err) {
     toast(err.message, "i-warn");
     return;
   }
-  toast(blocking ? `Blocked ${address.split("@")[0]}: mail to it now bounces` : `Unblocked ${address.split("@")[0]}`, "i-ban", {
+  const text = blocking ? `Blocked ${address.split("@")[0]}: mail to it now bounces` : `Unblocked ${address.split("@")[0]}`;
+  toast(text, "i-ban", revert ? {
     action: "Undo",
     onAction: () => send("PUT", `/api/addresses/${encodeURIComponent(address)}`, revert).then(() => refresh()).catch((e) => toast(e.message, "i-warn")),
-  });
+  } : {});
   await refresh().catch(() => {});
   if (state.open?.address === address) renderLeakStrip(state.open);
 }
@@ -1059,8 +1065,9 @@ function prepareHtml(html, attachments, allowImages, messageId) {
     '<base target="_blank">' +
     "<style>html,body{margin:0}body{padding:18px;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#15140f;background:#fff;overflow-wrap:break-word}img{max-width:100%;height:auto}pre{white-space:pre-wrap}a{color:#a16207}</style>";
 
-  if (/<head\b[^>]*>/i.test(out)) return out.replace(/<head\b[^>]*>/i, (tag) => tag + head);
-  if (/<html\b[^>]*>/i.test(out)) return out.replace(/<html\b[^>]*>/i, (tag) => `${tag}<head>${head}</head>`);
+  // Always wrap. Looking for the message's own <head> with a regex meant a
+  // "<head>" inside a comment or an attribute value could place the policy
+  // where it does not apply, leaving the document with no CSP at all.
   return `<!doctype html><html><head>${head}</head><body>${out}</body></html>`;
 }
 
@@ -1094,6 +1101,9 @@ function renderBody() {
 
 /** Opens an image from the message at full size, dismissed by click or Esc. */
 function zoomImage(src) {
+  // Second line of defence: never pull a remote URL into the top-level document
+  // while the reader has remote images switched off.
+  if (!state.imagesAllowed && !/^(\/|data:|blob:)/i.test(src) && !src.startsWith(location.origin)) return;
   const layer = document.createElement("div");
   layer.className = "zoom-layer";
   layer.innerHTML = `<img alt="" src="${escapeHtml(src)}">`;
@@ -1114,7 +1124,12 @@ function fitFrame(frame) {
     const doc = frame.contentDocument;
     if (!doc) return;
     // Same-origin, so images inside the mail can be made click-to-zoom.
+    // Only images that actually loaded: a blocked remote image is a placeholder,
+    // and zooming one would fetch it from the top-level document, which has no
+    // per-message policy — the click would fire the tracking pixel the reader
+    // asked to block.
     for (const img of doc.images) {
+      if (!img.naturalWidth) continue;
       img.style.cursor = "zoom-in";
       img.addEventListener("click", (e) => { e.preventDefault(); zoomImage(img.src); });
     }
@@ -1171,8 +1186,10 @@ async function deleteMessage(id) {
 /** Brings trashed messages back; the toast's Undo button lands here. */
 async function restore(ids) {
   try {
-    await send("POST", "/api/messages/restore", { ids });
-    toast(ids.length === 1 ? "Message restored" : `Restored ${plural(ids.length, "message")}`, "i-undo");
+    // The server takes 200 ids per call and silently drops the rest, so a big
+    // delete has to be undone in the same slices it was made in.
+    const restored = await sendInSlices("POST", "/api/messages/restore", ids);
+    toast(restored === 1 ? "Message restored" : `Restored ${plural(restored, "message")}`, "i-undo");
   } catch (err) {
     toast(err.message, "i-warn");
   }
@@ -1218,6 +1235,8 @@ async function copyCode() {
 
 function setView(view) {
   if (state.view === view) return;
+  // Nothing in the Leaks view is selectable, so selection mode cannot follow us there.
+  if (view === "leaks" && state.selecting) setSelecting(false);
   state.view = view;
   state.windowSize = PAGE_SIZE;
   renderViewChips();
@@ -1281,9 +1300,19 @@ function setSelecting(on) {
   renderFeed();
 }
 
+/**
+ * The messages selection acts on. The Leaks view paints address cards rather
+ * than message rows, so nothing there is selectable — without this, Select all
+ * would pick the last loaded messages and Delete would remove mail the view
+ * never showed.
+ */
+function selectableMessages() {
+  return state.view === "leaks" ? [] : visibleMessages();
+}
+
 function renderSelection() {
   const n = state.picked.size;
-  const visible = visibleMessages().length;
+  const visible = selectableMessages().length;
   $("select-count").textContent = n ? `${n} selected` : "Tap messages to select";
   for (const button of $("select-bar").querySelectorAll(".btn")) {
     if (button.id !== "sel-all") button.disabled = n === 0;
@@ -1294,7 +1323,7 @@ function renderSelection() {
 
 /** Selects every visible message, or clears the selection when all are picked. */
 function pickAll() {
-  const ids = visibleMessages().map((m) => m.id);
+  const ids = selectableMessages().map((m) => m.id);
   const all = ids.length > 0 && ids.every((id) => state.picked.has(id));
   state.picked.clear();
   if (!all) for (const id of ids) state.picked.add(id);
@@ -1313,14 +1342,17 @@ function togglePick(id) {
 
 /** The server takes at most 200 ids per call. */
 async function sendInSlices(method, path, ids, extra = {}) {
+  let affected = 0;
   for (let i = 0; i < ids.length; i += 200) {
-    await send(method, path, { ids: ids.slice(i, i + 200), ...extra });
+    const result = await send(method, path, { ids: ids.slice(i, i + 200), ...extra });
+    affected += result?.restored ?? result?.updated ?? result?.deleted ?? 0;
   }
+  return affected;
 }
 
 async function bulk(action) {
   const ids = [...state.picked];
-  if (!ids.length) return;
+  if (!ids.length || state.view === "leaks") return;
   const count = plural(ids.length, "message");
   try {
     if (action === "delete") {
@@ -1914,7 +1946,9 @@ async function registerServiceWorker() {
 async function handleWorkerMessage(data) {
   if (!data || typeof data !== "object") return;
   if (data.open) openMessage(data.open).catch(() => {});
-  if (data.copy) {
+  // Anything can arrive here from a ?copy= parameter, and copying happens with
+  // no user gesture, so only a code-shaped value is allowed near the clipboard.
+  if (data.copy && /^[A-Za-z0-9][A-Za-z0-9 -]{3,11}$/.test(data.copy)) {
     const done = await copyText(data.copy);
     toast(done ? `Code ${data.copy} copied` : `Code ${data.copy} (tap the chip to copy)`, done ? "i-tick" : "i-key");
   }

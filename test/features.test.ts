@@ -343,3 +343,40 @@ describe("address lifecycle API", () => {
     expect(rail.some((a: any) => a.address === "o@mail.example.test")).toBe(true);
   });
 });
+
+describe("regressions", () => {
+  it("restores every message when more than one server page was deleted", async () => {
+    // The server takes 200 ids per call and silently drops the rest, so the
+    // client has to undo a big delete in the same slices it made it in.
+    await seed(250, { address: "bulk-undo@mail.example.test" });
+    const ids = (await listAll("?limit=500")).messages.map((m: any) => m.id);
+    expect(ids).toHaveLength(250);
+
+    for (let i = 0; i < ids.length; i += 200) {
+      await call("/api/messages", { cookie, method: "DELETE", json: { ids: ids.slice(i, i + 200) } });
+    }
+    expect((await listAll("?limit=500")).messages).toHaveLength(0);
+
+    let restored = 0;
+    for (let i = 0; i < ids.length; i += 200) {
+      restored += (await json(await call("/api/messages/restore", { cookie, json: { ids: ids.slice(i, i + 200) } }))).restored;
+    }
+    expect(restored).toBe(250);
+    expect((await listAll("?limit=500")).messages).toHaveLength(250);
+  });
+
+  it("keeps a one-shot address spent when it is blocked and unblocked", async () => {
+    const put = (body: Record<string, unknown>) =>
+      call("/api/addresses/spent@mail.example.test", { cookie, method: "PUT", json: body });
+    await put({ mode: "sealed" });
+    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual([]);
+    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual(["No such mailbox"]);
+
+    // Block, then undo the block. Undo must not re-arm the one-shot.
+    await put({ mode: "blocked" });
+    await put({ mode: "blocked" });   // what the client's Undo now sends for a previously blocked address
+    const rail = (await json(await call("/api/addresses", { cookie }))).addresses;
+    expect(rail.find((a: any) => a.address === "spent@mail.example.test")).toMatchObject({ mode: "blocked", dead: true });
+    expect(await deliver(buildMail(), "spent@mail.example.test")).toEqual(["No such mailbox"]);
+  });
+});
