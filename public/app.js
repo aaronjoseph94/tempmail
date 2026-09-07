@@ -246,8 +246,11 @@ function senderLabel(m) {
   return m.fromName || m.fromAddress || "unknown";
 }
 
+/* One query object rather than a fresh matchMedia per call, so the breakpoint
+   can also be subscribed to. */
+const wideQuery = matchMedia("(min-width: 900px)");
 function isDesktop() {
-  return matchMedia("(min-width: 900px)").matches;
+  return wideQuery.matches;
 }
 
 /* -------------------------------------------------------------------- api */
@@ -601,9 +604,16 @@ function renderRail() {
       rows.push(railRow({ address: state.filter, label: state.filter.split("@")[0], count: 0, unread: 0 }));
     }
     if (!state.addresses.length) rows.push('<div class="rail-empty">No mail received yet</div>');
-    $("rail-list").innerHTML = rows.join("");
+    // The rows live in exactly one place: the rail on desktop, the phone's
+    // picker below 900px. Rendering into both would leave two elements for
+    // every data-address, which makes every selector -- ours and the tests' --
+    // ambiguous. The breakpoint listener re-renders when the width crosses.
+    const target = isDesktop() ? $("rail-list") : $("picker-list");
+    const other = isDesktop() ? $("picker-list") : $("rail-list");
+    if (other.firstChild) other.replaceChildren();
+    target.innerHTML = rows.join("");
+    if (hadRows) for (const badge of target.querySelectorAll(".badge")) badge.classList.add("bump");
     $("addr-count").textContent = state.addresses.length ? String(state.addresses.length) : "";
-    if (hadRows) for (const badge of $("rail-list").querySelectorAll(".badge")) badge.classList.add("bump");
   }
   moveRailHighlight();
   renderViewChips();
@@ -955,9 +965,9 @@ function setFilter(address) {
   state.windowSize = PAGE_SIZE;
   if (state.open && !isDesktop()) closeMessage();
   renderRail();
-  // Keep the newly selected chip in view on a phone.
+  // Keep the newly selected row in view in the rail's own scroller.
   $("rail-list").querySelector(".rail-item.active")?.scrollIntoView({
-    behavior: reducedMotion.matches ? "auto" : "smooth", block: "nearest", inline: "center",
+    behavior: reducedMotion.matches ? "auto" : "smooth", block: "nearest",
   });
   refresh().catch((err) => toast(err.message, "i-warn"));
 }
@@ -1526,8 +1536,6 @@ const LIFE_HINTS = {
 
 /** Opens the sheet with a fresh candidate address. Also the phone's inbox menu. */
 function openNewInbox() {
-  if (!state.mailDomain) { toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
-  $("sheet-addr-text").textContent = fullAddress();
   rerollCandidate();
   setPendingLife(pendingLife);
   retireActionToast();
@@ -1536,9 +1544,28 @@ function openNewInbox() {
 
 function closeNewInbox() { $("new-inbox").close(); }
 
+/* The phone's inbox menu. Separate from creation: picking an inbox has no use
+   for a lifetime choice and a Create button, and on a short phone they cost
+   the room the list needs. No mail-domain guard either -- switching inbox and
+   copying the current address work without one; only creating needs it. */
+function openInboxPicker() {
+  $("sheet-addr-text").textContent = fullAddress();
+  retireActionToast();
+  $("btn-inboxes").setAttribute("aria-expanded", "true");
+  $("inboxes").showModal();
+  $("inboxes-panel").querySelector(".drawer-scroll").scrollTop = 0;
+}
+
+function closeInboxPicker() {
+  $("inboxes").close();
+  $("btn-inboxes").setAttribute("aria-expanded", "false");
+}
+
 function rerollCandidate() {
-  state.candidate = generateAddress();
-  $("new-addr-text").textContent = `${state.candidate}@${state.mailDomain}`;
+  state.candidate = state.mailDomain ? generateAddress() : "";
+  $("new-addr-text").textContent = state.candidate ? `${state.candidate}@${state.mailDomain}` : "Add your mail domain in Settings";
+  $("new-inbox-create").disabled = !state.candidate;
+  $("new-addr-reroll").disabled = !state.candidate;
 }
 
 function setPendingLife(life) {
@@ -1561,6 +1588,7 @@ function setPendingLife(life) {
  * list. That is the whole of what "New Inbox does nothing" was.
  */
 async function createInbox() {
+  if (!state.mailDomain) { closeNewInbox(); toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
   const address = `${state.candidate}@${state.mailDomain}`;
   const button = $("new-inbox-create");
   button.disabled = true;
@@ -2412,7 +2440,7 @@ $("feed").addEventListener("keydown", (e) => {
   }
 });
 
-$("rail-list").addEventListener("click", (e) => {
+function onRailClick(e) {
   const rename = e.target.closest("[data-rename]");
   if (rename) { openLabelDialog(rename.dataset.rename); return; }
   const kill = e.target.closest("[data-kill]");
@@ -2420,8 +2448,13 @@ $("rail-list").addEventListener("click", (e) => {
   const burn = e.target.closest("[data-burn]");
   if (burn) { toggleBlock(burn.dataset.burn); return; }
   const item = e.target.closest("[data-address]");
-  if (item) setFilter(item.dataset.address);
-});
+  if (!item) return;
+  setFilter(item.dataset.address);
+  // Picking from the sheet is the whole reason it was open.
+  if (e.currentTarget.id === "picker-list") closeInboxPicker();
+}
+$("rail-list").addEventListener("click", onRailClick);
+$("picker-list").addEventListener("click", onRailClick);
 $("rail-list").addEventListener("scroll", moveRailHighlight, { passive: true });
 
 $("btn-more").addEventListener("click", loadOlder);
@@ -2438,9 +2471,29 @@ $("btn-new-phone").addEventListener("click", openNewInbox);
 $("new-inbox-close").addEventListener("click", closeNewInbox);
 $("new-inbox").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeNewInbox(); });
 $("new-addr-reroll").addEventListener("click", rerollCandidate);
+
+$("btn-inboxes").addEventListener("click", openInboxPicker);
+/* On desktop the rail lists every inbox, so the title is not a control there.
+   disabled, not pointer-events: none, so it leaves the tab order too and a
+   keyboard user never lands on a button that does nothing. */
+function syncInboxSwitch() { $("btn-inboxes").disabled = isDesktop(); }
+wideQuery.addEventListener("change", () => {
+  syncInboxSwitch();
+  // The rail rows moved container; the signature cache would otherwise skip
+  // the re-render and leave the new side empty.
+  state.railSig = "";
+  renderRail();
+});
+syncInboxSwitch();
+$("inboxes-close").addEventListener("click", closeInboxPicker);
+$("inboxes").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeInboxPicker(); });
+// Esc and the swipe-to-dismiss gesture close the dialog without going through
+// closeInboxPicker, so the switch's state is reset from the dialog itself.
+$("inboxes").addEventListener("close", () => $("btn-inboxes").setAttribute("aria-expanded", "false"));
+$("inboxes-new").addEventListener("click", () => { closeInboxPicker(); openNewInbox(); });
 $("sheet-copy").addEventListener("click", copyAddress);
-$("sheet-open").addEventListener("click", () => { closeNewInbox(); setFilter(fullAddress()); });
-$("sheet-wait").addEventListener("click", () => { closeNewInbox(); startWaiting(); });
+$("sheet-open").addEventListener("click", () => { closeInboxPicker(); setFilter(fullAddress()); });
+$("sheet-wait").addEventListener("click", () => { closeInboxPicker(); startWaiting(); });
 $("new-inbox-create").addEventListener("click", createInbox);
 $("life-seg").addEventListener("click", (e) => {
   const button = e.target.closest("[data-life]");
@@ -2557,6 +2610,7 @@ window.addEventListener("online", () => {
   store.set(PREFS.address, state.address);
   wireDrawerDrag();
   wireDrawerDrag("new-inbox-panel", "new-inbox-grip", closeNewInbox);
+  wireDrawerDrag("inboxes-panel", "inboxes-grip", closeInboxPicker);
 
   const painted = loadCache();
   if (painted) {

@@ -1248,8 +1248,56 @@ body.selecting .mail .star { display: none; }
 }
 .list-sub { font-size: var(--t-sm); color: var(--ink3); }
 /* The title shrinks (ellipsis) so a long address never pushes the tools over the reader. */
-.list-head > div:first-child { flex: 1; min-width: 0; }
+.list-id { flex: 1; min-width: 0; }
 .list-head h2 { white-space: nowrap; text-overflow: ellipsis; }
+
+/* The title is a button that opens the inbox picker. On desktop the rail is
+   already on screen, so it reads as plain text -- app.js disables the button
+   at that breakpoint, which takes it out of the tab order as well. */
+.inbox-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  max-width: 100%;
+  /* The same floor the buttons take: this is the phone's primary navigation
+     control, and it is not a .btn, so nothing else would give it one. */
+  min-height: var(--tap-min);
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+.inbox-switch #list-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-switch .chev { flex: none; color: var(--ink3); transition: rotate var(--d-mid) var(--ease-spring); }
+.inbox-switch[aria-expanded="true"] .chev { rotate: 180deg; }
+.inbox-switch:disabled { cursor: default; }
+.inbox-switch:disabled .chev { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .inbox-switch:hover .chev { color: var(--ink2); }
+}
+
+/* The picker's list of inboxes, inside the sheet. Same rows as the rail, minus
+   the sliding highlight, which belongs to a fixed-height rail rather than a
+   list that grows. */
+/* No max-height: a scroller inside the sheet's scroller is the same nested-
+   swipe problem the chip strip had. The list grows and the sheet scrolls. */
+.picker-list { gap: var(--s-2); }
+.picker-list::before { display: none; }
+.picker-list .rail-item {
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-md);
+  background: var(--c3);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+.picker-list .rail-item.active {
+  color: var(--ink);
+  background: var(--c5);
+  box-shadow: inset 0 0 0 1px var(--c7);
+}
+.picker-list .rail-item.active .count { color: var(--ink2); }
+.picker-list .rail-tools { display: none; }
 .list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: none; }
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
@@ -2043,33 +2091,12 @@ body.gate {
   .rail { padding-top: var(--s-4); }
   .rail-head { display: none; }
 
-  /* Addresses become a scrolling chip strip with the same sliding pill. */
-  .rail-list {
-    flex-direction: row;
-    gap: 8px;
-    margin: 0 -14px;
-    padding: 2px 14px 12px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-  }
-  .rail-list::-webkit-scrollbar { display: none; }
-  .rail-row { flex: none; scroll-snap-align: start; }
-  .rail-row .rail-tools { display: none; }
+  /* Addresses used to be a horizontal scroll-snap chip strip here. Swiping to
+     find one was awkward, it could not grow past a handful, and it put a
+     second scroll direction on a screen that already scrolls. They live in the
+     sheet's picker now, one per line, reached from the list title. */
+  .rail-group { display: none; }
   .leak { margin: 10px 12px 0; }
-  .rail-item {
-    padding: 8px 14px;
-    border-radius: var(--r-full);
-    background: var(--c3);
-    box-shadow: inset 0 0 0 1px var(--c6);
-  }
-  /* The sliding highlight is desktop only: the phone rail is a scrolling
-     chip strip, so each chip carries its own fill. */
-  .rail-list::before { display: none; }
-  .rail-item.active { color: var(--ink); background: var(--c5); box-shadow: inset 0 0 0 1px var(--c7); }
-  .rail-item.active .count { color: var(--ink2); }
-  .rail-empty { display: none; }
 
   .list-col { box-shadow: inset 0 1px 0 0 var(--c6); }
   .list-head { padding: 14px 16px 12px; }

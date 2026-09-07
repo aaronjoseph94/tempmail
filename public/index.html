@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=39" />
+  <link rel="stylesheet" href="/style.css?v=40" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -158,8 +158,16 @@
     <!-- Middle: the message list -->
     <section class="list-col">
       <div class="list-head">
-        <div>
-          <h2 id="list-title">All mail</h2>
+        <div class="list-id">
+          <!-- A button inside the heading, not instead of it: phones have no
+               rail, so this is where you switch inbox. Inert on desktop, where
+               the rail is already on screen. -->
+          <h2>
+            <button type="button" class="inbox-switch" id="btn-inboxes" aria-haspopup="dialog" aria-expanded="false">
+              <span id="list-title">All mail</span>
+              <svg class="icon sm chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+            </button>
+          </h2>
           <div class="list-sub" id="list-sub"></div>
         </div>
         <div class="list-tools">
@@ -474,21 +482,19 @@
 
   <!--
     Making an inbox: the address it will be, how long it should live, and one
-    button. Reused as the whole inbox menu on phones, where the rail's creation
-    controls are hidden so the main screen is only mail.
+    button. Opened by "+" in the top bar on phones, where the rail's creation
+    card is hidden so the main screen is only mail.
   -->
   <dialog id="new-inbox" class="drawer sheet" aria-labelledby="new-inbox-title">
     <div class="drawer-panel" id="new-inbox-panel">
       <div class="drawer-grip" id="new-inbox-grip" aria-hidden="true"></div>
       <header class="drawer-head">
-        <h2 id="new-inbox-title">Inbox</h2>
+        <h2 id="new-inbox-title">New inbox</h2>
         <button type="button" class="icon-btn plain" id="new-inbox-close" aria-label="Close">
           <svg class="icon"><use href="#i-close"/></svg>
         </button>
       </header>
       <div class="drawer-scroll">
-        <!-- The address about to be created leads: it is what the sheet is
-             for, and on a 320px phone whatever comes second is a scroll away. -->
         <section class="drawer-sec">
           <span class="card-label">New address</span>
           <div class="new-addr">
@@ -498,9 +504,41 @@
             </button>
           </div>
         </section>
+      </div>
+      <!-- Outside .drawer-scroll so the action and the one choice feeding it
+           are never below the fold on a short phone. -->
+      <footer class="sheet-foot">
+        <span class="card-label" id="life-label">Keep it for</span>
+        <div class="seg life-seg" id="life-seg" role="group" aria-labelledby="life-label">
+          <button type="button" class="seg-btn" data-life="permanent" aria-pressed="true">Forever</button>
+          <button type="button" class="seg-btn" data-life="24h" aria-pressed="false">24 hours</button>
+          <button type="button" class="seg-btn" data-life="7d" aria-pressed="false">7 days</button>
+        </div>
+        <p class="hint" id="life-hint">It never expires. Delete it yourself when you are done.</p>
+        <button type="button" class="btn primary block" id="new-inbox-create">
+          <svg class="icon sm"><use href="#i-plus"/></svg><span>Create inbox</span>
+        </button>
+      </footer>
+    </div>
+  </dialog>
 
-        <!-- What you can do with the inbox you already have. On phones this is
-             the only route to it, since the rail's card is hidden there. -->
+  <!--
+    The phone's inbox menu, opened from the list title: which inbox you are
+    reading, what you can do with it, and every inbox with its message count.
+    This list replaced a horizontal scroll-snap chip strip on the main screen --
+    swiping to find an inbox was awkward and the strip could not grow past a
+    handful. The rows are the same ones the desktop rail renders.
+  -->
+  <dialog id="inboxes" class="drawer sheet" aria-labelledby="inboxes-title">
+    <div class="drawer-panel" id="inboxes-panel">
+      <div class="drawer-grip" id="inboxes-grip" aria-hidden="true"></div>
+      <header class="drawer-head">
+        <h2 id="inboxes-title">Inboxes</h2>
+        <button type="button" class="icon-btn plain" id="inboxes-close" aria-label="Close">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+      <div class="drawer-scroll">
         <section class="drawer-sec">
           <span class="card-label">Your inbox</span>
           <div class="new-addr">
@@ -518,20 +556,15 @@
             </button>
           </div>
         </section>
+
+        <section class="drawer-sec" id="picker-sec">
+          <span class="card-label">All inboxes</span>
+          <div class="rail-list picker-list" id="picker-list"></div>
+        </section>
       </div>
-      <!-- Outside .drawer-scroll so the action and the one choice feeding it
-           are never below the fold: on a 320x568 phone the sections above
-           already fill the sheet. -->
       <footer class="sheet-foot">
-        <span class="card-label" id="life-label">Keep it for</span>
-        <div class="seg life-seg" id="life-seg" role="group" aria-labelledby="life-label">
-          <button type="button" class="seg-btn" data-life="permanent" aria-pressed="true">Forever</button>
-          <button type="button" class="seg-btn" data-life="24h" aria-pressed="false">24 hours</button>
-          <button type="button" class="seg-btn" data-life="7d" aria-pressed="false">7 days</button>
-        </div>
-        <p class="hint" id="life-hint">It never expires. Delete it yourself when you are done.</p>
-        <button type="button" class="btn primary block" id="new-inbox-create">
-          <svg class="icon sm"><use href="#i-plus"/></svg><span>Create inbox</span>
+        <button type="button" class="btn block" id="inboxes-new">
+          <svg class="icon sm"><use href="#i-plus"/></svg><span>New inbox</span>
         </button>
       </footer>
     </div>
@@ -555,6 +588,6 @@
     </button>
   </div>
 
-  <script src="/app.js?v=39"></script>
+  <script src="/app.js?v=40"></script>
 </body>
 </html>
