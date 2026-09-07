@@ -46,7 +46,7 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 ```
 
 One Worker does everything: serves the site, checks the password, receives
-mail and stores it. A nightly job deletes mail older than 60 days and keeps
+mail and stores it. A nightly job deletes mail older than 100 days and keeps
 the database under a fixed size.
 
 ## Deploy your own (about 10 minutes)

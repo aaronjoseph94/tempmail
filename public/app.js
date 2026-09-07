@@ -65,17 +65,30 @@ const store = {
 };
 
 let toastTimer = null;
-function toast(text, icon = "i-tick") {
+/** A short notice. With an action it stays longer and carries one button (Undo, say). */
+function toast(text, icon = "i-tick", { action = null, onAction = null, duration = null } = {}) {
   const el = $("toast");
   el.classList.remove("out");
   el.innerHTML = `<svg class="icon sm" aria-hidden="true"><use href="#${icon}"/></svg><span></span>`;
   el.querySelector("span").textContent = text;
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toast-act";
+    button.textContent = action;
+    button.addEventListener("click", () => { hideToast(); onAction?.(); });
+    el.appendChild(button);
+  }
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    el.classList.add("out");
-    setTimeout(() => { el.hidden = true; }, 140);
-  }, 2400);
+  toastTimer = setTimeout(hideToast, duration ?? (action ? 10000 : 2400));
+}
+
+function hideToast() {
+  const el = $("toast");
+  clearTimeout(toastTimer);
+  el.classList.add("out");
+  setTimeout(() => { el.hidden = true; }, 140);
 }
 
 function escapeHtml(value) {
@@ -304,7 +317,14 @@ function announceNewMail(since) {
   toast(text, "i-mail");
   if (state.sound) chime();
   if (state.notify && document.hidden && "Notification" in window && Notification.permission === "granted") {
-    try { new Notification("AJ\u2019s Temp Email", { body: text, tag: "tempmail-new" }); } catch { /* the toast covers it */ }
+    try {
+      const note = new Notification("AJ\u2019s Temp Email", { body: text, tag: "tempmail-new" });
+      note.onclick = () => {
+        window.focus();
+        if (arrived.length === 1) openMessage(arrived[0].id);
+        note.close();
+      };
+    } catch { /* the toast covers it */ }
   }
 }
 
@@ -511,8 +531,7 @@ function moveRailHighlight() {
 }
 
 /** The same treatment for the Rich / Plain segmented control. */
-function moveSegHighlight() {
-  const seg = $("body-toggle");
+function moveSegHighlight(seg = $("body-toggle")) {
   const active = seg.querySelector('[aria-pressed="true"]');
   if (!active || seg.hidden) return;
   const box = active.getBoundingClientRect();
@@ -571,7 +590,7 @@ function skeletonRows(n = 6) {
 
 function renderFeed(arrived = new Set()) {
   const visible = visibleMessages();
-  const sig = JSON.stringify([state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read])]);
+  const sig = JSON.stringify([state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read, m.starred])]);
   const timesStale = Date.now() - state.lastFeedRender > 60000; // "5m" labels drift
   if (sig === state.feedSig && !timesStale && arrived.size === 0) return;
   state.feedSig = sig;
@@ -753,7 +772,7 @@ function renderViewer() {
   $("msg-to").textContent = msg.address;
   $("msg-date").textContent = formatWhen(msg.receivedAt);
 
-  const retentionDays = state.config?.retentionDays ?? 60;
+  const retentionDays = state.config?.retentionDays ?? 100;
   const daysLeft = Math.max(0, Math.ceil((msg.receivedAt + retentionDays * 86400000 - Date.now()) / 86400000));
   $("msg-expiry").textContent = `deletes in ${plural(daysLeft, "day")}`;
 
@@ -916,7 +935,7 @@ function closeMessage({ fromHistory = false } = {}) {
 
 async function deleteOpen() {
   const msg = state.open;
-  if (!msg || !confirm("Delete this message?")) return;
+  if (!msg) return;
   const list = visibleMessages();
   const index = list.findIndex((m) => m.id === msg.id);
   const next = list[index + 1] || list[index - 1];
@@ -930,9 +949,32 @@ async function deleteOpen() {
   }
   state.messages = state.messages.filter((m) => m.id !== msg.id);
   closeMessage();
-  toast("Message deleted", "i-trash");
+  toast("Message deleted", "i-trash", { action: "Undo", onAction: () => restore([msg.id]) });
   if (next && isDesktop()) openMessage(next.id);
   refresh().catch(() => {});
+}
+
+/** Brings trashed messages back; the toast's Undo button lands here. */
+async function restore(ids) {
+  try {
+    await send("POST", "/api/messages/restore", { ids });
+    toast(ids.length === 1 ? "Message restored" : `Restored ${plural(ids.length, "message")}`, "i-undo");
+  } catch (err) {
+    toast(err.message, "i-warn");
+  }
+  refresh().catch(() => {});
+}
+
+/** Manual refresh from the button or the R key; the icon spins while it runs. */
+async function manualRefresh() {
+  const button = $("btn-refresh");
+  button.classList.add("spinning");
+  clearTimeout(state.pollTimer);
+  try {
+    await poll();
+  } finally {
+    setTimeout(() => button.classList.remove("spinning"), 400);
+  }
 }
 
 async function markUnread() {
@@ -1027,8 +1069,25 @@ function setSelecting(on) {
 
 function renderSelection() {
   const n = state.picked.size;
+  const visible = visibleMessages().length;
   $("select-count").textContent = n ? `${n} selected` : "Tap messages to select";
-  for (const button of $("select-bar").querySelectorAll(".btn")) button.disabled = n === 0;
+  for (const button of $("select-bar").querySelectorAll(".btn")) {
+    if (button.id !== "sel-all") button.disabled = n === 0;
+  }
+  $("sel-all").textContent = visible && n === visible ? "None" : "All";
+  $("sel-all").disabled = visible === 0;
+}
+
+/** Selects every visible message, or clears the selection when all are picked. */
+function pickAll() {
+  const ids = visibleMessages().map((m) => m.id);
+  const all = ids.length > 0 && ids.every((id) => state.picked.has(id));
+  state.picked.clear();
+  if (!all) for (const id of ids) state.picked.add(id);
+  for (const row of $("feed").querySelectorAll(".mail")) {
+    row.classList.toggle("picked", state.picked.has(row.dataset.id));
+  }
+  renderSelection();
 }
 
 function togglePick(id) {
@@ -1038,20 +1097,33 @@ function togglePick(id) {
   renderSelection();
 }
 
+/** The server takes at most 200 ids per call. */
+async function sendInSlices(method, path, ids, extra = {}) {
+  for (let i = 0; i < ids.length; i += 200) {
+    await send(method, path, { ids: ids.slice(i, i + 200), ...extra });
+  }
+}
+
 async function bulk(action) {
   const ids = [...state.picked];
   if (!ids.length) return;
+  const count = plural(ids.length, "message");
   try {
     if (action === "delete") {
-      if (!confirm(`Delete ${plural(ids.length, "message")}?`)) return;
-      await send("DELETE", "/api/messages", { ids });
-      toast(`Deleted ${plural(ids.length, "message")}`, "i-trash");
+      await sendInSlices("DELETE", "/api/messages", ids);
+      toast(`Deleted ${count}`, "i-trash", { action: "Undo", onAction: () => restore(ids) });
     } else if (action === "read") {
-      await send("PATCH", "/api/messages", { ids, read: true });
-      toast(`Marked ${plural(ids.length, "message")} read`, "i-check-all");
+      await sendInSlices("PATCH", "/api/messages", ids, { read: true });
+      toast(`Marked ${count} read`, "i-check-all");
+    } else if (action === "unread") {
+      await sendInSlices("PATCH", "/api/messages", ids, { read: false });
+      toast(`Marked ${count} unread`, "i-unread");
+    } else if (action === "unstar") {
+      await sendInSlices("PATCH", "/api/messages", ids, { starred: false });
+      toast(`Unstarred ${count}`, "i-star");
     } else {
-      await send("PATCH", "/api/messages", { ids, starred: true });
-      toast(`Starred ${plural(ids.length, "message")}`, "i-star");
+      await sendInSlices("PATCH", "/api/messages", ids, { starred: true });
+      toast(`Starred ${count}`, "i-star");
     }
   } catch (err) {
     toast(err.message, "i-warn");
@@ -1121,7 +1193,8 @@ function newAddress() {
   renderAddressCard();
   const button = $("btn-roll");
   button.classList.toggle("rolling");   // the die turns a half-step each roll
-  toast("New address ready", "i-dice");
+  if (state.mailDomain) copyAddress();   // ready to paste straight into a form
+  else toast("New address ready", "i-dice");
 }
 
 async function copyAddress() {
@@ -1166,10 +1239,10 @@ function openSettings() {
   $("set-images").checked = state.alwaysImages;
   $("set-sound").checked = state.sound;
   $("set-notify").checked = state.notify && "Notification" in window && Notification.permission === "granted";
-  $("set-theme").checked = currentTheme() === "light";
   renderStorage();
 
   $("settings").showModal();
+  requestAnimationFrame(renderThemeSeg);   // measured once the drawer is on screen
 }
 
 function closeSettings() {
@@ -1382,17 +1455,43 @@ function wireDrawerDrag() {
 
 /* ------------------------------------------------------------------ theme */
 
+/** The theme actually on screen. */
 function currentTheme() {
   return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
+/** What the user asked for: an explicit theme, or "system" to follow the device. */
+function themePref() {
+  const saved = store.get(PREFS.theme);
+  return saved === "light" || saved === "dark" ? saved : "system";
+}
+
+const lightScheme = matchMedia("(prefers-color-scheme: light)");
+
+function applyTheme(pref) {
+  if (pref === "system") store.remove(PREFS.theme);
+  else store.set(PREFS.theme, pref);
+  paintTheme(pref === "system" ? (lightScheme.matches ? "light" : "dark") : pref);
+}
+
 function paintTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  store.set("theme", theme);
   $("btn-theme").querySelector("use").setAttribute("href", theme === "light" ? "#i-moon" : "#i-sun");
   $("btn-theme").setAttribute("aria-label", theme === "light" ? "Switch to the dark theme" : "Switch to the light theme");
-  $("set-theme").checked = theme === "light";
+  renderThemeSeg();
 }
+
+function renderThemeSeg() {
+  const seg = $("theme-seg");
+  const pref = themePref();
+  for (const button of seg.querySelectorAll(".seg-btn")) {
+    button.setAttribute("aria-pressed", String(button.dataset.theme === pref));
+  }
+  if ($("settings").open) moveSegHighlight(seg);
+}
+
+// Following the device means repainting when the device changes its mind.
+lightScheme.addEventListener("change", () => { if (themePref() === "system") applyTheme("system"); });
 
 /**
  * Flips the theme with a circular wipe growing out of the toggle button,
@@ -1405,7 +1504,7 @@ function toggleTheme(origin) {
   const next = currentTheme() === "light" ? "dark" : "light";
 
   if (!document.startViewTransition || reducedMotion.matches) {
-    paintTheme(next);
+    applyTheme(next);
     return;
   }
 
@@ -1415,7 +1514,7 @@ function toggleTheme(origin) {
   const y = box.top + box.height / 2;
   const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
 
-  document.startViewTransition(() => paintTheme(next)).ready.then(() => {
+  document.startViewTransition(() => applyTheme(next)).ready.then(() => {
     document.documentElement.animate(
       { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
       { duration: 620, easing: "cubic-bezier(0.16, 1, 0.3, 1)", pseudoElement: "::view-transition-new(root)" }
@@ -1462,7 +1561,7 @@ document.addEventListener("keydown", (e) => {
     case "u": markUnread(); break;
     case "s": if (state.open) toggleStar(state.open.id, null); break;
     case "x": setSelecting(!state.selecting); break;
-    case "r": clearTimeout(state.pollTimer); poll(); toast("Refreshed", "i-refresh"); break;
+    case "r": manualRefresh(); toast("Refreshed", "i-refresh"); break;
     case "t": toggleTheme(); break;
     case ",": e.preventDefault(); openSettings(); break;
     case "#": case "Delete": deleteOpen(); break;
@@ -1544,6 +1643,10 @@ $("sel-cancel").addEventListener("click", () => setSelecting(false));
 $("sel-read").addEventListener("click", () => bulk("read"));
 $("sel-star").addEventListener("click", () => bulk("star"));
 $("sel-delete").addEventListener("click", () => bulk("delete"));
+$("sel-all").addEventListener("click", pickAll);
+$("sel-unread").addEventListener("click", () => bulk("unread"));
+$("sel-unstar").addEventListener("click", () => bulk("unstar"));
+$("btn-refresh").addEventListener("click", manualRefresh);
 
 $("btn-star").addEventListener("click", () => state.open && toggleStar(state.open.id, null));
 
@@ -1572,8 +1675,9 @@ $("domain-form").addEventListener("submit", saveDomain);
 $("password-form").addEventListener("submit", changePassword);
 $("set-sound").addEventListener("change", (e) => setSound(e.target.checked));
 $("set-notify").addEventListener("change", (e) => toggleNotifications(e.target.checked));
-$("set-theme").addEventListener("change", (e) => {
-  if ((e.target.checked ? "light" : "dark") !== currentTheme()) toggleTheme($("btn-theme"));
+$("theme-seg").addEventListener("click", (e) => {
+  const button = e.target.closest(".seg-btn");
+  if (button) applyTheme(button.dataset.theme);
 });
 $("btn-delete-all").addEventListener("click", deleteAll);
 $("btn-logout").addEventListener("click", logout);
@@ -1582,6 +1686,7 @@ window.addEventListener("popstate", () => closeMessage({ fromHistory: true }));
 window.addEventListener("resize", () => {
   moveRailHighlight();
   moveSegHighlight();
+  if ($("settings").open) moveSegHighlight($("theme-seg"));
   if (state.open && state.showHtml) fitFrame($("msg-frame"));
 });
 document.addEventListener("visibilitychange", () => {
@@ -1592,7 +1697,7 @@ window.addEventListener("online", () => { clearTimeout(state.pollTimer); poll();
 /* ------------------------------------------------------------------- boot */
 
 (async function boot() {
-  paintTheme(currentTheme());
+  applyTheme(themePref());
   setSound(store.get(PREFS.sound) !== "off");
   state.notify = store.get(PREFS.notify) === "on";
   state.autoRefresh = store.get(PREFS.autoRefresh) !== "off";

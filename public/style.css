@@ -1060,6 +1060,31 @@ a.attachment:active { transform: scale(0.97); }
 @keyframes toast-in { from { opacity: 0; translate: -50% 14px; scale: 0.94; } to { opacity: 1; translate: -50% 0; scale: 1; } }
 @keyframes toast-out { to { opacity: 0; translate: -50% 8px; scale: 0.97; } }
 .toast .icon { color: var(--accent); }
+.toast-act {
+  margin-left: 4px;
+  padding: 5px 11px;
+  border-radius: var(--r-full);
+  background: var(--accent-a10);
+  color: var(--accent);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent-a28);
+}
+@media (hover: hover) and (pointer: fine) { .toast-act:hover { background: var(--accent-a28); } }
+
+/* The refresh icon turns while a manual check runs. */
+.icon-btn.spinning .icon { animation: spin 0.8s linear infinite; }
+
+/* A label beside a control that is not a switch (the theme picker). */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+}
+.setting-row .label { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-base); }
+.setting-row .label small { color: var(--ink3); font-size: var(--t-sm); }
 
 /* ================================================================ 5. drawer */
 
@@ -1352,7 +1377,7 @@ body.gate {
   animation: sec-in var(--d-slow) var(--ease-out);
 }
 .select-count { font-size: var(--t-md); font-weight: 600; color: var(--accent); }
-.select-actions { display: flex; gap: 5px; align-items: center; }
+.select-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 
 .mail .tick-box {
   display: none;
@@ -1663,7 +1688,12 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .sub-setting { padding-left: 0; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
   .star { opacity: 1; width: 34px; height: 34px; }
-  .select-bar { padding: 12px 16px; }
+  /* Stack the selection bar: the count on its own line, the actions below. */
+  .select-bar { padding: 10px 16px; flex-wrap: wrap; row-gap: 8px; }
+  .select-count { flex: 1 1 100%; }
+  .select-actions { width: 100%; }
+  .select-actions .btn { min-height: 40px; }
+  .select-actions .icon-btn.plain { margin-left: auto; }
 
   /* Comfortable touch targets: 44px minimum on anything tappable. */
   .addr-card { gap: 12px; padding: 15px; }
