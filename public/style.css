@@ -32,7 +32,7 @@
 
   --ink: #eaeaf2;  /* primary text */
   --ink2: #a4a4b8; /* secondary */
-  --ink3: #78788c; /* tertiary, meta */
+  --ink3: #9090a4; /* tertiary, meta — 5.1:1 on the lightest dark surface */
 
   --accent: #818cf8;
   --accent-hi: #a5b4fc;
@@ -102,7 +102,7 @@
 
   --ink: #0e1220;
   --ink2: #4a5268;
-  --ink3: #737d92;
+  --ink3: #5a6379; /* tertiary, meta — 4.7:1 on the darkest light surface */
 
   --accent: #4f46e5;
   --accent-hi: #4338ca;
@@ -112,7 +112,7 @@
   --accent-a28: rgb(79 70 229 / 0.22);
 
   --ok: #059669;
-  --danger: #e11d48;
+  --danger: #be123c; /* 5.3:1 on its own tinted chip, 6.3:1 on white */
   --danger-a12: rgb(225 29 72 / 0.09);
 
   --shadow-1: 0 1px 2px rgb(20 28 50 / 0.06);
@@ -202,7 +202,6 @@ kbd {
   stroke-linejoin: round;
 }
 .icon.sm { width: 15px; height: 15px; }
-.icon.lg { width: 22px; height: 22px; }
 .icon.xl { width: 30px; height: 30px; stroke-width: 1.4; }
 
 /* Everything animated is opt-in, so one rule switches all of it off. */
@@ -468,12 +467,17 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   align-items: center;
   gap: 10px;
   justify-self: start;
+  min-width: 0;
   color: var(--ink);
   text-decoration: none;
   font-size: var(--t-lg);
   font-weight: 680;
   letter-spacing: -0.03em;
 }
+/* One line, always. Wrapping doubles the bar's height and shoves the page
+   down; running out of room should cost the tail of the name instead. */
+.brand { overflow: hidden; }
+.brand-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .brand-mark {
   position: relative;
   width: 26px; height: 26px;
@@ -1127,6 +1131,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .tag.addr { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag.addr .at { color: var(--accent); }
 .tag.code {
+  /* Tappable: it copies the code, so it clears the 24px target floor. */
+  min-height: 24px;
   background: var(--accent-a10);
   color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent-a28);
@@ -1594,14 +1600,6 @@ body.gate {
 
 .gate-foot { text-align: center; font-size: var(--t-sm); color: var(--ink3); }
 
-/* Small dots that spin inside a button while a request is in flight. */
-.btn .spinner {
-  width: 15px; height: 15px;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  animation: spin 0.7s linear infinite;
-}
 
 /* ====================================================== 6b. new controls */
 
@@ -1705,7 +1703,7 @@ body.gate {
    tangled second line, so drop them and keep the icon (title still explains). */
 @container list (max-width: 520px) {
   .select-actions .btn span { display: none; }
-  .select-actions .btn { padding: 8px; min-width: 36px; }
+  .select-actions .btn { padding: 8px; min-width: 44px; }
 }
 
 .mail .tick-box {
@@ -1746,27 +1744,7 @@ body.selecting .mail .star { display: none; }
 .rail-item .stack-2 { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 @media (hover: hover) and (pointer: fine) { .rail-row .rename:hover { color: var(--accent); background: var(--accent-a10); } }
 
-/* ---- settings: sub-rows and the limits grid ---- */
-
-.sub-setting {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 4px 0 4px 52px;   /* lines up under a switch's label */
-}
-.sub-label { font-size: var(--t-md); color: var(--ink2); min-width: 58px; }
-/* Collapses away when its parent switch is off, using a height transition
-   rather than display so it can animate (Animate UI's auto-height). */
-.sub-setting.collapsed {
-  padding-block: 0;
-  height: 0;
-  overflow: hidden;
-  opacity: 0;
-}
-.sub-setting {
-  transition: height var(--d-slow) var(--ease), opacity var(--d-mid) var(--ease), padding var(--d-slow) var(--ease);
-}
+/* ---- settings: the limits grid ---- */
 
 .limits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .limit { display: flex; flex-direction: column; gap: 5px; }
@@ -1857,7 +1835,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
   :root { --bar-h: 56px; }
 
-  .topbar { grid-template-columns: auto 1fr; padding: 0 12px 0 14px; gap: 8px; }
+  .topbar { grid-template-columns: minmax(0, auto) 1fr; padding: 0 12px 0 14px; gap: 8px; }
   .topbar .searchbox {
     display: none;
     grid-column: 1 / -1;
@@ -2006,16 +1984,15 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .toast { bottom: calc(18px + env(safe-area-inset-bottom)); }
 
   .view-filters { margin-bottom: 4px; }
-  .view-chip { padding: 8px 6px; font-size: var(--t-sm); }
+  .view-chip { padding: 8px 6px; font-size: var(--t-sm); min-height: 44px; }
   .limits { grid-template-columns: 1fr; }
-  .sub-setting { padding-left: 0; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
-  .star { opacity: 1; width: 34px; height: 34px; }
+  .star { opacity: 1; width: 44px; height: 44px; }
   /* Stack the selection bar: the count on its own line, the actions below. */
   .select-bar { padding: 10px 16px; flex-wrap: wrap; row-gap: 8px; }
   .select-count { flex: 1 1 100%; }
   .select-actions { width: 100%; }
-  .select-actions .btn { min-height: 40px; }
+  .select-actions .btn { min-height: 44px; }
   .select-actions .icon-btn.plain { margin-left: auto; }
 
   /* Comfortable touch targets: 44px minimum on anything tappable. */
@@ -2024,13 +2001,14 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .addr-actions .btn { min-height: 44px; font-size: var(--t-md); }
   #btn-roll { min-height: 46px; }
   .select { min-height: 44px; }
-  .icon-btn { width: 40px; height: 40px; }
-  .list-tools .icon-btn { width: 38px; height: 38px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .list-tools .icon-btn { width: 44px; height: 44px; }
   .tag { padding: 5px 10px; font-size: var(--t-sm); }
-  .tag.code { padding: 7px 12px; }
-  .brand { min-height: 40px; }
+  .tag.code { padding: 7px 12px; min-height: 44px; }
+  .brand { min-height: 44px; }
+  .brand-mark { width: 44px; height: 44px; }
   .chip { padding: 9px 14px; font-size: var(--t-md); }
-  .seg-btn { padding: 7px 15px; font-size: var(--t-md); }
+  .seg-btn { padding: 7px 15px; font-size: var(--t-md); min-height: 44px; }
   .setting-row { flex-direction: column; align-items: stretch; }
   .setting-row .seg { width: 100%; }
   .setting-row .seg-btn { flex: 1; }
@@ -2039,10 +2017,14 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .search-clear { width: 30px; height: 30px; }
 }
 
-@media (max-width: 380px) {
-  /* The wordmark is dropped for room, so keep the link itself tappable. */
+/* Four 44px controls, the mark and the wordmark need about 450px between
+   them. Below that the wordmark goes and the mark carries the identity. */
+@media (max-width: 450px) {
   .brand-name { display: none; }
-  .brand { min-width: 40px; justify-content: center; }
+  .brand { min-width: 44px; justify-content: center; }
+}
+
+@media (max-width: 380px) {
   .msg-actions .chip span { display: none; }
   .msg-actions .chip.accent span { display: inline; }
 }
@@ -2063,8 +2045,14 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .select,
   textarea { font-size: 16px; }
 
-  /* The open-message actions are tapped, not clicked: hold every chip at a
-     40px target so Delete, now mid-row, is not a mis-tap away from Star. */
-  .msg-actions .chip, .msg-actions .seg-btn, .wait-actions .btn { min-height: 40px; }
-  .wait-close { width: 40px; height: 40px; }
+  /* Touch targets are 44px square at minimum. A finger is not a cursor: the
+     open-message actions especially, where Delete sits mid-row and a mis-tap
+     lands on Star. Desktop keeps the denser 36px controls. */
+  .msg-actions .chip, .msg-actions .seg-btn, .wait-actions .btn { min-height: 44px; }
+  .msg-actions .chip, .msg-actions .seg-btn { min-width: 44px; }
+  .wait-close { width: 44px; height: 44px; }
+  .rail-item { min-height: 44px; }
+  .addr-value { min-height: 44px; }
+  .btn.sm, .select-bar .btn, .leak .btn { min-height: 44px; }
+  #btn-more, #sel-all, .select-actions .icon-btn { min-height: 44px; min-width: 44px; }
 }
