@@ -10,11 +10,11 @@
 import PostalMime, { type Email } from "postal-mime";
 import type { Env } from "./index";
 import { addressVerdict, recordArrival, senderDomain } from "./addresses";
-import { deleteAttachmentsFor } from "./db";
+import { deleteMessagesByIds } from "./db";
 import { headerValue, parseAuthResults, parseSentAt } from "./headers";
 import { pokeHub } from "./live";
 import { anySubscriptions, sendPush } from "./push";
-import { ATTACHMENT_CHUNK_CHARS, MAX_BODY_CHARS, resolveLimits } from "./limits";
+import { ATTACHMENT_CHUNK_CHARS, ATTACHMENT_CHUNKS_PER_WRITE, MAX_BODY_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
 
 export interface StoredAttachment {
@@ -173,16 +173,7 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   )
     .bind(to, limits.perAddress)
     .all<{ id: string }>();
-  if (stale.results.length) {
-    const ids = stale.results.map((row) => row.id);
-    await deleteAttachmentsFor(env.DB, ids);
-    // Split the list: D1 caps a statement at 100 bound variables.
-    for (let i = 0; i < ids.length; i += 90) {
-      const slice = ids.slice(i, i + 90);
-      const holes = slice.map((_, n) => `?${n + 1}`).join(",");
-      await env.DB.prepare(`DELETE FROM messages WHERE id IN (${holes})`).bind(...slice).run();
-    }
-  }
+  await deleteMessagesByIds(env.DB, stale.results.map((row) => row.id));
 
   console.log("stored mail for", to, "subject:", subject);
   return { ok: true, id, address: to, code, from: sender.name || sender.address, subject };
@@ -256,9 +247,9 @@ async function writeAttachments(
       .run();
 
     // A few rows per batch keeps each D1 call comfortably small.
-    for (let i = 0; i < chunks.length; i += 4) {
+    for (let i = 0; i < chunks.length; i += ATTACHMENT_CHUNKS_PER_WRITE) {
       await db.batch(
-        chunks.slice(i, i + 4).map((data, n) =>
+        chunks.slice(i, i + ATTACHMENT_CHUNKS_PER_WRITE).map((data, n) =>
           db
             .prepare("INSERT INTO attachment_chunks (message_id, idx, seq, data) VALUES (?1, ?2, ?3, ?4)")
             .bind(messageId, idx, i + n, data)

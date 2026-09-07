@@ -2,7 +2,7 @@
  * Tunables.
  *
  * The constants below are the shipping defaults. The owner can override the
- * four that matter from Settings; those are stored in D1 and read back through
+ * five that matter from Settings; those are stored in D1 and read back through
  * resolveLimits(), clamped to a range that keeps the Worker inside
  * Cloudflare's own limits.
  */
@@ -17,6 +17,9 @@ export const MESSAGE_TTL_DAYS = 100;
 
 /** Deleted mail stays restorable for this long before the cron removes it for real. */
 export const TRASH_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** How long an expired burner's row survives before the cron forgets it. */
+export const BURNER_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Hard ceiling on stored messages, enforced nightly. Keeps D1 usage bounded. */
 export const GLOBAL_MESSAGE_CAP = 5000;
@@ -45,6 +48,9 @@ export const ATTACHMENT_CHUNK_CHARS = 512 * 1024;
 
 /** Chunks pulled per query while streaming an attachment back out. */
 export const ATTACHMENT_CHUNKS_PER_READ = 4;
+
+/** How many chunk rows go into one D1 batch when storing an attachment. */
+export const ATTACHMENT_CHUNKS_PER_WRITE = 4;
 
 /** Default and maximum page size for the message list. */
 export const PAGE_SIZE = 50;

@@ -11,7 +11,7 @@ import {
   lockoutSecondsLeft, noteFailedLogin, passwordProblem, passwordSource, replacePassword, sessionCookie,
 } from "./auth";
 import {
-  deleteAttachmentsFor, deleteSetting, getSetting, setLabel, setSetting,
+  deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS,
 } from "./db";
@@ -23,7 +23,7 @@ import type { Env } from "./index";
 import {
   ATTACHMENT_CHUNKS_PER_READ, LIMIT_RANGES, MAX_PAGE_SIZE, PAGE_SIZE, resolveLimits,
 } from "./limits";
-import { normalizeDomain } from "./text";
+import { normalizeDomain, SNIPPET_LENGTH } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
@@ -459,7 +459,8 @@ function toListItem(row: ListRow) {
   };
 }
 
-function clampInt(value: string | null, fallback: number, min: number, max: number): number {
+/** A ?limit= from the query string, or the default when it is absent or junk. */
+function clampPageSize(value: string | null, fallback: number, min: number, max: number): number {
   const n = Number(value);
   if (!value || !Number.isInteger(n)) return fallback;
   return Math.min(max, Math.max(min, n));
@@ -482,7 +483,7 @@ function parseCursor(value: string | null): { receivedAt: number; id: string } |
 async function listMessages({ env, url }: Ctx): Promise<Response> {
   const address = url.searchParams.get("address")?.trim().toLowerCase() || null;
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
-  const limit = clampInt(url.searchParams.get("limit"), PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  const limit = clampPageSize(url.searchParams.get("limit"), PAGE_SIZE, 1, MAX_PAGE_SIZE);
   const cursorText = url.searchParams.get("cursor");
   const cursor = parseCursor(cursorText);
   if (cursorText && !cursor) return json({ error: "Bad cursor" }, 400);
@@ -509,10 +510,10 @@ async function listMessages({ env, url }: Ctx): Promise<Response> {
 
   const sql =
     `SELECT id, address, from_name, from_address, subject,
-            COALESCE(snippet, substr(text_body, 1, 160)) AS snippet, code, received_at, read, starred,
+            COALESCE(snippet, substr(text_body, 1, ${SNIPPET_LENGTH})) AS snippet, code, received_at, read, starred,
             (attachments IS NOT NULL AND attachments != '[]') AS has_attachments
        FROM messages` +
-    (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
+    ` WHERE ${where.join(" AND ")}` +
     ` ORDER BY received_at DESC, id DESC LIMIT ?${lim}`;
 
   const { results } = await env.DB.prepare(sql).bind(...binds).all<ListRow>();
@@ -572,7 +573,6 @@ async function attachmentsFor(db: D1Database, row: MessageRow): Promise<StoredAt
       ? legacy.map((a: any) => ({
           filename: a.filename, contentType: a.contentType, size: a.size,
           contentId: a.contentId, inline: a.inline, stored: !!a.base64,
-          legacyBase64: a.base64,
         }))
       : [];
   } catch {
@@ -644,13 +644,23 @@ async function unsubscribe({ env, params }: Ctx): Promise<Response> {
   return json({ ok: true, method: "mailto", url: links.mailto });
 }
 
+/**
+ * The SET clauses for a read/starred PATCH, appending their values to `binds`.
+ * Shared so the single-message and bulk routes cannot drift apart on what a
+ * PATCH is allowed to change.
+ */
+function readStarredSets(body: Record<string, unknown>, binds: unknown[]): string[] {
+  const sets: string[] = [];
+  if (typeof body.read === "boolean") sets.push(`read = ?${binds.push(body.read ? 1 : 0)}`);
+  if (typeof body.starred === "boolean") sets.push(`starred = ?${binds.push(body.starred ? 1 : 0)}`);
+  return sets;
+}
+
 /** PATCH /api/messages/:id  { read?: boolean, starred?: boolean } */
 async function updateMessage({ request, env, params }: Ctx): Promise<Response> {
   const body = await readJson(request);
-  const sets: string[] = [];
   const binds: unknown[] = [];
-  if (typeof body.read === "boolean") sets.push(`read = ?${binds.push(body.read ? 1 : 0)}`);
-  if (typeof body.starred === "boolean") sets.push(`starred = ?${binds.push(body.starred ? 1 : 0)}`);
+  const sets = readStarredSets(body, binds);
   if (!sets.length) return json({ error: "Nothing to update" }, 400);
 
   const result = await env.DB.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?${binds.push(params.id)} AND deleted_at IS NULL`)
@@ -698,19 +708,6 @@ async function restoreMessages({ request, env }: Ctx): Promise<Response> {
 }
 
 
-/**
- * D1 refuses a statement with more than 100 bound variables, so anything
- * driven by a list of ids has to be split. `reserved` leaves room for binds
- * that come before the ids (the SET clause, for instance).
- */
-const D1_MAX_BINDS = 100;
-
-function idChunks(ids: string[], reserved = 0): string[][] {
-  const size = Math.max(1, D1_MAX_BINDS - reserved);
-  const out: string[][] = [];
-  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
-  return out;
-}
 
 /** Reads an ids array from a body, capped so one call cannot run away. */
 function idsFrom(body: Record<string, unknown>): string[] {
@@ -729,9 +726,7 @@ async function patchMessages({ request, env }: Ctx): Promise<Response> {
   if (!ids.length) return json({ error: "No message ids given" }, 400);
 
   const values: unknown[] = [];
-  const sets: string[] = [];
-  if (typeof body.read === "boolean") sets.push(`read = ?${values.push(body.read ? 1 : 0)}`);
-  if (typeof body.starred === "boolean") sets.push(`starred = ?${values.push(body.starred ? 1 : 0)}`);
+  const sets = readStarredSets(body, values);
   if (!sets.length) return json({ error: "Nothing to update" }, 400);
 
   let updated = 0;

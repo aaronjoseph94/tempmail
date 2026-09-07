@@ -46,6 +46,19 @@ describe("retention", () => {
     expect(left).not.toContain("old@mail.example.test");
   });
 
+  it("purges more messages than fit in one statement", async () => {
+    // The delete paths bind one variable per id and D1 caps a statement at 100,
+    // so a purge larger than that has to be sliced. 250 crosses it twice.
+    const day = 24 * 60 * 60 * 1000;
+    await seed(250, { address: "bulk-purge@mail.example.test", startAt: Date.now() - 200 * day });
+    await worker.scheduled(createScheduledController(), env, ctx);
+    const { messages } = await listAll("?limit=500");
+    expect(messages.filter((m: any) => m.address === "bulk-purge@mail.example.test")).toHaveLength(0);
+    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM messages WHERE address = ?1")
+      .bind("bulk-purge@mail.example.test").first<{ n: number }>();
+    expect(left?.n).toBe(0);
+  }, 120_000);
+
   it("never deletes starred mail, however old", async () => {
     const ancient = Date.now() - 900 * 24 * 60 * 60 * 1000;
     await seed(1, { address: "keep@mail.example.test", startAt: ancient });

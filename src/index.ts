@@ -9,13 +9,13 @@
 
 import { handleApi, handlePublicApi } from "./api";
 import { hasValidSession } from "./auth";
-import { deleteAttachmentsFor, ensureSchema, sweepOrphanAttachments } from "./db";
+import { deleteMessagesByIds, ensureSchema, sweepOrphanAttachments } from "./db";
 import { handleEmail } from "./email";
 import type { InboxHub } from "./live";
 
 export { InboxHub } from "./live";
 import { json, withSecurityHeaders } from "./http";
-import { resolveLimits, TRASH_TTL_MS } from "./limits";
+import { BURNER_GRACE_MS, resolveLimits, TRASH_TTL_MS } from "./limits";
 
 export interface Env {
   DB: D1Database;
@@ -104,7 +104,7 @@ export default {
     await env.DB.prepare(
       `DELETE FROM addresses WHERE mode = 'expires' AND expires_at < ?1 AND label IS NULL
          AND address NOT IN (SELECT address FROM messages)`
-    ).bind(Date.now() - 7 * 24 * 60 * 60 * 1000).run();
+    ).bind(Date.now() - BURNER_GRACE_MS).run();
 
     // Catches anything a failed delete left behind earlier.
     await sweepOrphanAttachments(env.DB);
@@ -114,22 +114,10 @@ export default {
 /** Deletes the messages a query selects, along with their attachment rows. */
 async function purge(env: Env, sql: string, binds: unknown[]): Promise<void> {
   const { results } = await env.DB.prepare(sql).bind(...binds).all<{ id: string }>();
-  if (!results.length) return;
-  const ids = results.map((row) => row.id);
-  await deleteAttachmentsFor(env.DB, ids);
-  for (let i = 0; i < ids.length; i += 50) {
-    const slice = ids.slice(i, i + 50);
-    const holes = slice.map((_, n) => `?${n + 1}`).join(",");
-    await env.DB.prepare(`DELETE FROM messages WHERE id IN (${holes})`).bind(...slice).run();
-  }
+  await deleteMessagesByIds(env.DB, results.map((row) => row.id));
 }
 
 
-/**
- * The session cookie is SameSite=Lax, which already keeps cross-site POSTs
- * from carrying it. Browsers that send Sec-Fetch-Site let us refuse such
- * requests outright as a second line of defence.
- */
 /**
  * Whether an unsafe request came from somewhere other than this site.
  *

@@ -235,11 +235,6 @@ export async function deleteSetting(db: D1Database, key: string): Promise<void> 
 
 /* --------------------------------------------------------------- labels */
 
-export async function getLabels(db: D1Database): Promise<Record<string, string>> {
-  const { results } = await db.prepare("SELECT address, label FROM addresses WHERE label IS NOT NULL").all<{ address: string; label: string }>();
-  return Object.fromEntries(results.map((row) => [row.address, row.label]));
-}
-
 export async function setLabel(db: D1Database, address: string, label: string): Promise<void> {
   if (!label) {
     await db.prepare("UPDATE addresses SET label = NULL WHERE address = ?1").bind(address).run();
@@ -254,15 +249,39 @@ export async function setLabel(db: D1Database, address: string, label: string): 
     .run();
 }
 
+/* ------------------------------------------------------- bulk id writes */
+
+/** D1 refuses a statement with more than this many bound variables. */
+export const D1_MAX_BINDS = 100;
+
+/**
+ * Slices ids into runs that fit one statement. `reserved` is how many binds
+ * the caller needs for everything else in the same statement.
+ */
+export function idChunks(ids: string[], reserved = 0): string[][] {
+  const size = Math.max(1, D1_MAX_BINDS - reserved);
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
+/** Deletes these messages outright, attachments and all. Not the trash. */
+export async function deleteMessagesByIds(db: D1Database, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await deleteAttachmentsFor(db, ids);
+  for (const chunk of idChunks(ids)) {
+    const holes = chunk.map((_, n) => `?${n + 1}`).join(",");
+    await db.prepare(`DELETE FROM messages WHERE id IN (${holes})`).bind(...chunk).run();
+  }
+}
+
 /* ---------------------------------------------------------- attachments */
 
 /** Drops a message's attachment rows and their chunks. */
 export async function deleteAttachmentsFor(db: D1Database, messageIds: string[]): Promise<void> {
   if (messageIds.length === 0) return;
   // Bind each id rather than interpolating, in batches D1 is happy with.
-  // 90 at a time: D1 caps a statement at 100 bound variables.
-  for (let i = 0; i < messageIds.length; i += 90) {
-    const slice = messageIds.slice(i, i + 90);
+  for (const slice of idChunks(messageIds)) {
     const holes = slice.map((_, n) => `?${n + 1}`).join(",");
     await db.batch([
       db.prepare(`DELETE FROM attachment_chunks WHERE message_id IN (${holes})`).bind(...slice),

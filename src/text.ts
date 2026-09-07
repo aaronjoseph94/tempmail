@@ -31,7 +31,7 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-const SNIPPET_LENGTH = 160;
+export const SNIPPET_LENGTH = 160;
 
 /** The one-line preview shown in the list. Prefers the text part, falls back to stripped HTML. */
 export function makeSnippet(text: string | null | undefined, html: string | null | undefined): string | null {
