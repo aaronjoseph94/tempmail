@@ -71,7 +71,7 @@
   --r-xl: 20px;
   --r-full: 999px;
 
-  --rail-w: 280px;
+  --rail-w: 300px;
   --list-w: 396px;
   --bar-h: 60px;
 
@@ -562,7 +562,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 12px;
   padding: 14px;
   border-radius: var(--r-lg);
   background:
@@ -570,6 +570,8 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
     var(--c3);
   box-shadow: inset 0 0 0 1px var(--c6), var(--edge), var(--shadow-1);
   overflow: hidden;
+  container-type: inline-size;
+  container-name: addr;
 }
 .card-label {
   display: flex;
@@ -602,8 +604,12 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 @media (hover: hover) and (pointer: fine) {
   .addr-value:hover { box-shadow: inset 0 0 0 1px var(--accent-a28); background: var(--accent-a10); }
 }
-.addr-value .text { min-width: 0; }
-.addr-value .text > span { display: inline-block; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.addr-value .text {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.addr-value .text > span { white-space: normal; }
 .addr-value .at, .addr-value .domain { color: var(--ink2); }
 
 /* Copy button that morphs into a tick. Both glyphs are stacked and the
@@ -615,12 +621,44 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .addr-value.copied .copy-slot .tick { scale: 1; opacity: 1; }
 .addr-value.copied { box-shadow: inset 0 0 0 1px var(--ok); }
 
-/* Two equal actions. They share the row on desktop and stack on narrow
-   phones, where side-by-side would squeeze both labels. */
-.addr-actions { display: flex; gap: 8px; }
-.addr-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; }
-/* Three actions share the row; each keeps a full tap height on touch. */
-.addr-actions .btn { white-space: nowrap; }
+/* Three actions in equal columns. Labels sit under the icon so the 300px
+   rail and a phone-width card both keep readable tap targets — a single
+   nowrap row was overflowing "Wait for code" into its neighbours. */
+.addr-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.addr-actions .btn {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: auto;
+  min-width: 0;
+  min-height: 66px;
+  padding: 10px 6px;
+  gap: 6px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  font-size: var(--t-xs);
+  background: var(--c2);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+.addr-actions .btn span {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* When the card is wider than the rail (phone column), labels fit on one line. */
+@container addr (min-width: 340px) {
+  .addr-actions .btn {
+    font-size: var(--t-sm);
+    min-height: 66px;
+    padding: 10px 6px;
+  }
+}
 
 /* ---- waiting for a code ---- */
 .wait {
@@ -673,8 +711,17 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 /* Lifetime picker under the address actions. */
 .roll-mode { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .roll-mode-label { font-size: var(--t-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
-.seg.full { display: flex; width: 100%; }
-.seg.full .seg-btn { flex: 1; text-align: center; padding-inline: 6px; }
+.seg.full { display: flex; width: 100%; min-width: 0; }
+.seg.full .seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 3px;
+  font-size: var(--t-xs);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* The dice glyph spins a half turn each time a new address is rolled. */
 .spin { transition: rotate 0.5s var(--ease-spring); }
@@ -697,7 +744,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 /* The highlight is one element that travels to the active row, the way
    Animate UI's highlight primitive works: measure the target, move the pill. */
-.rail-list { position: relative; display: flex; flex-direction: column; gap: 1px; }
+.rail-list { position: relative; display: flex; flex-direction: column; gap: 3px; }
 .rail-list::before {
   content: "";
   position: absolute;
@@ -725,7 +772,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   gap: 9px;
   flex: 1;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 10px;
   border-radius: var(--r-md);
   color: var(--ink2);
   font-size: var(--t-md);
@@ -745,7 +792,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mono);
-  font-size: var(--t-sm);
+  font-size: var(--t-md);
 }
 .rail-item.all .name { font-family: var(--font); font-size: var(--t-md); font-weight: 600; }
 /* Lifecycle tag beside the name: hours left, 1-shot, used, blocked. */
@@ -861,12 +908,15 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   min-height: 0;
   background: var(--c2);
   box-shadow: inset -1px 0 0 0 var(--c6);
+  container-type: inline-size;
+  container-name: list;
 }
 
 .list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 15px 18px 13px;
   box-shadow: inset 0 -1px 0 0 var(--c6);
@@ -883,7 +933,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 /* The title shrinks (ellipsis) so a long address never pushes the tools over the reader. */
 .list-head > div:first-child { flex: 1; min-width: 0; }
 .list-head h2 { white-space: nowrap; text-overflow: ellipsis; }
-.list-tools { display: flex; gap: 5px; flex: none; }
+.list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; flex: none; }
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -1227,6 +1277,7 @@ a.attachment:active { transform: scale(0.97); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 9px 0;
 }
@@ -1453,23 +1504,27 @@ body.gate {
 
 .view-filters {
   display: flex;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
   padding: 3px;
   background: var(--c5);
   border-radius: var(--r-full);
   box-shadow: inset 0 0 0 1px var(--c6);
 }
 .view-chip {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 7px 6px;
+  gap: 4px;
+  padding: 7px 4px;
   border-radius: var(--r-full);
   color: var(--ink3);
-  font-size: var(--t-sm);
+  font-size: var(--t-xs);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
   transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
 }
 .view-chip .icon { width: 13px; height: 13px; }
@@ -1517,14 +1572,23 @@ body.gate {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 10px 16px;
   background: var(--accent-a10);
   box-shadow: inset 0 -1px 0 0 var(--c6);
   animation: sec-in var(--d-slow) var(--ease-out);
 }
 .select-count { font-size: var(--t-md); font-weight: 600; color: var(--accent); }
-.select-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.select-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.select-actions .btn { padding: 7px 10px; gap: 6px; }
+
+/* The list column is only ~400px. Labels make the action row wrap into a
+   tangled second line, so drop them and keep the icon (title still explains). */
+@container list (max-width: 520px) {
+  .select-actions .btn span { display: none; }
+  .select-actions .btn { padding: 8px; min-width: 36px; }
+}
 
 .mail .tick-box {
   display: none;
@@ -1688,7 +1752,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
   :root { --bar-h: 56px; }
 
-  .topbar { grid-template-columns: auto 1fr; padding: 0 10px 0 14px; gap: 8px; }
+  .topbar { grid-template-columns: auto 1fr; padding: 0 12px 0 14px; gap: 8px; }
   .topbar .searchbox {
     display: none;
     grid-column: 1 / -1;
@@ -1746,7 +1810,10 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
     background: var(--c3);
     box-shadow: inset 0 0 0 1px var(--c6);
   }
-  .rail-item.active { color: var(--accent-ink); background: transparent; box-shadow: none; }
+  /* Own fill so the active chip stays readable before JS measures the
+     sliding pill, and if the highlight vars are ever unset. */
+  .rail-list::before { display: none; }
+  .rail-item.active { color: var(--accent-ink); background: var(--accent); box-shadow: none; }
   .rail-item.active .count { color: inherit; opacity: 0.75; }
   .rail-item.active .badge { background: rgb(0 0 0 / 0.22); color: inherit; }
   .rail-empty { display: none; }
@@ -1833,8 +1900,8 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .empty { padding: 44px 22px; }
   .toast { bottom: calc(18px + env(safe-area-inset-bottom)); }
 
-  .view-filters { margin-bottom: 2px; }
-  .view-chip { padding: 9px 6px; font-size: var(--t-md); }
+  .view-filters { margin-bottom: 4px; }
+  .view-chip { padding: 8px 6px; font-size: var(--t-sm); }
   .limits { grid-template-columns: 1fr; }
   .sub-setting { padding-left: 0; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
@@ -1847,9 +1914,9 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .select-actions .icon-btn.plain { margin-left: auto; }
 
   /* Comfortable touch targets: 44px minimum on anything tappable. */
-  .addr-card { gap: 12px; padding: 15px; }
-  .addr-actions { gap: 10px; }
-  .addr-actions .btn { min-height: 44px; font-size: var(--t-md); gap: 8px; }
+  .addr-card { gap: 14px; padding: 16px; }
+  .addr-actions { gap: 8px; }
+  .addr-actions .btn { min-height: 64px; font-size: var(--t-sm); gap: 6px; }
   .icon-btn { width: 40px; height: 40px; }
   .list-tools .icon-btn { width: 38px; height: 38px; }
   .tag { padding: 5px 10px; font-size: var(--t-sm); }
@@ -1857,13 +1924,26 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
   .brand { min-height: 40px; }
   .chip { padding: 9px 14px; font-size: var(--t-md); }
   .seg-btn { padding: 7px 15px; font-size: var(--t-md); }
+  /* Lifetime picker stays compact so Always / 24h / 7d / Once share one row. */
+  .seg.full .seg-btn { padding: 7px 4px; font-size: var(--t-sm); }
+  .setting-row { flex-direction: column; align-items: stretch; }
+  .setting-row .seg { width: 100%; }
+  .setting-row .seg-btn { flex: 1; }
+  .leak-strip { flex-wrap: wrap; }
+  .leak-strip .btn { width: 100%; justify-content: center; }
   .search-clear { width: 30px; height: 30px; }
 }
 
-/* Only the very narrowest phones need the two actions stacked. */
+/* Very narrow phones: stack the three address actions so labels stay whole. */
 @media (max-width: 330px) {
-  .addr-actions { flex-direction: column; }
-  .addr-actions .btn { width: 100%; }
+  .addr-actions { grid-template-columns: 1fr; }
+  .addr-actions .btn {
+    flex-direction: row;
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    font-size: var(--t-md);
+  }
 }
 
 @media (max-width: 380px) {
@@ -1876,7 +1956,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
 /* Wide screens get a little more reading room rather than more list. */
 @media (min-width: 1600px) {
-  :root { --rail-w: 300px; --list-w: 430px; }
+  :root { --rail-w: 320px; --list-w: 430px; }
 }
 
 /* ---- no focus zoom on touch devices ----

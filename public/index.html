@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=12" />
+  <link rel="stylesheet" href="/style.css?v=13" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -119,13 +119,13 @@
         </p>
         <div class="addr-actions">
           <button id="btn-roll" class="btn sm ghost" title="Generate a different address (N)">
-            <svg class="icon sm spin"><use href="#i-dice"/></svg>Generate
+            <svg class="icon sm spin"><use href="#i-dice"/></svg><span>Generate</span>
           </button>
           <button id="btn-mine" class="btn sm ghost" title="Show only the messages sent to this address">
-            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg>Go to box
+            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Go to box</span>
           </button>
           <button id="btn-wait" class="btn sm ghost" title="Watch this address and show the next code as soon as it lands">
-            <svg class="icon sm"><use href="#i-key"/></svg>Wait for code
+            <svg class="icon sm"><use href="#i-key"/></svg><span>Wait for code</span>
           </button>
         </div>
         <div class="roll-mode">
@@ -134,7 +134,7 @@
             <button type="button" class="seg-btn" data-mode="permanent" aria-pressed="true" title="Keeps taking mail">Always</button>
             <button type="button" class="seg-btn" data-mode="24h" aria-pressed="false" title="Bounces mail after a day">24h</button>
             <button type="button" class="seg-btn" data-mode="7d" aria-pressed="false" title="Bounces mail after a week">7d</button>
-            <button type="button" class="seg-btn" data-mode="once" aria-pressed="false" title="Takes one message, then bounces the rest">One-shot</button>
+            <button type="button" class="seg-btn" data-mode="once" aria-pressed="false" title="Takes one message, then bounces the rest">Once</button>
           </div>
         </div>
       </section>
@@ -191,11 +191,11 @@
         <span class="select-count" id="select-count"></span>
         <div class="select-actions">
           <button id="sel-all" class="btn sm ghost" title="Select every message shown">All</button>
-          <button id="sel-read" class="btn sm ghost" title="Mark read"><svg class="icon sm"><use href="#i-check-all"/></svg>Read</button>
-          <button id="sel-unread" class="btn sm ghost" title="Mark unread"><svg class="icon sm"><use href="#i-unread"/></svg>Unread</button>
-          <button id="sel-star" class="btn sm ghost" title="Star"><svg class="icon sm"><use href="#i-star"/></svg>Star</button>
-          <button id="sel-unstar" class="btn sm ghost" title="Remove star"><svg class="icon sm"><use href="#i-star"/></svg>Unstar</button>
-          <button id="sel-delete" class="btn sm ghost danger" title="Move to trash"><svg class="icon sm"><use href="#i-trash"/></svg>Delete</button>
+          <button id="sel-read" class="btn sm ghost" title="Mark read"><svg class="icon sm"><use href="#i-check-all"/></svg><span>Read</span></button>
+          <button id="sel-unread" class="btn sm ghost" title="Mark unread"><svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span></button>
+          <button id="sel-star" class="btn sm ghost" title="Star"><svg class="icon sm"><use href="#i-star"/></svg><span>Star</span></button>
+          <button id="sel-unstar" class="btn sm ghost" title="Remove star"><svg class="icon sm"><use href="#i-star"/></svg><span>Unstar</span></button>
+          <button id="sel-delete" class="btn sm ghost danger" title="Move to trash"><svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span></button>
           <button id="sel-cancel" class="icon-btn plain" aria-label="Leave selection mode"><svg class="icon sm"><use href="#i-close"/></svg></button>
         </div>
       </div>
@@ -476,6 +476,6 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="/app.js?v=12"></script>
+  <script src="/app.js?v=13"></script>
 </body>
 </html>
