@@ -1,4 +1,4 @@
-/* AJ's Temp Email — inbox front-end.
+/* tempmail — inbox front-end.
    Plain browser JavaScript, no build step. Talks to the JSON API in src/api.ts.
 
    Motion notes: entrances run ~0.22s, exits ~0.12s, and anything that moves
@@ -57,7 +57,14 @@ const state = {
 const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
   images: "always_images", address: "address", theme: "theme", push: "push",
+  scheme: "scheme",
 };
+
+/* Accent presets. Every one is contrast-checked against c1 through c5 in both
+   themes; the values live in style.css under [data-scheme]. "mono" is the
+   default and carries no attribute -- it is the achromatic accent the tokens
+   already declare. */
+const SCHEMES = ["mono", "indigo", "emerald", "amber", "rose", "cyan"];
 
 /** Lifecycles a generated address can be given, keyed by the picker's value. */
 const ROLL_MODES = {
@@ -376,7 +383,7 @@ function announceNewMail(since) {
   // With pushes on, the service worker's notification covers the hidden case.
   if (state.notify && !state.push && document.hidden && "Notification" in window && Notification.permission === "granted") {
     try {
-      const note = new Notification("AJ\u2019s Temp Email", { body: text, tag: "tempmail-new" });
+      const note = new Notification(brandName(), { body: text, tag: "tempmail-new" });
       note.onclick = () => {
         window.focus();
         if (arrived.length === 1) openMessage(arrived[0].id);
@@ -554,12 +561,29 @@ function loadCache() {
 
 /* -------------------------------------------------------------- rendering */
 
+/* The site's name lives in a server setting so a fork can rename itself
+   without editing markup. This is the fallback until /api/config answers, and
+   it is the only place the default is written on this side. */
+const BRAND_DEFAULT = "Temp Email";
+function brandName() {
+  return state.config?.brandName || BRAND_DEFAULT;
+}
+
+function renderBrand() {
+  const name = brandName();
+  $("brand-name").textContent = name;
+  $("brand-link").setAttribute("aria-label", `${name} home`);
+  $("set-brand").value = state.config?.brandName || "";
+  renderTitle();
+}
+
 function renderTitle() {
   const unread = state.addresses.reduce((n, a) => n + (a.unread || 0), 0);
-  document.title = unread ? `(${unread}) AJ\u2019s Temp Email` : "AJ\u2019s Temp Email";
+  document.title = unread ? `(${unread}) ${brandName()}` : brandName();
 }
 
 function renderDomain() {
+  renderBrand();
   state.mailDomain = state.config?.mailDomain || state.mailDomain || "";
   $("domain-pill").hidden = !state.mailDomain;
   $("domain-label").textContent = state.mailDomain;
@@ -1902,6 +1926,17 @@ async function saveDomain(event) {
   }
 }
 
+async function saveBrand(event) {
+  event.preventDefault();
+  try {
+    state.config = await send("PUT", "/api/settings", { brandName: $("set-brand").value.trim() });
+    renderBrand();
+    toast(`Now called ${brandName()}`, "i-tag");
+  } catch (err) {
+    toast(err.message, "i-warn");
+  }
+}
+
 async function changePassword(event) {
   event.preventDefault();
   const form = $("password-form");
@@ -2227,12 +2262,37 @@ function paintTheme(theme) {
 }
 
 function renderThemeSeg() {
+  renderSchemeSwatches();
   const seg = $("theme-seg");
   const pref = themePref();
   for (const button of seg.querySelectorAll(".seg-btn")) {
     button.setAttribute("aria-pressed", String(button.dataset.theme === pref));
   }
   if ($("settings").open) moveSegHighlight(seg);
+}
+
+function schemePref() {
+  const saved = store.get(PREFS.scheme);
+  return SCHEMES.includes(saved) ? saved : "mono";
+}
+
+function applyScheme(name) {
+  if (!SCHEMES.includes(name)) return;
+  if (name === "mono") {
+    store.remove(PREFS.scheme);
+    delete document.documentElement.dataset.scheme;
+  } else {
+    store.set(PREFS.scheme, name);
+    document.documentElement.dataset.scheme = name;
+  }
+  renderSchemeSwatches();
+}
+
+function renderSchemeSwatches() {
+  const current = schemePref();
+  for (const button of $("scheme-swatches").querySelectorAll("[data-scheme]")) {
+    button.setAttribute("aria-checked", String(button.dataset.scheme === current));
+  }
 }
 
 // Following the device means repainting when the device changes its mind.
@@ -2574,10 +2634,27 @@ $("btn-settings").addEventListener("click", openSettings);
 $("btn-settings-close").addEventListener("click", closeSettings);
 // Clicking the backdrop (that is, the dialog itself rather than the panel) closes it.
 $("settings").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeSettings(); });
+$("brand-form").addEventListener("submit", saveBrand);
 $("domain-form").addEventListener("submit", saveDomain);
 $("password-form").addEventListener("submit", changePassword);
 $("set-sound").addEventListener("change", (e) => setSound(e.target.checked));
 $("set-notify").addEventListener("change", (e) => toggleNotifications(e.target.checked));
+$("scheme-swatches").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-scheme]");
+  if (button) applyScheme(button.dataset.scheme);
+});
+$("scheme-swatches").addEventListener("keydown", (e) => {
+  // A radiogroup is arrow-navigable; without this a keyboard user can reach
+  // the row but only ever pick whichever swatch tab landed on.
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const buttons = [...$("scheme-swatches").querySelectorAll("[data-scheme]")];
+  const at = buttons.findIndex((b) => b.dataset.scheme === schemePref());
+  const next = buttons[(at + step + buttons.length) % buttons.length];
+  applyScheme(next.dataset.scheme);
+  next.focus();
+});
 $("theme-seg").addEventListener("click", (e) => {
   const button = e.target.closest(".seg-btn");
   if (button) applyTheme(button.dataset.theme);

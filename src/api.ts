@@ -13,7 +13,7 @@ import {
 } from "./auth";
 import {
   deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
-  SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
+  SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_BRAND_NAME, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS,
 } from "./db";
 import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
@@ -49,13 +49,32 @@ export async function handlePublicApi(request: Request, env: Env, url: URL, ctx?
   return null;
 }
 
-/** What the sign-in page needs: is anyone signed in, and is there a password? */
+/**
+ * The name the site goes by. A fork should not have to edit five files and a
+ * manifest to stop calling itself someone else's inbox.
+ */
+export const BRAND_DEFAULT = "Temp Email";
+const MAX_BRAND_LENGTH = 40;
+
+async function brandName(env: Env): Promise<string> {
+  return (await getSetting(env.DB, SETTING_BRAND_NAME)) || BRAND_DEFAULT;
+}
+
+/**
+ * What the sign-in page needs: is anyone signed in, is there a password, and
+ * what should the page call itself.
+ *
+ * The brand rides along here rather than on an endpoint of its own because
+ * login.js already calls this before any session exists, and the sign-in
+ * screen has to render the name too.
+ */
 async function status(request: Request, env: Env): Promise<Response> {
   const source = await passwordSource(env);
   return json({
     authed: source !== "none" && (await hasValidSession(request, env)),
     setupRequired: source === "none",
     passwordSource: source,
+    brandName: await brandName(env),
   });
 }
 
@@ -175,6 +194,7 @@ async function buildConfig(env: Env) {
   const observed = await observedDomains(env.DB);
   const limits = await resolveLimits(env.DB);
   return {
+    brandName: await brandName(env),
     mailDomain: allowed[0] ?? chosen ?? observed[0] ?? null,
     domainSource: allowed[0] ? "env" : chosen ? "settings" : observed[0] ? "observed" : null,
     allowedDomains: allowed,
@@ -224,6 +244,11 @@ function planNumber(
 async function updateSettings({ request, env }: Ctx): Promise<Response> {
   const body = await readJson(request);
   const writes: Write[] = [];
+
+  if ("brandName" in body) {
+    const name = String(body.brandName ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_BRAND_LENGTH);
+    writes.push({ key: SETTING_BRAND_NAME, value: name || null });
+  }
 
   if ("mailDomain" in body) {
     const domain = normalizeDomain(body.mailDomain);

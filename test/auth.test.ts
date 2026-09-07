@@ -5,8 +5,11 @@ beforeEach(freshDatabase);
 
 describe("first-run setup", () => {
   it("reports that setup is required on a fresh database", async () => {
+    // The exact shape, so a field added here is a deliberate change: the
+    // sign-in page reads this before any session exists, and it is the only
+    // endpoint that answers then.
     const status = await json(await call("/api/status"));
-    expect(status).toEqual({ authed: false, setupRequired: true, passwordSource: "none" });
+    expect(status).toEqual({ authed: false, setupRequired: true, passwordSource: "none", brandName: "Temp Email" });
   });
 
   it("refuses to sign in before a password exists", async () => {

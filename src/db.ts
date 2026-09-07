@@ -10,6 +10,8 @@
 export const SETTING_PASSWORD = "password_hash";
 export const SETTING_SESSION_SECRET = "session_secret";
 export const SETTING_MAIL_DOMAIN = "mail_domain";
+/** What the site calls itself. Empty falls back to BRAND_DEFAULT. */
+export const SETTING_BRAND_NAME = "brand_name";
 export const SETTING_RETENTION_DAYS = "retention_days";
 export const SETTING_PER_ADDRESS = "per_address_cap";
 export const SETTING_GLOBAL_CAP = "global_cap";

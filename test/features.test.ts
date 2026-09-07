@@ -176,6 +176,28 @@ describe("bulk actions", () => {
   });
 });
 
+describe("site name", () => {
+  it("defaults, saves, trims and clears", async () => {
+    const put = (brandName: unknown) => call("/api/settings", { method: "PUT", cookie, json: { brandName } });
+
+    expect((await json(await call("/api/config", { cookie }))).brandName).toBe("Temp Email");
+
+    await put("  Fork   Mail  ");
+    expect((await json(await call("/api/config", { cookie }))).brandName).toBe("Fork Mail");
+
+    // The sign-in page has no session, so the name has to ride on the public
+    // status endpoint or the gate renders under the wrong name.
+    expect((await json(await call("/api/status"))).brandName).toBe("Fork Mail");
+
+    // Bounded, so it cannot push the top bar around.
+    await put("x".repeat(200));
+    expect((await json(await call("/api/config", { cookie }))).brandName.length).toBe(40);
+
+    await put("");
+    expect((await json(await call("/api/config", { cookie }))).brandName).toBe("Temp Email");
+  });
+});
+
 describe("address labels", () => {
   it("saves, returns, trims and clears a label", async () => {
     await deliver(buildMail(), "shop@mail.example.test");

@@ -237,6 +237,152 @@
   --shadow-3: 0 16px 40px -12px rgb(18 18 19 / 0.16);
 }
 
+
+/* ---- colour schemes ----
+   Six accents, chosen so the app can be recoloured without redesigning it: the
+   grey ramp is the app's identity and stays put, and the accent is the one
+   solid fill on any screen. Every value below was picked by walking the hue
+   down (light) or up (dark) until it cleared 5:1 both against the darkest
+   surface it can sit on and for the ink written on top of it -- checked
+   against c1 through c5 in both themes, not just the page background.
+
+   Applied as data-scheme on :root, the same way theme.js applies data-theme,
+   and stored per browser. "mono" is the default and needs no block: it is the
+   achromatic accent already declared in the tokens above. */
+
+:root[data-scheme="indigo"] {
+  --accent: #958ef6;
+  --accent-hi: #b8b4f9;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(149 142 246 / 0.12);
+  --accent-a16: rgb(149 142 246 / 0.20);
+  --accent-a28: rgb(149 142 246 / 0.34);
+}
+
+:root[data-scheme="emerald"] {
+  --accent: #7de8c8;
+  --accent-hi: #a0eed7;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(125 232 200 / 0.12);
+  --accent-a16: rgb(125 232 200 / 0.20);
+  --accent-a28: rgb(125 232 200 / 0.34);
+}
+
+:root[data-scheme="amber"] {
+  --accent: #f0b44c;
+  --accent-hi: #f3c472;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(240 180 76 / 0.12);
+  --accent-a16: rgb(240 180 76 / 0.20);
+  --accent-a28: rgb(240 180 76 / 0.34);
+}
+
+:root[data-scheme="rose"] {
+  --accent: #f4718b;
+  --accent-hi: #f797aa;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(244 113 139 / 0.12);
+  --accent-a16: rgb(244 113 139 / 0.20);
+  --accent-a28: rgb(244 113 139 / 0.34);
+}
+
+:root[data-scheme="cyan"] {
+  --accent: #51caec;
+  --accent-hi: #76d5f0;
+  --accent-ink: #0b0b0c;
+  --accent-a10: rgb(81 202 236 / 0.12);
+  --accent-a16: rgb(81 202 236 / 0.20);
+  --accent-a28: rgb(81 202 236 / 0.34);
+}
+
+/* The light theme needs its own, darker, shade of each. */
+
+:root[data-scheme="indigo"][data-theme="light"] {
+  --accent: #4338dc;
+  --accent-hi: #2f24cc;
+  --accent-ink: #ffffff;
+  --accent-a10: rgb(67 56 220 / 0.12);
+  --accent-a16: rgb(67 56 220 / 0.20);
+  --accent-a28: rgb(67 56 220 / 0.34);
+}
+
+:root[data-scheme="emerald"][data-theme="light"] {
+  --accent: #12684e;
+  --accent-hi: #0d4a37;
+  --accent-ink: #ffffff;
+  --accent-a10: rgb(18 104 78 / 0.12);
+  --accent-a16: rgb(18 104 78 / 0.20);
+  --accent-a28: rgb(18 104 78 / 0.34);
+}
+
+:root[data-scheme="amber"][data-theme="light"] {
+  --accent: #7e5816;
+  --accent-hi: #604311;
+  --accent-ink: #ffffff;
+  --accent-a10: rgb(126 88 22 / 0.12);
+  --accent-a16: rgb(126 88 22 / 0.20);
+  --accent-a28: rgb(126 88 22 / 0.34);
+}
+
+:root[data-scheme="rose"][data-theme="light"] {
+  --accent: #b6203e;
+  --accent-hi: #981b34;
+  --accent-ink: #ffffff;
+  --accent-a10: rgb(182 32 62 / 0.12);
+  --accent-a16: rgb(182 32 62 / 0.20);
+  --accent-a28: rgb(182 32 62 / 0.34);
+}
+
+:root[data-scheme="cyan"][data-theme="light"] {
+  --accent: #16677e;
+  --accent-hi: #114e60;
+  --accent-ink: #ffffff;
+  --accent-a10: rgb(22 103 126 / 0.12);
+  --accent-a16: rgb(22 103 126 / 0.20);
+  --accent-a28: rgb(22 103 126 / 0.34);
+}
+
+/* The accent picker: each swatch shows the colour it applies, in whichever
+   theme is on, so the choice is made by looking rather than by reading a name. */
+.swatches { display: flex; gap: var(--s-4); flex-wrap: wrap; }
+.swatch {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--dot);
+  box-shadow: inset 0 0 0 1px var(--c7);
+  transition: scale var(--d-fast) var(--ease-spring), box-shadow var(--d-mid) var(--ease);
+}
+.swatch:active { scale: 0.92; }
+/* The ring sits outside the dot so the colour itself is never covered. The
+   gap takes the drawer's surface, not the page's -- these only ever appear
+   inside Settings, and a 2px halo in the wrong grey shows. */
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--c2), 0 0 0 4px var(--ink2); }
+@media (hover: hover) and (pointer: fine) {
+  .swatch:hover { scale: 1.08; }
+}
+.swatch[data-scheme="mono"] { --dot: #f2f2f3; }
+.swatch[data-scheme="indigo"] { --dot: #958ef6; }
+.swatch[data-scheme="emerald"] { --dot: #7de8c8; }
+.swatch[data-scheme="amber"] { --dot: #f0b44c; }
+.swatch[data-scheme="rose"] { --dot: #f4718b; }
+.swatch[data-scheme="cyan"] { --dot: #51caec; }
+:root[data-theme="light"] {
+  .swatch[data-scheme="mono"] { --dot: #121213; }
+  .swatch[data-scheme="indigo"] { --dot: #4338dc; }
+  .swatch[data-scheme="emerald"] { --dot: #12684e; }
+  .swatch[data-scheme="amber"] { --dot: #7e5816; }
+  .swatch[data-scheme="rose"] { --dot: #b6203e; }
+  .swatch[data-scheme="cyan"] { --dot: #16677e; }
+}
+/* A finger needs more than 28px, and the row has the width for it. The floor
+   is the same one every control takes, rather than a number picked here. */
+@media (max-width: 899px), (pointer: coarse) {
+  .swatch { width: var(--tap-min); height: var(--tap-min); }
+  .swatches { gap: var(--s-6); }
+}
+
 /* ================================================================== 2. base */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -1871,9 +2017,11 @@ dialog.drawer[open]::backdrop { opacity: 1; }
 }
 .drawer-sec:last-child { box-shadow: none; }
 dialog.drawer[open] .drawer-sec { animation: sec-in var(--d-slow) var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
-/* --i has to be set for the stagger to exist; nothing was setting it, so every
-   section was arriving on the same 80ms beat. Six is past the fold in any
-   drawer — later sections keep the last delay rather than trailing further. */
+/* The stagger index. Settings carried it as an inline style on each section,
+   so a drawer that did not (either sheet) had every section arriving on the
+   same 80ms beat. Deriving it here covers all three and takes the indices out
+   of the markup. Five sections is past the fold in any of them, so later ones
+   hold the last delay rather than trailing further and further behind. */
 dialog.drawer[open] .drawer-sec:nth-child(2) { --i: 1; }
 dialog.drawer[open] .drawer-sec:nth-child(3) { --i: 2; }
 dialog.drawer[open] .drawer-sec:nth-child(4) { --i: 3; }

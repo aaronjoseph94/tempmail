@@ -1,6 +1,6 @@
 {
-  "name": "AJ's Temp Email",
-  "short_name": "AJ's Mail",
+  "name": "Temp Email",
+  "short_name": "Mail",
   "description": "Your private catch-all inbox",
   "start_url": "/",
   "scope": "/",

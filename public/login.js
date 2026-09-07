@@ -127,9 +127,20 @@
     form.querySelector("input").focus();
   }
 
+  /* The site's name is a server setting, so a fork renames itself without
+     touching this file. It rides on /api/status because the sign-in screen
+     has to show it before any session exists, and that call already happens. */
+  function applyBrand(name) {
+    if (!name) return;
+    const slot = $("brand-name");
+    if (slot) slot.textContent = name;
+    document.title = `${name} \u00b7 sign in`;
+  }
+
   fetch("/api/status")
     .then((res) => res.json())
     .then((status) => {
+      applyBrand(status.brandName);
       if (status.authed) {
         location.replace("/");
       } else if (status.setupRequired) {

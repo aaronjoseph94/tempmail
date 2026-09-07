@@ -10,12 +10,12 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>AJ's Temp Email</title>
+  <title>Temp Email</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=41" />
+  <link rel="stylesheet" href="/style.css?v=42" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -66,9 +66,11 @@
   </svg>
 
   <header class="topbar">
-    <a class="brand" href="/" aria-label="AJ's Temp Email home">
+    <!-- The name is a server setting so a fork can rename the site without
+         editing markup; these are the fallbacks until /api/config answers. -->
+    <a class="brand" href="/" id="brand-link" aria-label="Temp Email home">
       <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-mail"/></svg></span>
-      <span class="brand-name">AJ's Temp Email</span>
+      <span class="brand-name" id="brand-name">Temp Email</span>
     </a>
 
     <div class="searchbox">
@@ -324,7 +326,16 @@
       </header>
 
       <div class="drawer-scroll">
-        <section class="drawer-sec" style="--i:0">
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-tag"/></svg>Name</h3>
+          <p class="hint">What this inbox calls itself, in the top bar and the browser tab. Handy if you have forked it.</p>
+          <form class="row" id="brand-form">
+            <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" aria-label="Site name" />
+            <button class="btn sm primary" type="submit">Save</button>
+          </form>
+        </section>
+
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Mail domain</h3>
           <p class="hint">The part after the @ in your addresses. It only shapes what is shown and generated — mail is accepted for every domain routed to this Worker.</p>
           <form class="row" id="domain-form">
@@ -334,7 +345,7 @@
           <p class="hint" id="domain-note" hidden></p>
         </section>
 
-        <section class="drawer-sec" style="--i:1">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Password</h3>
           <form class="stack" id="password-form">
             <input id="pw-current" type="password" placeholder="Current password" autocomplete="current-password" aria-label="Current password" required />
@@ -344,7 +355,7 @@
           <p class="hint" id="pw-note"></p>
         </section>
 
-        <section class="drawer-sec" style="--i:2">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
           <label class="switch">
             <input type="checkbox" id="set-sound" /><span class="track"></span>
@@ -364,7 +375,7 @@
           </label>
         </section>
 
-        <section class="drawer-sec" style="--i:3">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
           <div class="setting-row">
             <span class="label">Theme<small>System follows your device</small></span>
@@ -374,13 +385,24 @@
               <button type="button" class="seg-btn" data-theme="dark" aria-pressed="false">Dark</button>
             </div>
           </div>
+          <div class="setting-row">
+            <span class="label" id="scheme-label">Accent<small>Contrast-checked in both themes</small></span>
+            <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
+              <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
+              <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
+              <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
+              <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
+              <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
+              <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
+            </div>
+          </div>
           <label class="switch">
             <input type="checkbox" id="set-images" /><span class="track"></span>
             <span class="label">Always load remote images<small>Off keeps tracking pixels blocked until you ask</small></span>
           </label>
         </section>
 
-        <section class="drawer-sec" style="--i:4">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-database"/></svg>Storage &amp; limits</h3>
           <div class="meter">
             <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
@@ -412,7 +434,7 @@
           <p class="hint" id="retention-note"></p>
         </section>
 
-        <section class="drawer-sec" style="--i:5">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard</h3>
           <dl class="keys">
             <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous (or ↓ ↑)</dd></div>
@@ -432,7 +454,7 @@
           </dl>
         </section>
 
-        <section class="drawer-sec" style="--i:6">
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
           <p class="hint">Starred messages are kept forever and are never removed by the nightly cleanup — but they do go when you delete everything.</p>
           <div class="row">
@@ -588,6 +610,6 @@
     </button>
   </div>
 
-  <script src="/app.js?v=41"></script>
+  <script src="/app.js?v=42"></script>
 </body>
 </html>
