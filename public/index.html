@@ -295,8 +295,11 @@
         </div>
 
         <div class="msg-actions">
-          <button id="btn-code" class="chip accent" hidden title="Copy the verification code">
-            <svg class="icon sm"><use href="#i-key"/></svg><span>Copy code <b id="msg-code"></b></span>
+          <!-- The code alone, shaped like the one on the list row it came from.
+               "Copy code 719034" spelled out was the widest control in the row
+               and said what the key icon and the toast already say. -->
+          <button id="btn-code" class="chip accent" hidden aria-label="Copy the verification code" title="Copy the verification code">
+            <svg class="icon sm"><use href="#i-key"/></svg><span><b id="msg-code"></b></span>
           </button>
           <div class="seg" id="body-toggle" data-ready="false" role="group" aria-label="View message as" hidden>
             <button id="btn-html" class="seg-btn" aria-pressed="true">Rich</button>

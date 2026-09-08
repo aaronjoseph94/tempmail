@@ -72,6 +72,32 @@ describe("extractCode", () => {
   it("handles a period after the code", () => {
     expect(extractCode("Confirm", "Your code is 4821.")).toBe("4821");
   });
+
+  it("reads a code the wording only names afterwards", () => {
+    expect(extractCode("Google", "G-482913 is your Google verification code")).toBe("482913");
+  });
+
+  it("ignores the other kinds of code", () => {
+    expect(extractCode("Delivery", "Postal code 94103. Your tracking code is on the way.")).toBeNull();
+    expect(extractCode("Your code", "Zip code 10001 · 2500 points earned")).toBeNull();
+    expect(extractCode("Sale", "Your promo code SAVE20 takes 1500 off any order")).toBeNull();
+  });
+
+  it("ignores numbers that name themselves as references", () => {
+    expect(extractCode("Password reset", "Your ticket 55512 is open. Reset your password from the link.")).toBeNull();
+    expect(extractCode("Your code", "Account 87654321 · invoice 4471902")).toBeNull();
+    expect(extractCode("Confirm your seat", "Booking reference 8823910 for 6 guests.")).toBeNull();
+  });
+
+  it("ignores quantities and totals", () => {
+    expect(extractCode("Confirm your order", "Total: 4500 credits. 1200 points added.")).toBeNull();
+    expect(extractCode("Security digest", "You have 1450 unread messages and 9200 followers.")).toBeNull();
+  });
+
+  it("does not take a hint word as a code word", () => {
+    // "enter" and "security" turn up everywhere; neither names a code.
+    expect(extractCode("Security update", "Please verify your address. Enter at gate 4500 after 18:00.")).toBeNull();
+  });
 });
 
 describe("normalizeDomain", () => {
