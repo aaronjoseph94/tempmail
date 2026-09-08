@@ -68,7 +68,12 @@ function renderViewer() {
   renderAuthBadge(msg);
   renderUnsubChip(msg);
   renderWarnStrip(msg);
-  $("msg-from-addr").textContent = msg.fromName ? `<${msg.fromAddress}>` : "";
+  // Angle brackets are mail-header syntax; on a line of its own the address
+  // needs no delimiters. Hidden outright when the name slot already holds it,
+  // so the sender block never carries a blank row.
+  const addr = $("msg-from-addr");
+  addr.textContent = msg.fromName ? msg.fromAddress : "";
+  addr.hidden = !msg.fromName;
   $("msg-to").textContent = msg.address;
   $("msg-date").textContent = formatWhen(msg.receivedAt);
 

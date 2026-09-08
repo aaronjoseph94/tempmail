@@ -1286,12 +1286,10 @@ body.waiting { overflow: hidden; }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 8px;
   padding: 2px 8px 2px 6px;
   border-radius: var(--r-sm);
   font-size: var(--t-xs);
   font-weight: 600;
-  vertical-align: 2px;
   white-space: nowrap;
   cursor: help;
 }
@@ -1841,7 +1839,18 @@ body.selecting .mail .star { display: none; }
 
 /* ---- reading pane ---- */
 
-.viewer { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* The reading pane is a column whose width has nothing to do with the window's:
+   at 1024px the rail and the list leave it about 340px, and a viewport media
+   query cannot see that. Named so the header below can lay itself out against
+   the room it actually has. */
+.viewer {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  container-type: inline-size;
+  container-name: reader;
+}
 
 .viewer-idle {
   height: 100%;
@@ -1877,14 +1886,59 @@ body.selecting .mail .star { display: none; }
   overflow-wrap: anywhere;
 }
 
-.msg-meta { display: grid; grid-template-columns: 38px 1fr auto; gap: 12px; align-items: center; }
-.msg-who { min-width: 0; }
-.msg-from { font-weight: 600; overflow-wrap: anywhere; }
-.msg-from .addr { font-weight: 400; color: var(--ink3); }
-.msg-to { font-size: var(--t-md); color: var(--ink3); }
-.msg-when { font-size: var(--t-md); color: var(--ink3); text-align: right; white-space: nowrap; }
-.msg-when .sep { opacity: 0.5; margin: 0 6px; }
+/* Both columns start on the sender's name. The old grid centred everything on
+   the block as a whole, so with three lines of sender against one of date the
+   avatar sat beside the address and the date floated level with nothing. */
+.msg-meta {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: start;
+}
+.msg-meta .avatar { margin-top: 1px; }
+.msg-who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* Name and badge, one row of their own. The badge used to trail the address
+   inline, so any sender whose name and address filled the line left it
+   stranded below with a hanging indent. */
+.msg-from {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--t-base);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.msg-name { min-width: 0; overflow-wrap: anywhere; }
+.msg-addr, .msg-to { font-size: var(--t-md); line-height: 1.45; color: var(--ink3); overflow-wrap: anywhere; }
+.msg-when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: var(--t-md);
+  line-height: 1.35;
+  color: var(--ink3);
+  text-align: right;
+  white-space: nowrap;
+}
+.msg-expiry { font-size: var(--t-sm); }
 
+/* Two columns need roughly 440px. Below that the date's nowrap width was
+   winning the fight for the row and squeezing the sender into a column three
+   characters wide, which is what broke the addresses one letter per line.
+   Same stack as the phone, for the same reason. */
+@container reader (max-width: 480px) {
+  .msg-meta { grid-template-columns: 32px minmax(0, 1fr); }
+  .msg-when {
+    grid-column: 2;
+    align-items: flex-start;
+    margin-top: 5px;
+    font-size: var(--t-sm);
+    text-align: left;
+    white-space: normal;
+  }
+}
 .msg-actions {
   display: flex;
   align-items: center;
@@ -1892,6 +1946,36 @@ body.selecting .mail .star { display: none; }
   flex-wrap: wrap;
   padding-bottom: 16px;
   box-shadow: inset 0 -1px 0 0 var(--c6);
+}
+/* A hairline between what the message is showing (code, rich/plain, images,
+   unsubscribe) and what you can do to it. Drawn only when something is
+   actually on the left of it -- those four are in the markup on every message
+   and merely hidden, so :first-child cannot answer that question. */
+.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-star {
+  position: relative;
+  margin-left: 14px;
+}
+.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-star::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 1px;
+  height: 22px;
+  background: var(--c7);
+}
+
+/* Six labelled chips in a 340px column is three ragged rows. The icons keep
+   their titles, and the code chip keeps its label -- the code is the label.
+   Desktop only: on a phone this row is a horizontal scroller, where the same
+   width costs the labels nothing. */
+@media (min-width: 900px) {
+  @container reader (max-width: 420px) {
+    .msg-actions .chip span { display: none; }
+    .msg-actions .chip.accent span { display: inline; }
+    .msg-actions .chip { min-width: 40px; }
+  }
 }
 
 .attachments { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -2430,8 +2514,6 @@ body.gate {
     -webkit-backdrop-filter: blur(14px);
   }
   .msg-subject { font-size: var(--t-lg); line-height: 1.3; }
-  .msg-meta { grid-template-columns: 38px 1fr; }
-  .msg-when { grid-column: 2; text-align: left; white-space: normal; }
   .msg-actions {
     flex-wrap: nowrap;
     margin: 0 -16px;

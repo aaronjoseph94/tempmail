@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=52" />
+  <link rel="stylesheet" href="/style.css?v=53" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -261,15 +261,24 @@
           </button>
         </header>
 
+        <!-- Two columns that both start at the sender's name: who it is on the
+             left, when it landed on the right. The badge sits on the name's own
+             line -- trailing the address it used to wrap onto a line of its
+             own, which read as a mistake. -->
         <div class="msg-meta">
           <div class="avatar" id="msg-avatar" aria-hidden="true"></div>
           <div class="msg-who">
-            <div class="msg-from"><span id="msg-from-name"></span> <span class="addr" id="msg-from-addr"></span>
+            <div class="msg-from">
+              <span class="msg-name" id="msg-from-name"></span>
               <span id="msg-auth" class="auth" hidden><svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg><span></span></span>
             </div>
+            <div class="msg-addr mono" id="msg-from-addr"></div>
             <div class="msg-to">to <button type="button" class="link mono" id="msg-to" title="Show only mail for this address"></button></div>
           </div>
-          <div class="msg-when"><time id="msg-date"></time><span class="sep">·</span><span id="msg-expiry"></span></div>
+          <div class="msg-when">
+            <time id="msg-date"></time>
+            <span class="msg-expiry" id="msg-expiry"></span>
+          </div>
         </div>
 
         <div id="msg-leak" class="leak-strip" hidden>
@@ -301,15 +310,15 @@
           <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
             <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
           </button>
-          <button id="btn-delete" class="chip danger" title="Delete (#)">
-            <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
-          </button>
           <button id="btn-unread" class="chip" title="Mark unread (u)">
             <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
           </button>
           <a id="btn-export" class="chip" download title="Download as a text file">
             <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
           </a>
+          <button id="btn-delete" class="chip danger" title="Delete (#)">
+            <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
+          </button>
         </div>
 
         <div id="msg-attachments" class="attachments" hidden></div>
@@ -633,6 +642,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=52"></script>
+  <script type="module" src="/js/main.js?v=53"></script>
 </body>
 </html>
