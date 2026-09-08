@@ -1479,6 +1479,12 @@ body.selecting .mail .star { display: none; }
 .picker-list .rail-item.active .count { color: var(--ink2); }
 .picker-list .rail-tools { display: none; }
 .list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: none; }
+/* Phones show the overflow button and nothing else: five icons beside the
+   title was more chrome than list. The buttons stay in the markup, hidden --
+   the menu is built from them, so renderListHead keeps deciding what exists. */
+@media (max-width: 899px) {
+  .list-tools > [data-menu] { display: none; }
+}
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -2457,6 +2463,10 @@ body.gate {
      --tap-min raises the floor under every .btn, .chip and .icon-btn at once,
      so only controls that are none of those three need a rule of their own. */
   :root { --tap-min: 44px; }
+  /* Menu rows are a finger's target now that the list header's actions live in
+     one -- and this lifts the message context menu to the same floor, which it
+     never met either. */
+  .menu-item { min-height: var(--tap-min); }
   .msg-actions .seg-btn { min-height: 44px; }
   .msg-actions .chip, .msg-actions .seg-btn { min-width: 44px; }
   .wait-close { width: 44px; height: 44px; }

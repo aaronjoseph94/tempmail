@@ -15,12 +15,13 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=48" />
+  <link rel="stylesheet" href="/style.css?v=49" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
   <svg hidden aria-hidden="true">
     <defs>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
       <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 7.4 5.2a2 2 0 0 0 2.2 0l7.4-5.2"/></symbol>
       <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M5.5 4.5h13l2.5 8.5v6.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V13z"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
@@ -173,22 +174,28 @@
           <div class="list-sub" id="list-sub"></div>
         </div>
         <div class="list-tools">
-          <button id="btn-refresh" class="icon-btn" aria-label="Check for new mail" title="Refresh (R)">
+          <!-- Phones show this and nothing else; the buttons below are the
+               single source of truth for what it contains and what is enabled. -->
+          <button id="btn-list-menu" class="icon-btn only-phone" aria-label="More actions" title="More actions"
+                  aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu">
+            <svg class="icon sm"><use href="#i-more"/></svg>
+          </button>
+          <button id="btn-refresh" class="icon-btn" aria-label="Check for new mail" title="Refresh (R)" data-menu="Check for new mail">
             <svg class="icon sm"><use href="#i-refresh"/></svg>
           </button>
-          <button id="btn-select" class="icon-btn" aria-label="Select messages" title="Select messages" aria-pressed="false">
+          <button id="btn-select" class="icon-btn" aria-label="Select messages" title="Select messages" aria-pressed="false" data-menu="Select messages">
             <svg class="icon sm"><use href="#i-select"/></svg>
           </button>
-          <button id="btn-read-all" class="icon-btn" aria-label="Mark everything here as read" title="Mark all read" hidden>
+          <button id="btn-read-all" class="icon-btn" aria-label="Mark everything here as read" title="Mark all read" hidden data-menu="Mark all read">
             <svg class="icon sm"><use href="#i-check-all"/></svg>
           </button>
-          <button id="btn-rename" class="icon-btn" aria-label="Name this address" title="Give this address a name" hidden>
+          <button id="btn-rename" class="icon-btn" aria-label="Name this address" title="Give this address a name" hidden data-menu="Name this inbox">
             <svg class="icon sm"><use href="#i-tag"/></svg>
           </button>
-          <button id="btn-burn" class="icon-btn" aria-label="Block this address" title="Block this address" aria-pressed="false" hidden>
+          <button id="btn-burn" class="icon-btn" aria-label="Block this address" title="Block this address" aria-pressed="false" hidden data-menu="Block this inbox">
             <svg class="icon sm"><use href="#i-ban"/></svg>
           </button>
-          <button id="btn-wipe" class="icon-btn danger" aria-label="Delete this inbox and all its mail" title="Delete this inbox" hidden>
+          <button id="btn-wipe" class="icon-btn danger" aria-label="Delete this inbox and all its mail" title="Delete this inbox" hidden data-menu="Delete this inbox">
             <svg class="icon sm"><use href="#i-trash"/></svg>
           </button>
         </div>
@@ -594,6 +601,10 @@
 
   <div id="toast" class="toast" role="status" popover="manual" hidden></div>
 
+  <!-- Built from .list-tools each time it opens, so there is one definition of
+       which actions exist and when. -->
+  <div id="list-menu" class="menu" hidden role="menu" aria-label="List actions"></div>
+
   <div id="mail-menu" class="menu" hidden role="menu" aria-label="Message">
     <button type="button" class="menu-item" data-act="open" role="menuitem">
       <svg class="icon sm" aria-hidden="true"><use href="#i-mail"/></svg><span>Open</span><kbd>↵</kbd>
@@ -610,6 +621,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=48"></script>
+  <script type="module" src="/js/main.js?v=49"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 /* Painting the rail, the list and the header; search and the view filters. */
 
 import { PAGE_SIZE, state } from "./state.js";
-import { $, dayLabel, escapeHtml, formatBytes, formatWhen, initialsFor, isDesktop, plural, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
+import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, plural, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { applyRail, refresh } from "./data.js";
 import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
@@ -297,6 +297,78 @@ export function renderListHead() {
   $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
   $("btn-burn").setAttribute("aria-label", $("btn-burn").title);
   $("btn-read-all").hidden = unread === 0;
+}
+
+/* ------------------------------------------------------ list overflow menu */
+
+/*
+ * Phones show one button beside the list title instead of five. The menu is
+ * built from .list-tools every time it opens and each item forwards its click
+ * to the real button, so renderListHead above stays the only thing that
+ * decides which actions exist and when -- there is no second copy of that
+ * state to drift.
+ *
+ * Block's label is the one thing read live rather than from data-menu, because
+ * it flips to "Unblock" with the address.
+ */
+export function openListMenu() {
+  const menu = $("list-menu");
+  const trigger = $("btn-list-menu");
+  const items = [...document.querySelectorAll(".list-tools [data-menu]")].filter((b) => !b.hidden);
+  if (!items.length) return;
+
+  menu.replaceChildren(...items.map((b) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "menu-item" + (b.classList.contains("danger") ? " danger" : "");
+    item.setAttribute("role", "menuitem");
+    const use = b.querySelector("use")?.getAttribute("href") ?? "#i-mail";
+    const label = b.id === "btn-burn" ? (b.classList.contains("on") ? "Unblock this inbox" : "Block this inbox") : b.dataset.menu;
+    item.innerHTML = `<svg class="icon sm" aria-hidden="true"><use href="${escapeHtml(use)}"/></svg><span></span>`;
+    item.querySelector("span").textContent = label;
+    item.addEventListener("click", () => { closeListMenu(); b.click(); });
+    return item;
+  }));
+
+  // Not hideToast(): this menu is the route to Block and to bulk delete, both
+  // of which leave a ten-second Undo. Opening it must not throw that away.
+  if (!$("toast").querySelector(".toast-act")) hideToast();
+
+  menu.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  placeListMenu();
+  menu.querySelector(".menu-item")?.focus();
+}
+
+function placeListMenu() {
+  const menu = $("list-menu");
+  const at = $("btn-list-menu").getBoundingClientRect();
+  // offsetWidth/Height, not getBoundingClientRect: .menu animates in from
+  // scale 0.96 with fill-mode both, so the measured rect is 4% small at the
+  // moment it is unhidden and the clamp below would let it hang off screen.
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  const pad = 8;
+  const left = Math.min(Math.max(pad, at.right - w), innerWidth - w - pad);
+  const below = at.bottom + 6;
+  const flip = below + h > innerHeight - pad;
+  const top = flip ? Math.max(pad, at.top - h - 6) : below;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.transformOrigin = `${Math.round(at.left + at.width / 2 - left)}px ${flip ? h : 0}px`;
+}
+
+export function closeListMenu() {
+  const menu = $("list-menu");
+  if (menu.hidden) return;
+  menu.hidden = true;
+  $("btn-list-menu").setAttribute("aria-expanded", "false");
+}
+
+/** Focus goes back to the button that opened it, or it lands on <body>. */
+export function dismissListMenu() {
+  if ($("list-menu").hidden) return;
+  closeListMenu();
+  $("btn-list-menu").focus();
 }
 
 function matchesQuery(m) {

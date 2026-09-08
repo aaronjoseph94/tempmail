@@ -11,7 +11,7 @@
 import { PREFS, state } from "./state.js";
 import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
-import { deleteInbox, moveRailHighlight, moveSegHighlight, renderDomain, renderFeed, renderRail, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
+import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
@@ -23,6 +23,24 @@ import { step } from "./keys.js";
    pointerdown on the feed, so they are one state machine rather than four
    listeners racing each other. */
 wireFeedGestures();
+
+/* The phone's overflow menu for the list header. Same open/dismiss shape as
+   the message context menu, but anchored to its button rather than a pointer. */
+$("btn-list-menu").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if ($("list-menu").hidden) openListMenu(); else dismissListMenu();
+});
+$("list-menu").addEventListener("keydown", (e) => {
+  const items = [...$("list-menu").querySelectorAll(".menu-item")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  else if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); dismissListMenu(); }
+});
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest("#list-menu, #btn-list-menu")) closeListMenu();
+}, true);
+addEventListener("resize", closeListMenu);
 
 $("mail-menu").addEventListener("click", (e) => {
   const item = e.target.closest("[data-act]");
