@@ -1606,13 +1606,6 @@ body.selecting .mail .star { display: none; }
   background: var(--signal);
 }
 
-/* The preview earns its line only when unread or under the pointer. */
-.mail .mail-snippet { display: none; }
-.mail.unread .mail-snippet { display: block; }
-@media (hover: hover) and (pointer: fine) {
-  .mail:hover .mail-snippet, .mail:focus-within .mail-snippet { display: block; }
-}
-
 /* New arrivals fade up, staggered by index. */
 .mail.arrived { animation: arrive 0.42s var(--ease-out) both; animation-delay: var(--stagger, 0ms); }
 @keyframes arrive {
@@ -1669,7 +1662,12 @@ body.selecting .mail .star { display: none; }
   color: var(--ink2);
 }
 .mail.unread .mail-subject { font-weight: 600; color: var(--ink); }
+/* Always on. It used to appear on hover and on unread only, which meant the
+   rows changed height under the pointer -- everything below the one you were
+   reaching for moved as you reached for it -- and a read message told you
+   less about itself than an unread one for no reason. */
 .mail-snippet {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
