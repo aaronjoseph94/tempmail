@@ -762,7 +762,37 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   color: var(--ink);
   box-shadow: none;
 }
-.brand-mark .icon { width: 15px; height: 15px; stroke-width: 2.1; }
+.brand-mark .icon { width: 16px; height: 16px; stroke-width: 2.1; }
+
+/* The @ draws itself once on load: the outer sweep unrolls anticlockwise and
+   the inner ring settles behind it, so the mark arrives rather than appearing.
+   pathLength="1" in the markup normalises the arc, so the dash values below
+   are fractions of it and do not need the glyph's real length.
+
+   It runs once, not on a loop -- this sits in the top bar on every screen, and
+   a mark that never stops moving is a mark you learn to ignore. Hovering the
+   brand replays it, which is where the animation is actually wanted. */
+.at-sweep {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: at-draw 0.85s var(--ease-out) both;
+}
+.at-ring {
+  transform-origin: 12px 12px;
+  animation: at-ring 0.5s var(--ease-spring) 0.28s both;
+}
+@keyframes at-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes at-ring {
+  from { scale: 0.2; opacity: 0; }
+  to   { scale: 1; opacity: 1; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .brand:hover .at-sweep { animation: at-draw 0.7s var(--ease-out) both; }
+  .brand:hover .at-ring { animation: at-ring 0.45s var(--ease-spring) 0.2s both; }
+}
 
 .searchbox { position: relative; display: flex; align-items: center; }
 .searchbox .icon { position: absolute; left: 12px; color: var(--ink3); pointer-events: none; transition: color var(--d-mid) var(--ease); }

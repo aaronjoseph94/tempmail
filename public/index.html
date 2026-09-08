@@ -15,12 +15,15 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=50" />
+  <link rel="stylesheet" href="/style.css?v=51" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
   <svg hidden aria-hidden="true">
     <defs>
+      <!-- The brand mark. pathLength="1" on the sweep lets the draw-in animate
+           with a dasharray of 1 instead of the glyph's real arc length. -->
+      <symbol id="i-at" viewBox="0 0 24 24"><circle class="at-ring" cx="12" cy="12" r="4"/><path class="at-sweep" pathLength="1" d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
       <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
       <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7.5 7.4 5.2a2 2 0 0 0 2.2 0l7.4-5.2"/></symbol>
       <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M5.5 4.5h13l2.5 8.5v6.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V13z"/></symbol>
@@ -70,7 +73,7 @@
     <!-- The name is a server setting so a fork can rename the site without
          editing markup; these are the fallbacks until /api/config answers. -->
     <a class="brand" href="/" id="brand-link" aria-label="Temp Email home">
-      <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-mail"/></svg></span>
+      <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-at"/></svg></span>
       <span class="brand-name" id="brand-name">Temp Email</span>
     </a>
 
@@ -621,6 +624,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=50"></script>
+  <script type="module" src="/js/main.js?v=51"></script>
 </body>
 </html>
