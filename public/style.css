@@ -1921,14 +1921,15 @@ body.selecting .mail .star { display: none; }
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
 /* A hairline between what the message is showing (code, rich/plain, images,
-   unsubscribe) and what you can do to it. Drawn only when something is
-   actually on the left of it -- those four are in the markup on every message
-   and merely hidden, so :first-child cannot answer that question. */
-.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-star {
+   unsubscribe) and what you can do to it. It hangs off whichever control leads
+   the action group, and is drawn only when something is actually on the left of
+   it -- those four are in the markup on every message and merely hidden, so
+   :first-child cannot answer that question. */
+.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-delete {
   position: relative;
   margin-left: 14px;
 }
-.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-star::before {
+.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-delete::before {
   content: "";
   position: absolute;
   left: -11px;

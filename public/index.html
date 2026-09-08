@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=61" />
+  <link rel="stylesheet" href="/style.css?v=62" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -309,8 +309,8 @@
           <button id="btn-unsub" class="chip" hidden title="Unsubscribe from this sender">
             <svg class="icon sm"><use href="#i-unsub"/></svg><span>Unsubscribe</span>
           </button>
-          <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
-            <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
+          <button id="btn-delete" class="chip danger" title="Delete (#)">
+            <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
           </button>
           <button id="btn-unread" class="chip" title="Mark unread (u)">
             <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
@@ -318,8 +318,8 @@
           <a id="btn-export" class="chip" download title="Download as a text file">
             <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
           </a>
-          <button id="btn-delete" class="chip danger" title="Delete (#)">
-            <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
+          <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
+            <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
           </button>
         </div>
 
@@ -644,6 +644,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=61"></script>
+  <script type="module" src="/js/main.js?v=62"></script>
 </body>
 </html>
