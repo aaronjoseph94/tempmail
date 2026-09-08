@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=51" />
+  <link rel="stylesheet" href="/style.css?v=52" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -339,29 +339,36 @@
 
       <div class="drawer-scroll">
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-tag"/></svg>Name</h3>
-          <p class="hint">What this inbox calls itself, in the top bar and the browser tab. Handy if you have forked it.</p>
-          <form class="row" id="brand-form">
-            <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" aria-label="Site name" />
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site</h3>
+          <form class="row fields" id="brand-form">
+            <label class="field">
+              <span>Name <em>shown in the top bar and the browser tab</em></span>
+              <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" />
+            </label>
             <button class="btn sm primary" type="submit">Save</button>
           </form>
-        </section>
-
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Mail domain</h3>
-          <p class="hint">The part after the @ in your addresses. It only shapes what is shown and generated — mail is accepted for every domain routed to this Worker.</p>
-          <form class="row" id="domain-form">
-            <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" aria-label="Mail domain" />
+          <form class="row fields" id="domain-form">
+            <label class="field">
+              <span>Mail domain <em>the part after the @</em></span>
+              <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" />
+            </label>
             <button class="btn sm primary" type="submit">Save</button>
           </form>
+          <p class="hint">Mail is accepted for every domain routed to this Worker; this only sets what is shown and generated.</p>
           <p class="hint" id="domain-note" hidden></p>
         </section>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Password</h3>
           <form class="stack" id="password-form">
-            <input id="pw-current" type="password" placeholder="Current password" autocomplete="current-password" aria-label="Current password" required />
-            <input id="pw-new" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" aria-label="New password" required />
+            <label class="field">
+              <span>Current password</span>
+              <input id="pw-current" type="password" autocomplete="current-password" required />
+            </label>
+            <label class="field">
+              <span>New password <em>8 characters or more</em></span>
+              <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
             <button class="btn sm" type="submit">Change password</button>
           </form>
           <p class="hint" id="pw-note"></p>
@@ -371,7 +378,7 @@
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
           <label class="switch">
             <input type="checkbox" id="set-sound" /><span class="track"></span>
-            <span class="label">Sound on arrival<small>A short chime when new mail lands</small></span>
+            <span class="label">Sound on arrival<small>A short chime when mail lands</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-notify" /><span class="track"></span>
@@ -383,7 +390,7 @@
           </label>
           <label class="switch">
             <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
-            <span class="label">Check for new mail automatically<small>Turn off to stop the timed checks; mail still arrives live while connected</small></span>
+            <span class="label">Check for new mail automatically<small>Mail still arrives live when this is off</small></span>
           </label>
         </section>
 
@@ -421,24 +428,24 @@
             <div class="meter-row"><span id="storage-used">—</span><span id="storage-cap"></span></div>
           </div>
           <form class="limits" id="limits-form">
-            <label class="limit">
-              <span>Keep mail for<em>days</em></span>
+            <label class="field">
+              <span>Keep mail for <em>days</em></span>
               <input id="lim-retention" type="number" inputmode="numeric" step="1" />
             </label>
-            <label class="limit">
-              <span>Per address<em>messages</em></span>
+            <label class="field">
+              <span>Per address <em>messages</em></span>
               <input id="lim-per-address" type="number" inputmode="numeric" step="1" />
             </label>
-            <label class="limit">
-              <span>In total<em>messages</em></span>
+            <label class="field">
+              <span>In total <em>messages</em></span>
               <input id="lim-total" type="number" inputmode="numeric" step="1" />
             </label>
-            <label class="limit">
-              <span>Max message<em>MB</em></span>
+            <label class="field">
+              <span>Max message <em>MB</em></span>
               <input id="lim-raw" type="number" inputmode="decimal" step="1" />
             </label>
-            <label class="limit">
-              <span>Attachments kept<em>MB per message</em></span>
+            <label class="field">
+              <span>Attachments <em>MB each</em></span>
               <input id="lim-attachment" type="number" inputmode="decimal" step="1" />
             </label>
             <button class="btn sm primary" type="submit">Save limits</button>
@@ -446,7 +453,7 @@
           <p class="hint" id="retention-note"></p>
         </section>
 
-        <section class="drawer-sec">
+        <section class="drawer-sec only-desktop">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard</h3>
           <dl class="keys">
             <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous (or ↓ ↑)</dd></div>
@@ -468,7 +475,7 @@
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
-          <p class="hint">Starred messages are kept forever and are never removed by the nightly cleanup — but they do go when you delete everything.</p>
+          <p class="hint">Starred mail survives the nightly cleanup, but not this.</p>
           <div class="row">
             <button id="btn-delete-all" class="btn sm danger" type="button">
               <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
@@ -626,6 +633,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=51"></script>
+  <script type="module" src="/js/main.js?v=52"></script>
 </body>
 </html>

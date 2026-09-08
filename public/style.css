@@ -655,11 +655,19 @@ kbd {
 .badge.bump { animation: bump var(--d-slow) var(--ease-spring); }
 @keyframes bump { 0% { scale: 1; } 45% { scale: 1.14; } 100% { scale: 1; } }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
+/* One labelled-input component for the whole app: a name above the box, with
+   the unit or the caveat trailing it in a lighter weight. Settings used to
+   carry a near-identical .limit beside it and place everything else by
+   placeholder alone, which left three shapes doing one job. */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > span { font-size: var(--t-md); font-weight: 500; color: var(--ink2); }
-.field em { font-style: normal; color: var(--ink3); font-weight: 400; }
+.field em { font-style: normal; color: var(--ink3); font-weight: 400; font-size: var(--t-sm); }
+/* A field with its own Save beside it. Bottom-aligned, so the button lines up
+   with the input rather than floating against the label above it. */
+.row.fields { align-items: flex-end; flex-wrap: nowrap; }
+.row > .field { flex: 1; }
 
-input[type="text"], input[type="password"], input[type="search"], input[type="email"] {
+input[type="text"], input[type="password"], input[type="search"], input[type="email"], input[type="number"] {
   width: 100%;
   min-width: 0;
   padding: 10px 12px;
@@ -2073,11 +2081,7 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
 /* ---- settings: the limits grid ---- */
 
-.limits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.limit { display: flex; flex-direction: column; gap: 4px; }
-.limit > span { display: flex; align-items: baseline; gap: 6px; font-size: var(--t-sm); color: var(--ink2); }
-.limit em { font-style: normal; color: var(--ink3); font-size: var(--t-xs); }
-.limit input { padding: 8px 12px; font-size: var(--t-md); }
+.limits { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .limits > button { grid-column: 1 / -1; justify-self: start; }
 
 /* Settings slides in from the right on desktop and up from the bottom on a
@@ -2176,8 +2180,8 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
 }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > input { flex: 1; }
-.stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.stack > input, .stack > .btn { width: 100%; }
+.stack { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.stack > input, .stack > .field, .stack > .btn { width: 100%; }
 
 .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: var(--t-md); }
 .keys div { display: flex; align-items: center; gap: 8px; }
