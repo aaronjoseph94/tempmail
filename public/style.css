@@ -752,7 +752,9 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
   letter-spacing: var(--track-snug);
 }
 /* One line, always. Wrapping doubles the bar's height and shoves the page
-   down; running out of room should cost the tail of the name instead. */
+   down; running out of room should cost the tail of the name instead. The
+   name is what says which site this is, so it stays down to 320px -- the
+   phone's bar is two controls wide now, which leaves it the room. */
 .brand { overflow: hidden; }
 .brand-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .brand-mark {
@@ -1515,6 +1517,11 @@ body.selecting .mail .star { display: none; }
    the menu is built from them, so renderListHead keeps deciding what exists. */
 @media (max-width: 899px) {
   .list-tools > [data-menu] { display: none; }
+}
+/* Search has a field of its own up in the bar on desktop; the button exists
+   only to open that field on a phone, where it arrives via the menu above. */
+@media (min-width: 900px) {
+  #btn-search { display: none; }
 }
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
@@ -2491,13 +2498,6 @@ body.gate {
   .leak-strip { flex-wrap: wrap; }
   .leak-strip .btn { width: 100%; justify-content: center; }
   .search-clear { width: 30px; height: 30px; }
-}
-
-/* Four 44px controls, the mark and the wordmark need about 450px between
-   them. Below that the wordmark goes and the mark carries the identity. */
-@media (max-width: 450px) {
-  .brand-name { display: none; }
-  .brand { min-width: 44px; justify-content: center; }
 }
 
 @media (max-width: 380px) {

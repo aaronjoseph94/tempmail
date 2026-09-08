@@ -96,13 +96,10 @@
       <button id="btn-new-phone" class="icon-btn plain only-phone" aria-label="New inbox" title="New inbox">
         <svg class="icon"><use href="#i-plus"/></svg>
       </button>
-      <button id="btn-search" class="icon-btn plain only-phone" aria-label="Search" aria-expanded="false">
-        <svg class="icon"><use href="#i-search"/></svg>
-      </button>
-      <button id="btn-sound" class="icon-btn plain sound-btn" aria-label="Sound when mail arrives" aria-pressed="true" title="Sound when mail arrives">
+      <button id="btn-sound" class="icon-btn plain sound-btn only-desktop" aria-label="Sound when mail arrives" aria-pressed="true" title="Sound when mail arrives">
         <svg class="icon"><use href="#i-sound"/></svg>
       </button>
-      <button id="btn-theme" class="icon-btn plain" aria-label="Switch theme" title="Light / dark">
+      <button id="btn-theme" class="icon-btn plain only-desktop" aria-label="Switch theme" title="Light / dark">
         <svg class="icon"><use href="#i-sun"/></svg>
       </button>
       <button id="btn-settings" class="icon-btn plain" aria-label="Settings" title="Settings (,)">
@@ -182,6 +179,11 @@
           <button id="btn-list-menu" class="icon-btn plain only-phone" aria-label="More actions" title="More actions"
                   aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu">
             <svg class="icon sm"><use href="#i-more"/></svg>
+          </button>
+          <!-- Desktop has the search field in the top bar, so this only ever
+               shows up as the menu's first item on a phone. -->
+          <button id="btn-search" class="icon-btn" aria-label="Search" aria-expanded="false" data-menu="Search mail">
+            <svg class="icon sm"><use href="#i-search"/></svg>
           </button>
           <button id="btn-refresh" class="icon-btn" aria-label="Check for new mail" title="Refresh (R)" data-menu="Check for new mail">
             <svg class="icon sm"><use href="#i-refresh"/></svg>
