@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=63" />
+  <link rel="stylesheet" href="/style.css?v=64" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -358,14 +358,15 @@
             </label>
             <button class="btn sm primary" type="submit">Save</button>
           </form>
+          <div class="domain-list" id="domain-list"></div>
           <form class="row fields" id="domain-form">
             <label class="field">
               <span>Mail domain <em>the part after the @</em></span>
               <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" />
             </label>
-            <button class="btn sm primary" type="submit">Save</button>
+            <button class="btn sm primary" type="submit" id="domain-add">Add</button>
           </form>
-          <p class="hint">Mail is accepted for every domain routed to this Worker; this only sets what is shown and generated.</p>
+          <p class="hint">Mail is accepted for every domain routed to this Worker; this only sets what is shown and generated. The first one is the default.</p>
           <p class="hint" id="domain-note" hidden></p>
         </section>
 
@@ -554,6 +555,10 @@
                    spellcheck="false" maxlength="60" placeholder="netflix.com" />
           </label>
           <p class="hint">The address is named after it, so you can see at a glance who a message was meant for &mdash; and who leaked it.</p>
+          <label class="field" id="new-domain-field" hidden>
+            <span>Domain</span>
+            <select id="new-domain"></select>
+          </label>
           <span class="card-label">New address</span>
           <div class="new-addr">
             <span class="new-addr-text" id="new-addr-text"></span>
@@ -650,6 +655,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=63"></script>
+  <script type="module" src="/js/main.js?v=64"></script>
 </body>
 </html>

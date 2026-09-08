@@ -1,7 +1,7 @@
 /* The settings drawer, sheet gestures, web push, theme and accent. */
 
 import { CACHE_KEY, PREFS, SCHEMES, state } from "./state.js";
-import { $, copyText, hideToast, isDesktop, reducedMotion, store, toast } from "./util.js";
+import { $, copyText, escapeHtml, hideToast, isDesktop, reducedMotion, store, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { poll, refresh } from "./data.js";
 import { brandName, moveSegHighlight, renderBrand, renderDomain, renderFeed, renderRail, renderStorage, renderTitle, visibleMessages } from "./render.js";
@@ -22,12 +22,15 @@ export function retireActionToast() {
 export function openSettings() {
   const cfg = state.config || {};
   const domainFromEnv = cfg.domainSource === "env";
-  $("set-domain").value = domainFromEnv || cfg.domainSource === "settings" ? cfg.mailDomain || "" : "";
+  // The add field starts empty: the list below it is where the domains live,
+  // so pre-filling it with the default only invites saving a duplicate.
+  $("set-domain").value = "";
   $("set-domain").placeholder = cfg.domainSource === "observed" ? cfg.mailDomain : "example.com";
   $("set-domain").disabled = domainFromEnv;
   $("domain-form").querySelector("button").disabled = domainFromEnv;
   $("domain-note").hidden = !domainFromEnv;
   $("domain-note").textContent = "Set by the MAIL_DOMAIN variable — change it in wrangler.jsonc or the Cloudflare dashboard.";
+  renderDomains();
 
   const passwordFromEnv = cfg.passwordSource === "env";
   $("password-form").hidden = passwordFromEnv;
@@ -118,15 +121,69 @@ export function setAlwaysImages(on) {
   $("set-images").checked = on;
 }
 
-export async function saveDomain(event) {
-  event.preventDefault();
+/**
+ * The domains this inbox offers, in order. The first is the default -- the one
+ * new addresses are made at -- and clicking any other promotes it.
+ *
+ * Read-only when MAIL_DOMAIN is set, because that variable also decides which
+ * mail is accepted: offering an address the Worker would bounce is worse than
+ * not offering it.
+ */
+function renderDomains() {
+  const locked = state.config?.domainSource === "env";
+  $("domain-list").innerHTML = (state.mailDomains || []).map((domain, i) => {
+    const isDefault = i === 0;
+    return `<div class="domain-row">
+      <button type="button" class="domain-pick" data-domain="${escapeHtml(domain)}" aria-pressed="${isDefault}"
+              ${locked || isDefault ? "disabled" : ""} title="${isDefault ? "New addresses are made here" : `Make ${escapeHtml(domain)} the default`}">
+        <svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>
+        <span class="name">${escapeHtml(domain)}</span>
+        ${isDefault ? '<span class="life">default</span>' : ""}
+      </button>
+      <button type="button" class="domain-drop" data-drop="${escapeHtml(domain)}" ${locked ? "disabled" : ""}
+              aria-label="Remove ${escapeHtml(domain)}" title="Remove ${escapeHtml(domain)}">
+        <svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>
+      </button>
+    </div>`;
+  }).join("");
+}
+
+/** Writes a new domain list, repaints everything that shows a domain. */
+async function putDomains(body, message) {
   try {
-    state.config = await send("PUT", "/api/settings", { mailDomain: $("set-domain").value.trim() });
+    state.config = await send("PUT", "/api/settings", body);
     renderDomain();
-    toast(state.mailDomain ? `Domain set to ${state.mailDomain}` : "Domain cleared", "i-globe");
+    renderDomains();
+    state.railSig = "";
+    renderRail();
+    toast(message(), "i-globe");
   } catch (err) {
     toast(err.message, "i-warn");
   }
+}
+
+/** The form adds a domain rather than replacing the one that is there. */
+export async function saveDomain(event) {
+  event.preventDefault();
+  const typed = $("set-domain").value.trim();
+  if (!typed) {
+    // An empty submit is the old "clear the domain", and still is.
+    await putDomains({ mailDomain: "" }, () => "Domains cleared");
+    renderDomains();
+    return;
+  }
+  const next = [...(state.mailDomains || []), typed];
+  await putDomains({ mailDomains: next }, () => `${state.mailDomain} is the domain`);
+  $("set-domain").value = "";
+}
+
+export async function makeDomainDefault(domain) {
+  await putDomains({ mailDomain: domain }, () => `New addresses are made at ${domain}`);
+}
+
+export async function dropDomain(domain) {
+  const next = (state.mailDomains || []).filter((d) => d !== domain);
+  await putDomains(next.length ? { mailDomains: next } : { mailDomain: "" }, () => `${domain} removed`);
 }
 
 export async function saveBrand(event) {

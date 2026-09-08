@@ -14,7 +14,7 @@ import {
 import {
   deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_BRAND_NAME, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
-  SETTING_RAW_MB, SETTING_RETENTION_DAYS,
+  SETTING_RAW_MB, SETTING_RETENTION_DAYS, SETTING_MAIL_DOMAINS,
 } from "./db";
 import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
 import { hubStub } from "./live";
@@ -188,16 +188,58 @@ async function observedDomains(db: D1Database): Promise<string[]> {
   return results.map((row) => row.domain);
 }
 
+/** At most this many domains. The picker is a list, not a directory. */
+export const MAX_DOMAINS = 10;
+
+/**
+ * Every domain this inbox offers, most-preferred first.
+ *
+ * Reading is where the single-domain past is folded in, so no migration has to
+ * run: a database that only ever had `mail_domain` reads as a one-item list,
+ * and the first save of a list writes both rows.
+ */
+async function storedDomains(db: D1Database): Promise<string[]> {
+  const raw = await getSetting(db, SETTING_MAIL_DOMAINS);
+  if (raw) {
+    try {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) return list.filter((d): d is string => typeof d === "string" && !!d);
+    } catch { /* a corrupt row falls back to the single domain below */ }
+  }
+  const one = await getSetting(db, SETTING_MAIL_DOMAIN);
+  return one ? [one] : [];
+}
+
+/**
+ * The domains to show and generate against, and where they came from.
+ *
+ * MAIL_DOMAIN wins when it is set, because that variable is the one thing here
+ * that also decides what mail is accepted (domainAccepted in src/email.ts):
+ * offering an address at a domain the Worker would bounce is worse than not
+ * offering it. Otherwise the owner's list, and failing that whatever has
+ * actually been receiving mail.
+ */
+async function resolveDomains(env: Env): Promise<{ domains: string[]; source: string | null }> {
+  const allowed = allowedDomains(env);
+  if (allowed.length) return { domains: allowed.slice(0, MAX_DOMAINS), source: "env" };
+  const stored = await storedDomains(env.DB);
+  if (stored.length) return { domains: stored.slice(0, MAX_DOMAINS), source: "settings" };
+  const observed = await observedDomains(env.DB);
+  return { domains: observed.slice(0, MAX_DOMAINS), source: observed.length ? "observed" : null };
+}
+
 /** Everything the front-end needs to describe this instance. */
 async function buildConfig(env: Env) {
   const allowed = allowedDomains(env);
-  const chosen = await getSetting(env.DB, SETTING_MAIL_DOMAIN);
   const observed = await observedDomains(env.DB);
   const limits = await resolveLimits(env.DB);
+  const { domains, source } = await resolveDomains(env);
   return {
     brandName: await brandName(env),
-    mailDomain: allowed[0] ?? chosen ?? observed[0] ?? null,
-    domainSource: allowed[0] ? "env" : chosen ? "settings" : observed[0] ? "observed" : null,
+    mailDomain: domains[0] ?? null,
+    mailDomains: domains,
+    domainSource: source,
+    maxDomains: MAX_DOMAINS,
     allowedDomains: allowed,
     observedDomains: observed,
     passwordSource: await passwordSource(env),
@@ -251,10 +293,35 @@ async function updateSettings({ request, env }: Ctx): Promise<Response> {
     writes.push({ key: SETTING_BRAND_NAME, value: name || null });
   }
 
-  if ("mailDomain" in body) {
-    const domain = normalizeDomain(body.mailDomain);
-    if (domain === null) return json({ error: "That doesn't look like a domain name." }, 400);
-    writes.push({ key: SETTING_MAIL_DOMAIN, value: domain || null });
+  /*
+   * One list, first entry is the default. `mailDomain` on its own is the old
+   * single-domain call and still means "this is the default now": it moves the
+   * domain to the front, adding it if the list had never heard of it, so an
+   * older cached client cannot silently drop the other domains.
+   */
+  if ("mailDomains" in body || "mailDomain" in body) {
+    let list = await storedDomains(env.DB);
+    if ("mailDomains" in body) {
+      if (!Array.isArray(body.mailDomains)) return json({ error: "mailDomains must be a list" }, 400);
+      if (body.mailDomains.length > MAX_DOMAINS) return json({ error: `At most ${MAX_DOMAINS} domains.` }, 400);
+      list = [];
+      for (const entry of body.mailDomains) {
+        const domain = normalizeDomain(entry);
+        if (!domain) return json({ error: `"${String(entry).slice(0, 60)}" doesn't look like a domain name.` }, 400);
+        if (!list.includes(domain)) list.push(domain);
+      }
+    }
+    if ("mailDomain" in body) {
+      const domain = normalizeDomain(body.mailDomain);
+      if (domain === null) return json({ error: "That doesn't look like a domain name." }, 400);
+      if (!domain) list = [];
+      else {
+        list = [domain, ...list.filter((d) => d !== domain)];
+        if (list.length > MAX_DOMAINS) return json({ error: `At most ${MAX_DOMAINS} domains.` }, 400);
+      }
+    }
+    writes.push({ key: SETTING_MAIL_DOMAINS, value: list.length ? JSON.stringify(list) : null });
+    writes.push({ key: SETTING_MAIL_DOMAIN, value: list[0] ?? null });
   }
 
   for (const [field, key, range] of [

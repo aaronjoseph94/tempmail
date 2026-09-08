@@ -1,7 +1,7 @@
 /* Making, naming and watching an inbox. */
 
 import { PREFS, ROLL_MODES, state } from "./state.js";
-import { $, copyText, renderRoll, senderLabel, store, toast } from "./util.js";
+import { $, copyText, escapeHtml, renderRoll, senderLabel, store, toast } from "./util.js";
 import { send } from "./api.js";
 import { chime, refresh, schedulePoll } from "./data.js";
 import { loadAddresses, moveSegHighlight, renderAddressCard, renderListHead, renderRail } from "./render.js";
@@ -165,6 +165,31 @@ export function closeInboxPicker() {
   $("btn-inboxes").setAttribute("aria-expanded", "false");
 }
 
+/**
+ * Fills the domain picker, and hides it when there is nothing to pick.
+ *
+ * One domain is the ordinary case and a select with a single option is just a
+ * control that cannot be used, so it only appears once a second domain exists.
+ */
+export function renderDomainChoice() {
+  const select = $("new-domain");
+  const wanted = state.mailDomains.length > 1 ? state.mailDomains : [];
+  const current = select.value;
+  const sig = wanted.join(",");
+  if (select.dataset.sig !== sig) {
+    select.dataset.sig = sig;
+    select.innerHTML = wanted.map((d) => `<option value="${escapeHtml(d)}">@${escapeHtml(d)}</option>`).join("");
+  }
+  select.value = wanted.includes(current) ? current : (state.mailDomain || wanted[0] || "");
+  $("new-domain-field").hidden = wanted.length === 0;
+}
+
+/** The domain the sheet is currently offering to make an address at. */
+function chosenDomain() {
+  const picked = $("new-domain").value;
+  return state.mailDomains.includes(picked) ? picked : state.mailDomain;
+}
+
 /* Held steady while the sheet is open so the address does not churn under the
    cursor on every keystroke. Only the reroll button and a fresh sheet move it. */
 let pendingTail = randomTail();
@@ -172,9 +197,11 @@ let pendingRandom = generateAddress();
 
 /** Repaints the offered address from what is currently typed. */
 export function renderCandidate() {
+  renderDomainChoice();
+  const domain = chosenDomain();
   const slug = siteSlug($("new-site").value);
-  state.candidate = state.mailDomain ? (slug ? `${slug}-${pendingTail}` : pendingRandom) : "";
-  $("new-addr-text").textContent = state.candidate ? `${state.candidate}@${state.mailDomain}` : "Add your mail domain in Settings";
+  state.candidate = domain ? (slug ? `${slug}-${pendingTail}` : pendingRandom) : "";
+  $("new-addr-text").textContent = state.candidate ? `${state.candidate}@${domain}` : "Add your mail domain in Settings";
   $("new-inbox-create").disabled = !state.candidate;
   $("new-addr-reroll").disabled = !state.candidate;
 }
@@ -207,7 +234,7 @@ export function setPendingLife(life) {
  */
 export async function createInbox() {
   if (!state.mailDomain) { closeNewInbox(); toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
-  const address = `${state.candidate}@${state.mailDomain}`;
+  const address = `${state.candidate}@${chosenDomain()}`;
   const owner = siteDomain($("new-site").value);
   const button = $("new-inbox-create");
   button.disabled = true;

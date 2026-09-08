@@ -305,6 +305,56 @@ describe("reading and housekeeping", () => {
     config = await json(await call("/api/config", { cookie }));
     expect(config.domainSource).toBe("observed");
   });
+
+  const put = (json_: Record<string, unknown>) => call("/api/settings", { method: "PUT", cookie, json: json_ });
+  const domains = async () => (await json(await call("/api/config", { cookie }))).mailDomains;
+
+  it("keeps several domains, default first", async () => {
+    await put({ mailDomains: [" One.Example ", "two.example"] });
+    expect(await domains()).toEqual(["one.example", "two.example"]);
+    const config = await json(await call("/api/config", { cookie }));
+    expect(config.mailDomain).toBe("one.example");
+    expect(config.domainSource).toBe("settings");
+  });
+
+  it("drops duplicates and refuses a list that is not domains", async () => {
+    await put({ mailDomains: ["a.example", "A.example", "b.example"] });
+    expect(await domains()).toEqual(["a.example", "b.example"]);
+    expect((await put({ mailDomains: ["fine.example", "not a domain"] })).status).toBe(400);
+    // The rejected write changed nothing.
+    expect(await domains()).toEqual(["a.example", "b.example"]);
+    expect((await put({ mailDomains: "a.example" })).status).toBe(400);
+    expect((await put({ mailDomains: Array.from({ length: 11 }, (_, i) => `d${i}.example`) })).status).toBe(400);
+  });
+
+  it("treats the old single-domain call as choosing the default", async () => {
+    await put({ mailDomains: ["a.example", "b.example"] });
+    // An older client that only knows about one domain must not silently drop
+    // the others; naming one promotes it instead.
+    await put({ mailDomain: "b.example" });
+    expect(await domains()).toEqual(["b.example", "a.example"]);
+    // A domain the list had never heard of joins it at the front.
+    await put({ mailDomain: "c.example" });
+    expect(await domains()).toEqual(["c.example", "b.example", "a.example"]);
+    // Clearing still clears everything.
+    await put({ mailDomain: "" });
+    expect(await domains()).toEqual([]);
+  });
+
+  it("reads a database that only ever had the single setting", async () => {
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('mail_domain', 'legacy.example')").run();
+    await env.DB.prepare("DELETE FROM settings WHERE key = 'mail_domains'").run();
+    expect(await domains()).toEqual(["legacy.example"]);
+  });
+
+  it("lets MAIL_DOMAIN override the stored list entirely", async () => {
+    await put({ mailDomains: ["stored.example"] });
+    const config = await json(await call("/api/config", { cookie, env: { MAIL_DOMAIN: "one.forced, two.forced" } }));
+    expect(config.mailDomains).toEqual(["one.forced", "two.forced"]);
+    expect(config.domainSource).toBe("env");
+    // And the list is still only about display: what is accepted is unchanged.
+    expect(await deliver(buildMail(), "x@stored.example", { env: { MAIL_DOMAIN: "one.forced" } })).toEqual(["No such mailbox"]);
+  });
 });
 
 describe("address lifecycles", () => {

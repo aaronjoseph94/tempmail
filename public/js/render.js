@@ -1,7 +1,7 @@
 /* Painting the rail, the list and the header; search and the view filters. */
 
 import { PAGE_SIZE, PREFS, state } from "./state.js";
-import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, store, timeAgo, toast } from "./util.js";
+import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, shortAddress, store, timeAgo, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { applyRail, refresh } from "./data.js";
 import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
@@ -32,6 +32,7 @@ export function renderTitle() {
 export function renderDomain() {
   renderBrand();
   const had = state.mailDomain;
+  state.mailDomains = state.config?.mailDomains ?? state.mailDomains;
   state.mailDomain = state.config?.mailDomain || state.mailDomain || "";
   $("domain-pill").hidden = !state.mailDomain;
   $("domain-label").textContent = state.mailDomain;
@@ -70,17 +71,17 @@ export function renderStorage() {
 
 export function renderRail() {
   const all = totals();
-  const sig = JSON.stringify([state.filter, all, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
+  const sig = JSON.stringify([state.filter, all, state.mailDomains.length, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
   if (sig !== state.railSig) {
     const hadRows = state.railSig !== "";
     state.railSig = sig;
     const rows = [railRow({ address: "", label: "All mail", count: all.count, unread: all.unread, all: true })];
     for (const a of state.addresses) {
-      rows.push(railRow({ address: a.address, label: a.address.split("@")[0], name: a.label, count: a.count, unread: a.unread, entry: a }));
+      rows.push(railRow({ address: a.address, label: shortAddress(a.address), name: a.label, count: a.count, unread: a.unread, entry: a }));
     }
     // A freshly rolled address has no mail yet but can still be selected.
     if (state.filter && !state.addresses.some((a) => a.address === state.filter)) {
-      rows.push(railRow({ address: state.filter, label: state.filter.split("@")[0], count: 0, unread: 0 }));
+      rows.push(railRow({ address: state.filter, label: shortAddress(state.filter), count: 0, unread: 0 }));
     }
     if (!state.addresses.length) rows.push('<div class="rail-empty">No mail received yet</div>');
     // The rows live in exactly one place: the rail on desktop, the phone's
@@ -447,7 +448,7 @@ export function renderFeed(arrived = new Set()) {
     return;
   }
   const visible = visibleMessages();
-  const sig = JSON.stringify([state.view, state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read, m.starred])]);
+  const sig = JSON.stringify([state.view, state.filter, state.query, state.open?.id, state.hasMore, state.mailDomains.length, visible.map((m) => [m.id, m.read, m.starred])]);
   const timesStale = Date.now() - state.lastFeedRender > 60000; // "5m" labels drift
   if (sig === state.feedSig && !timesStale && arrived.size === 0) return;
   state.feedSig = sig;
@@ -486,7 +487,7 @@ export function renderFeed(arrived = new Set()) {
 
 function mailRow(m, staggerIndex) {
   const from = senderLabel(m);
-  const local = m.address.split("@")[0];
+  const local = shortAddress(m.address);
   const classes = [
     "mail",
     m.read ? "" : "unread",

@@ -11,7 +11,8 @@ export const CACHE_KEY = "cache_v3";
 
 export const state = {
   config: null,          // GET /api/config
-  mailDomain: "",        // shown after the @
+  mailDomain: "",        // the default domain, shown after the @
+  mailDomains: [],       // every domain this inbox offers, default first
   address: "",           // generated local part, e.g. "quiet-otter-42"
   messages: [],
   addresses: [],

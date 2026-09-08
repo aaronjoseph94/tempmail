@@ -1,5 +1,7 @@
 /* Formatting, escaping, the $ helper, clipboard and the toast. */
 
+import { state } from "./state.js";
+
 /* ---------------------------------------------------------------- helpers */
 
 export const $ = (id) => document.getElementById(id);
@@ -237,6 +239,19 @@ export function markCodes(root) {
 export function initialsFor(name) {
   const parts = name.trim().split(/[\s.<@_-]+/).filter(Boolean);
   return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
+}
+
+/**
+ * How an address reads in a list.
+ *
+ * With one domain the part after the @ is the same on every row and only takes
+ * up space, so it goes. With several it is the only thing telling two
+ * otherwise identical addresses apart, so it stays.
+ */
+export function shortAddress(address) {
+  const at = (address || "").lastIndexOf("@");
+  if (at < 1) return address || "";
+  return state.mailDomains.length > 1 ? address : address.slice(0, at);
 }
 
 export function senderLabel(m) {

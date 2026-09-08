@@ -9,7 +9,21 @@
 /* Settings keys. */
 export const SETTING_PASSWORD = "password_hash";
 export const SETTING_SESSION_SECRET = "session_secret";
+/**
+ * The default mail domain -- the one shown and generated against. Kept as its
+ * own row rather than derived, so an older client that only knows about one
+ * domain still reads and writes something meaningful.
+ */
 export const SETTING_MAIL_DOMAIN = "mail_domain";
+/**
+ * Every domain this inbox offers, as a JSON array, most-preferred first. The
+ * first entry is the default and is mirrored into SETTING_MAIL_DOMAIN.
+ *
+ * This is a display and generation list, never a security boundary: what mail
+ * is actually accepted is decided by domainAccepted() against the MAIL_DOMAIN
+ * variable and by the Email Routing rules, neither of which this can widen.
+ */
+export const SETTING_MAIL_DOMAINS = "mail_domains";
 /** What the site calls itself. Empty falls back to BRAND_DEFAULT. */
 export const SETTING_BRAND_NAME = "brand_name";
 export const SETTING_RETENTION_DAYS = "retention_days";
@@ -26,6 +40,30 @@ export const SETTING_ATTACHMENT_MB = "attachment_mb";
 export const SETTING_VAPID_KEYS = "vapid_keys";
 export const SETTING_VAPID_PUBLIC = "vapid_public";
 export const SETTING_VAPID_PRIVATE = "vapid_private";
+/**
+ * Runs a one-off data migration exactly once per database.
+ *
+ * The key itself is the latch: setSettingIfAbsent only writes when the key is
+ * absent, so the first caller to claim it does the work and every later one
+ * skips. Deliberately one key per migration rather than a version number --
+ * SETTING_SCHEMA_VERSION below is claimed by key presence, so raising its value
+ * would not re-arm it and a migration written that way would never run on any
+ * database that already exists.
+ *
+ * A failure releases the latch, so a migration that dies half way through is
+ * retried on the next cold start instead of being skipped forever.
+ */
+export async function runOnce(db: D1Database, key: string, work: () => Promise<void>): Promise<boolean> {
+  if (!(await setSettingIfAbsent(db, key, String(Date.now())))) return false;
+  try {
+    await work();
+  } catch (err) {
+    await deleteSetting(db, key);
+    throw err;
+  }
+  return true;
+}
+
 /** Bumped when a one-off data migration has run, so it never runs twice. */
 export const SETTING_SCHEMA_VERSION = "schema_v";
 const SCHEMA_VERSION = "3";
