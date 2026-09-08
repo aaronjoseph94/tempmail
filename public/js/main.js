@@ -19,9 +19,9 @@ import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
 
-/* Long-press, swipe-to-delete and the context menu all begin with one
-   pointerdown on the feed, so they are one state machine rather than four
-   listeners racing each other. */
+/* Long press opens the message menu on a touch screen; right-click does the
+   same on a desktop. Both are wired on the feed rather than on each row, so a
+   list that re-renders under the pointer never loses its handlers. */
 wireFeedGestures();
 
 /* The phone's overflow menu for the list header. Same open/dismiss shape as
