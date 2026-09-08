@@ -113,24 +113,24 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
 
 | | |
 |---|---|
-| **Your inbox** | The card in the sidebar. Click the address to copy it, **New Inbox** for another (it is copied for you), **Open** to see only its mail. **New inboxes last** decides whether a new inbox lives forever, a day or a week. |
+| **Your inbox** | The card in the sidebar. Click the address to copy it, **Open** to see only its mail. **New Inbox** opens a sheet showing the address you are about to get, a re-roll, and how long it should live — forever, a day, or a week. On phones the card is hidden and the **+** in the top bar opens the same sheet. |
 | **Get code** | Tap before you sign up somewhere. The next message to that address shows its code full-screen and copies it, whatever the list is filtered to. |
 | **Read** | Click a message. `J` / `K` move through the list, `Esc` closes. |
 | **Star** | The star on any row, or `S` in the reading pane. Starred mail survives the nightly cleanup. |
 | **Select** | The tick icon in the list header, or `X`. Then **All**, mark read or unread, star or unstar, or delete in bulk. |
 | **Delete** | The trash chip, or `#`. Nothing asks first: a toast offers **Undo** for ten seconds, and the trash is emptied a day later. |
-| **Codes** | A key chip shows the detected verification code; click to copy. |
+| **Codes** | A key chip shows the detected verification code; click to copy. Code-shaped text in the message body is tappable too, for the ones no chip names. |
 | **Images** | Remote images are blocked. **Load images** shows them for that message, or turn them on for good in Settings. |
 | **Attachments** | Click to download. They stream from the Worker, so a 25 MB file costs nothing until you ask for it. |
 | **Export** | Saves the open message as a plain `.txt` file. |
 | **Sender check** | A badge beside the sender: **Verified sender**, **Failed authentication** or **Unverified**. A strip warns when a link's text, characters or domain are pretending to be something else. |
 | **Unsubscribe** | The chip appears when a message carries an unsubscribe header. One-click senders are handled for you; others open in a new tab. |
 | **Search** | The box in the top bar, or press `/`. **All / Unread / Starred / Leaks** switch the view. |
-| **Leaks** | Every address remembers the first service that wrote to it. Mail from anyone else lists the address here with the offenders; **Block address** bounces everything to it from then on. |
+| **Leaks** | Every address remembers the first company that wrote to it. If anyone else turns up, that company shared or sold your address — they are listed here, and **Block address** bounces everything to it from then on. |
 | **Block** | The ⃠ icon on an address row, in the list header, or under a leaked message. Blocked addresses bounce at the door; the toast offers Undo. |
-| **Inboxes** | The sidebar lists every address that has received mail or been made as a burner, with a tag for its lifetime (`<1h`, `23h`, `6d`, `blocked`). Name one with the tag icon, or delete it and its mail with the trash icon. On phones they become chips above the list. |
+| **Inboxes** | The sidebar lists every address that has received mail or been made as a burner, with its message count and a tag for its lifetime (`<1h`, `23h`, `6d`, `blocked`). Name one with the tag icon, or delete it and its mail with the trash icon. On phones there is no sidebar: tap the list title to open the picker, one inbox per line with its count. |
 | **Refresh** | New mail arrives live while the tab is open (the green dot by the domain). The refresh icon, or `R`, checks by hand. |
-| **Settings** | Gear icon (or `,`): mail domain, password, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), remote images, storage limits. |
+| **Settings** | Gear icon (or `,`): the site's name, mail domain, password, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), accent colour, remote images, storage limits. |
 
 ## Privacy and protection
 
@@ -161,7 +161,14 @@ Every limit lives in [`src/limits.ts`](src/limits.ts). Change a number and redep
 | Max raw message size | 25 MB |
 | Attachment bytes kept per message | 25 MB (chunked across D1 rows) |
 
-Colours and spacing are CSS variables at the top of [`public/style.css`](public/style.css).
+Two things a fork usually wants are in **Settings**, not in the source: the
+name the site goes by (top bar and browser tab), and the accent colour — six
+presets, each checked for contrast against every surface in both themes.
+
+Everything else is CSS variables at the top of
+[`public/style.css`](public/style.css): the grey ramp, the spacing scale, the
+radii, the type scale and the timings. The front-end is plain ES modules under
+[`public/js/`](public/js) with no build step — edit a file and reload.
 
 Optional variables (dashboard → Worker → **Settings → Variables and Secrets**,
 or `wrangler.jsonc`):

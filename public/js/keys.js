@@ -29,9 +29,15 @@ document.addEventListener("keydown", (e) => {
   const typing = target instanceof HTMLElement &&
     (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 
+  // Any open dialog owns the keyboard. Naming just #settings here meant every
+  // shortcut still fired underneath the two sheets and the rename box: "," on
+  // top of an open sheet stacked Settings over it, and closing that revealed
+  // the sheet still sitting there.
+  const modal = document.querySelector("dialog[open]");
+
   if (e.key === "Escape") {
     if (state.waiting) { stopWaiting(); return; }
-    if ($("settings").open) return;  // the dialog closes itself
+    if (modal) return;  // the dialog closes itself
     if (typing && target.id === "search") {
       if (target.value) { target.value = ""; setQuery(""); } else target.blur();
       if (!isDesktop()) toggleSearch();
@@ -40,7 +46,7 @@ document.addEventListener("keydown", (e) => {
     if (state.open) closeMessage();
     return;
   }
-  if (typing || $("settings").open) return;
+  if (typing || modal) return;
 
   switch (e.key) {
     case "/": e.preventDefault(); focusSearch(); break;
