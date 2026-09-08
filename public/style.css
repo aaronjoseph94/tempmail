@@ -577,6 +577,13 @@ kbd {
   color: var(--ink2);
 }
 .icon-btn.plain { background: transparent; box-shadow: none; }
+/* Close sits alone at the end of the subject line with nothing around it to
+   read as a control. An outline, not a fill: it is the quietest thing in the
+   header and should stay that way. */
+#btn-close { box-shadow: inset 0 0 0 1px var(--c6); }
+@media (hover: hover) and (pointer: fine) {
+  #btn-close:hover { background: var(--c3); box-shadow: inset 0 0 0 1px var(--c7); }
+}
 @media (hover: hover) and (pointer: fine) { .icon-btn:hover:not(:disabled) { color: var(--ink); } }
 .icon-btn[aria-pressed="false"] { color: var(--ink3); }
 /* Chips are a deliberate toggle, so those do get a filled active state. */
@@ -1122,7 +1129,7 @@ body.waiting { overflow: hidden; }
 /* Sits beside a label rather than against it: the flex gap above spaces it,
    so it reads as a mark on the tab and not as a letter of the word. */
 .pip {
-  width: 6px; height: 6px;
+  width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--accent);
   flex: none;
@@ -1544,11 +1551,6 @@ body.selecting .mail .star { display: none; }
    the menu is built from them, so renderListHead keeps deciding what exists. */
 @media (max-width: 899px) {
   .list-tools > [data-menu] { display: none; }
-}
-/* Search has a field of its own up in the bar on desktop; the button exists
-   only to open that field on a phone, where it arrives via the menu above. */
-@media (min-width: 900px) {
-  #btn-search { display: none; }
 }
 
 .feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
@@ -2528,8 +2530,12 @@ body.gate {
   .empty { padding: 40px 24px; }
   .toast { bottom: calc(18px + env(safe-area-inset-bottom)); }
 
-  .view-filters { margin-bottom: 4px; gap: var(--s-4); }
+  /* No rules on a phone: a hairline under a row that already sits under the
+     inbox card, plus a marker under one word, was three horizontal lines in
+     40 pixels. Weight and ink carry it instead. */
+  .view-filters { margin-bottom: 4px; gap: var(--s-4); box-shadow: none; }
   .view-chip { padding: 10px var(--s-3); min-width: 44px; min-height: 44px; }
+  .view-chip::after { content: none; }
   .limits { grid-template-columns: 1fr; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
   .star { opacity: 1; width: 44px; height: 44px; }

@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=56" />
+  <link rel="stylesheet" href="/style.css?v=57" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -94,6 +94,9 @@
       <span class="domain-pill" id="domain-pill" hidden title="Any address at this domain arrives here">
         <span class="live-dot" aria-hidden="true"></span><b id="domain-label"></b>
       </span>
+      <button id="btn-search" class="icon-btn plain only-phone" aria-label="Search mail" title="Search mail" aria-expanded="false">
+        <svg class="icon"><use href="#i-search"/></svg>
+      </button>
       <button id="btn-new-phone" class="icon-btn plain only-phone" aria-label="New inbox" title="New inbox">
         <svg class="icon"><use href="#i-plus"/></svg>
       </button>
@@ -180,11 +183,6 @@
           <button id="btn-list-menu" class="icon-btn plain only-phone" aria-label="More actions" title="More actions"
                   aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu">
             <svg class="icon sm"><use href="#i-more"/></svg>
-          </button>
-          <!-- Desktop has the search field in the top bar, so this only ever
-               shows up as the menu's first item on a phone. -->
-          <button id="btn-search" class="icon-btn" aria-label="Search" aria-expanded="false" data-menu="Search mail">
-            <svg class="icon sm"><use href="#i-search"/></svg>
           </button>
           <button id="btn-refresh" class="icon-btn" aria-label="Check for new mail" title="Refresh (R)" data-menu="Check for new mail">
             <svg class="icon sm"><use href="#i-refresh"/></svg>
@@ -646,6 +644,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=56"></script>
+  <script type="module" src="/js/main.js?v=57"></script>
 </body>
 </html>
