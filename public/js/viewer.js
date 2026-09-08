@@ -237,9 +237,14 @@ export function fitFrame(frame) {
       img.style.cursor = "zoom-in";
       img.addEventListener("click", (e) => { e.preventDefault(); zoomImage(img.src); });
     }
+    // The body's own height, not the document element's. documentElement
+    // reports at least the frame's own height -- it is the initial containing
+    // block -- so measuring it meant the frame could only ever grow: it settled
+    // a few pixels above whatever it already was and a short mail kept the
+    // height of a long one. The body knows what the mail actually needs.
     const fit = () => {
-      const height = Math.max(doc.documentElement?.scrollHeight || 0, doc.body?.scrollHeight || 0);
-      frame.style.height = `${Math.min(Math.max(height + 2, 180), 30000)}px`;
+      const height = doc.body?.scrollHeight || doc.documentElement?.scrollHeight || 0;
+      frame.style.height = `${Math.min(Math.max(height, 48), 30000)}px`;
     };
     fit();
     frameObserver?.disconnect();

@@ -157,10 +157,10 @@
   --r-md: 8px;
   --r-lg: 12px;
   --r-xl: 16px;
-  /* Reserved for things that slide or fill along a track: the segmented
-     controls and their highlight, the switch, the meter, the sheet's grab
-     handle. A pill on a plain button next to a rounded rectangle is the
-     square-beside-oval problem; everything else takes a radius from the
+  /* Reserved for things that are literally track-shaped: the switch, the
+     meter, the sheet's grab handle. Not the segmented controls -- a lozenge
+     sliding inside a capsule was the one shape in the app that read as though
+     it came from somewhere else. Everything else takes a radius from the
      scale above. */
   --r-full: 999px;
 
@@ -610,12 +610,14 @@ kbd {
 
 /* Segmented control with a sliding pill. The pill's position is written to
    --seg-x / --seg-w by JS so it travels instead of blinking between slots. */
+/* A rounded rectangle holding a rounded rectangle, on the same radius scale as
+   the buttons beside it. The thumb still slides; it just is not a lozenge. */
 .seg {
   position: relative;
   display: inline-flex;
-  padding: 4px;
+  padding: 3px;
   background: var(--c5);
-  border-radius: var(--r-full);
+  border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px var(--c6);
 }
 .seg::before {
@@ -627,7 +629,7 @@ kbd {
   width: var(--seg-w, 0px);
   translate: var(--seg-x, 0px) 0;
   background: var(--c2);
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   box-shadow: var(--shadow-1);
   transition: translate var(--d-slow) var(--ease-spring), width var(--d-slow) var(--ease-spring);
 }
@@ -635,8 +637,8 @@ kbd {
 .seg-btn {
   position: relative;
   z-index: 1;
-  padding: 4px 12px;
-  border-radius: var(--r-full);
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
   font-size: var(--t-sm);
   font-weight: 500;
   color: var(--ink3);
@@ -1979,8 +1981,13 @@ a.attachment:active { transform: scale(0.97); }
   box-shadow: inset 0 0 0 1px var(--c6);
   overflow: hidden;
 }
-.msg-body.plain { background: var(--c3); }
-#msg-frame { display: block; width: 100%; height: 420px; border: 0; background: #fff; }
+#msg-frame { display: block; width: 100%; height: 180px; border: 0; background: #fff; }
+/* Plain text reads on the same white sheet the rich view does -- it used to
+   drop to a themed grey, so switching Rich to Plain changed the paper as well
+   as the rendering. That makes this the one place in the app whose colours are
+   fixed rather than tokenised: the surface is white in both themes, so the ink
+   on it has to be too, and it is the same ink the frame's own stylesheet uses
+   so the two views match. */
 .msg-text {
   /* The frame may be 1000px wide; a line of plain text should not be. */
   max-width: 78ch;
@@ -1989,8 +1996,14 @@ a.attachment:active { transform: scale(0.97); }
   line-height: 1.62;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  color: #0e1220;
 }
-.msg-text a { color: var(--accent); }
+.msg-text a { color: #1a56db; }
+.msg-text .body-code { color: #0e1220; text-decoration-color: rgba(26, 86, 219, 0.45); }
+.msg-text .body-code:active { background: rgba(26, 86, 219, 0.16); }
+@media (hover: hover) and (pointer: fine) {
+  .msg-text .body-code:hover { background: rgba(26, 86, 219, 0.1); text-decoration-color: #1a56db; }
+}
 
 /* ---- the rename dialog ---- */
 
