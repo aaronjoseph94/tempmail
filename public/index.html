@@ -548,6 +548,12 @@
       </header>
       <div class="drawer-scroll">
         <section class="drawer-sec">
+          <label class="field">
+            <span>Where will you use it? <em>optional</em></span>
+            <input id="new-site" type="text" inputmode="url" autocapitalize="none" autocomplete="off"
+                   spellcheck="false" maxlength="60" placeholder="netflix.com" />
+          </label>
+          <p class="hint">The address is named after it, so you can see at a glance who a message was meant for &mdash; and who leaked it.</p>
           <span class="card-label">New address</span>
           <div class="new-addr">
             <span class="new-addr-text" id="new-addr-text"></span>
@@ -567,7 +573,7 @@
           <button type="button" class="seg-btn" data-life="7d" aria-pressed="false">7 days</button>
         </div>
         <p class="hint" id="life-hint">It never expires. Delete it yourself when you are done.</p>
-        <button type="button" class="btn primary block" id="new-inbox-create">
+        <button type="button" class="btn primary block" id="new-inbox-create" aria-describedby="new-addr-text">
           <svg class="icon sm"><use href="#i-plus"/></svg><span>Create inbox</span>
         </button>
       </footer>

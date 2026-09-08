@@ -31,10 +31,15 @@ export function renderTitle() {
 
 export function renderDomain() {
   renderBrand();
+  const had = state.mailDomain;
   state.mailDomain = state.config?.mailDomain || state.mailDomain || "";
   $("domain-pill").hidden = !state.mailDomain;
   $("domain-label").textContent = state.mailDomain;
   renderAddressCard();
+  // The config arrives after the first paint, so the new-inbox sheet can be
+  // open and still showing "add your mail domain" by the time it lands.
+  // Announced rather than called, because inbox.js already imports this module.
+  if (state.mailDomain && state.mailDomain !== had) document.dispatchEvent(new CustomEvent("maildomain"));
 }
 
 export function renderAddressCard() {

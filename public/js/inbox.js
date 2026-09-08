@@ -59,6 +59,68 @@ export function generateAddress() {
   return `${pick(ADJECTIVES)}-${pick(NOUNS)}-${Math.floor(10 + Math.random() * 90)}`;
 }
 
+/* The alphabet for the random tail on a named address. No 0/o, 1/l/i: these
+   get read aloud, typed on a phone and copied off a screen. */
+const TAIL_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
+const TAIL_LENGTH = 5;
+/** How much of what was typed survives into the address. */
+const SLUG_MAX = 24;
+
+/**
+ * A random tail, drawn without modulo bias.
+ *
+ * The tail is what stops an address being guessable from the site name alone:
+ * "netflix@" would be the first thing anyone tried, and this inbox answers to
+ * every address at the domain.
+ */
+function randomTail(length = TAIL_LENGTH) {
+  const out = [];
+  // 248 is the largest multiple of 31 under 256; bytes above it would make the
+  // first eight letters of the alphabet fractionally more likely than the rest.
+  const limit = 256 - (256 % TAIL_ALPHABET.length);
+  while (out.length < length) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(length))) {
+      if (byte < limit && out.length < length) out.push(TAIL_ALPHABET[byte % TAIL_ALPHABET.length]);
+    }
+  }
+  return out.join("");
+}
+
+/**
+ * What the owner typed, turned into the front of an address.
+ *
+ * A pasted URL keeps only its first host label, which is the name people mean:
+ * "https://www.netflix.com/browse" is "netflix", "bbc.co.uk" is "bbc". Guessing
+ * at registrable domains needs a public-suffix list and would still surprise
+ * someone; taking the first word is a rule you can see working as you type.
+ * Anything that is not a host is simply slugged: "My bank" becomes "my-bank".
+ */
+export function siteSlug(text) {
+  let raw = String(text ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  raw = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0].replace(/^@/, "").replace(/^www\./, "");
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(raw)) raw = raw.split(".")[0];
+  return raw
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, SLUG_MAX)
+    .replace(/-+$/, "");
+}
+
+/**
+ * The domain the address is being handed to, when what was typed was one.
+ *
+ * This seeds `owner_domain`, which is what the Leaks view compares later
+ * senders against -- so a named address knows who it belongs to before its
+ * first message rather than after. The server checks it again with
+ * normalizeDomain() in src/text.ts; this only decides whether to send it.
+ */
+export function siteDomain(text) {
+  const host = String(text ?? "").trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0].replace(/^@/, "").replace(/^www\./, "");
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host) ? host : "";
+}
+
 export function fullAddress() {
   return state.mailDomain ? `${state.address}@${state.mailDomain}` : "";
 }
@@ -77,6 +139,7 @@ const LIFE_HINTS = {
 
 /** Opens the sheet with a fresh candidate address. Also the phone's inbox menu. */
 export function openNewInbox() {
+  $("new-site").value = "";
   rerollCandidate();
   setPendingLife(pendingLife);
   retireActionToast();
@@ -102,11 +165,25 @@ export function closeInboxPicker() {
   $("btn-inboxes").setAttribute("aria-expanded", "false");
 }
 
-export function rerollCandidate() {
-  state.candidate = state.mailDomain ? generateAddress() : "";
+/* Held steady while the sheet is open so the address does not churn under the
+   cursor on every keystroke. Only the reroll button and a fresh sheet move it. */
+let pendingTail = randomTail();
+let pendingRandom = generateAddress();
+
+/** Repaints the offered address from what is currently typed. */
+export function renderCandidate() {
+  const slug = siteSlug($("new-site").value);
+  state.candidate = state.mailDomain ? (slug ? `${slug}-${pendingTail}` : pendingRandom) : "";
   $("new-addr-text").textContent = state.candidate ? `${state.candidate}@${state.mailDomain}` : "Add your mail domain in Settings";
   $("new-inbox-create").disabled = !state.candidate;
   $("new-addr-reroll").disabled = !state.candidate;
+}
+
+/** A different address for the same site, or a different random one. */
+export function rerollCandidate() {
+  pendingTail = randomTail();
+  pendingRandom = generateAddress();
+  renderCandidate();
 }
 
 export function setPendingLife(life) {
@@ -131,10 +208,14 @@ export function setPendingLife(life) {
 export async function createInbox() {
   if (!state.mailDomain) { closeNewInbox(); toast("Add your mail domain in Settings first", "i-warn"); openSettings(); return; }
   const address = `${state.candidate}@${state.mailDomain}`;
+  const owner = siteDomain($("new-site").value);
   const button = $("new-inbox-create");
   button.disabled = true;
   try {
-    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, ROLL_MODES[pendingLife]);
+    // ownerDomain only when a domain was typed: it is what the Leaks view
+    // measures every later sender against, so a guess would be worse than
+    // nothing -- the first sender fills it in on its own otherwise.
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, owner ? { ...ROLL_MODES[pendingLife], ownerDomain: owner } : ROLL_MODES[pendingLife]);
   } catch (err) {
     button.disabled = false;
     toast(`Could not create it: ${err.message}`, "i-warn");

@@ -13,7 +13,7 @@ import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
 import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
-import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
+import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
@@ -128,6 +128,13 @@ $("btn-new-phone").addEventListener("click", openNewInbox);
 $("new-inbox-close").addEventListener("click", closeNewInbox);
 $("new-inbox").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeNewInbox(); });
 $("new-addr-reroll").addEventListener("click", rerollCandidate);
+/* The offered address follows what is typed, letter by letter, so the naming
+   rule is something you watch work rather than something you have to be told. */
+$("new-site").addEventListener("input", renderCandidate);
+document.addEventListener("maildomain", () => { if ($("new-inbox").open) renderCandidate(); });
+$("new-site").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !$("new-inbox-create").disabled) { e.preventDefault(); createInbox(); }
+});
 
 $("btn-inboxes").addEventListener("click", openInboxPicker);
 /* On desktop the rail lists every inbox, so the title is not a control there.
