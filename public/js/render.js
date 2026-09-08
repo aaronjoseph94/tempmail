@@ -1,7 +1,7 @@
 /* Painting the rail, the list and the header; search and the view filters. */
 
 import { PAGE_SIZE, state } from "./state.js";
-import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, plural, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
+import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { applyRail, refresh } from "./data.js";
 import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
@@ -397,6 +397,9 @@ export function skeletonRows(n = 6) {
     </div>`).join("");
 }
 
+/* The query the last feed render was painted for; see the FLIP note below. */
+let flipQuery = null;
+
 export function renderFeed(arrived = new Set()) {
   if (state.view === "leaks") {
     const leaked = state.addresses.filter((a) => a.leaks?.length);
@@ -428,12 +431,19 @@ export function renderFeed(arrived = new Set()) {
     const label = dayLabel(m.receivedAt);
     if (label !== group) {
       group = label;
-      html.push(`<div class="day">${escapeHtml(label)}</div>`);
+      html.push(`<div class="day" data-flip="day:${escapeHtml(label)}">${escapeHtml(label)}</div>`);
     }
     html.push(mailRow(m, arrived.has(m.id) ? stagger++ : -1));
   }
+  // Read where the rows are before the rebuild wipes them, and slide the
+  // survivors from there to wherever they land. Not while the query is being
+  // typed: renderFeed runs on every keystroke, so each round would restart the
+  // one before it from wherever it had got to and the list would smear.
+  const before = flipQuery === state.query ? readRowTops($("feed")) : null;
+  flipQuery = state.query;
   $("feed").innerHTML = html.join("");
   scroller.scrollTop = scrollTop;
+  playRowMoves($("feed"), before);
 
   renderEmpty(visible.length);
   $("btn-more").hidden = !state.hasMore || !!state.query;
@@ -452,7 +462,7 @@ function mailRow(m, staggerIndex) {
     staggerIndex >= 0 ? "arrived" : "",
   ].filter(Boolean).join(" ");
   const delay = staggerIndex >= 0 ? ` style="--stagger:${Math.min(staggerIndex, 6) * 45}ms"` : "";
-  return `<div class="${classes}" data-id="${escapeHtml(m.id)}" role="button" tabindex="0"${delay}>
+  return `<div class="${classes}" data-id="${escapeHtml(m.id)}" data-flip="${escapeHtml(m.id)}" role="button" tabindex="0"${delay}>
     <span class="tick-box" aria-hidden="true"><svg class="icon"><use href="#i-tick"/></svg></span>
     <span class="avatar" aria-hidden="true">${escapeHtml(initialsFor(from))}</span>
     <span class="mail-body">

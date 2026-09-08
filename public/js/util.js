@@ -249,3 +249,80 @@ export const wideQuery = matchMedia("(min-width: 900px)");
 export function isDesktop() {
   return wideQuery.matches;
 }
+
+/* ------------------------------------------------------------------ FLIP */
+
+/*
+ * Rows move rather than jump.
+ *
+ * The list is rebuilt wholesale on every render, so a row that changed place --
+ * because one above it went, or new mail landed on top, or the filter changed
+ * under it -- used to appear at its new position with nothing to say it had
+ * travelled. Read where everything sits before the rebuild and again after,
+ * then hand each difference to the compositor: it draws the row back where it
+ * was and carries it forward.
+ *
+ * Viewport coordinates on purpose. What FLIP has to smooth is what the eye
+ * sees, and when a shorter list clamps the restored scroll position, some rows
+ * appear to move and others do not even though every one of them shifted in
+ * the document. Measuring the page rather than the screen would animate rows
+ * that visibly stayed put.
+ *
+ * Web Animations API, no library. Transforms only, so none of this costs a
+ * layout, and an animation whose element the next render replaces dies with it.
+ */
+const FLIP_MS = 260;
+const FLIP_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";   /* --ease-out */
+const FLIP_MARGIN = 200;   // px beyond the visible box still worth animating
+
+/** Where every keyed child sits now, to compare against after a rebuild. */
+export function readRowTops(container) {
+  if (reducedMotion.matches) return null;
+  const tops = new Map();
+  for (const el of container.children) {
+    const key = el.dataset.flip;
+    if (!key) continue;
+    // A row still playing its arrival is holding a keyframe that offsets it,
+    // and getBoundingClientRect() reports where the offset puts it. Recording
+    // that would hand the next render a six-pixel move that never happened.
+    if (el.classList.contains("arrived") || el.classList.contains("leaving")) continue;
+    tops.set(key, el.getBoundingClientRect().top);
+  }
+  return tops;
+}
+
+/** Slides every surviving child from where readRowTops saw it to where it is. */
+export function playRowMoves(container, before) {
+  if (!before || reducedMotion.matches) return;
+  // Whichever of the container and the window is the tighter bound: on desktop
+  // the feed is its own scroller and clips its rows, on a phone it does not.
+  const box = container.getBoundingClientRect();
+  const ceiling = Math.max(box.top, 0) - FLIP_MARGIN;
+  const floor = Math.min(box.bottom, innerHeight) + FLIP_MARGIN;
+
+  const moves = [];
+  for (const el of container.children) {
+    const key = el.dataset.flip;
+    if (!key) continue;
+    const was = before.get(key);
+    // Not there before: either new mail, which .arrived owns, or a row coming
+    // back from a filter, which has no previous position to come from.
+    if (was === undefined) continue;
+    const now = el.getBoundingClientRect();
+    const dy = was - now.top;
+    if (Math.abs(dy) < 1) continue;
+    // The span the row crosses, not just where it lands. Culling on the
+    // destination alone teleports anything that exits the screen while the
+    // rows around it are still sliding.
+    if (Math.min(was, now.top) > floor || Math.max(was, now.top) + now.height < ceiling) continue;
+    moves.push([el, dy]);
+  }
+  // Every rect is read before the first animation starts: Element.animate()
+  // dirties style, so interleaving makes each subsequent read flush a recalc.
+  for (const [el, dy] of moves) {
+    el.animate(
+      [{ transform: `translateY(${dy}px)` }, { transform: "none" }],
+      { duration: FLIP_MS, easing: FLIP_EASE },
+    );
+  }
+}
