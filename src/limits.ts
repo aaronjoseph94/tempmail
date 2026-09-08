@@ -8,7 +8,7 @@
  */
 
 import {
-  getSetting, SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_PER_ADDRESS,
+  getSettings, SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS,
 } from "./db";
 
@@ -89,13 +89,17 @@ function clampMb(raw: string | null, min: number, max: number, fallbackBytes: nu
 
 /** The limits in force right now: stored overrides, else the defaults above. */
 export async function resolveLimits(db: D1Database): Promise<RuntimeLimits> {
-  const [days, per, total, rawMb, attachMb] = await Promise.all([
-    getSetting(db, SETTING_RETENTION_DAYS),
-    getSetting(db, SETTING_PER_ADDRESS),
-    getSetting(db, SETTING_GLOBAL_CAP),
-    getSetting(db, SETTING_RAW_MB),
-    getSetting(db, SETTING_ATTACHMENT_MB),
+  // One statement rather than five: this runs on every inbound message.
+  const rows = await getSettings(db, [
+    SETTING_RETENTION_DAYS, SETTING_PER_ADDRESS, SETTING_GLOBAL_CAP, SETTING_RAW_MB, SETTING_ATTACHMENT_MB,
   ]);
+  const [days, per, total, rawMb, attachMb] = [
+    rows.get(SETTING_RETENTION_DAYS) ?? null,
+    rows.get(SETTING_PER_ADDRESS) ?? null,
+    rows.get(SETTING_GLOBAL_CAP) ?? null,
+    rows.get(SETTING_RAW_MB) ?? null,
+    rows.get(SETTING_ATTACHMENT_MB) ?? null,
+  ];
   return {
     retentionDays: clampInt(days, LIMIT_RANGES.retentionDays.min, LIMIT_RANGES.retentionDays.max, MESSAGE_TTL_DAYS),
     perAddress: clampInt(per, LIMIT_RANGES.perAddress.min, LIMIT_RANGES.perAddress.max, MAX_MESSAGES_PER_ADDRESS),

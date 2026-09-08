@@ -199,6 +199,21 @@ const LATE_INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_messages_address_box ON messages (address, box, received_at DESC)",
 ];
 
+/**
+ * Adds any of these columns the table does not have yet.
+ *
+ * SQLite has no "ADD COLUMN IF NOT EXISTS", and CREATE TABLE IF NOT EXISTS is a
+ * no-op on a table that already exists -- so this is the only way a table's
+ * shape can grow after its first release.
+ */
+export async function addColumns(db: D1Database, table: string, columns: { name: string; ddl: string }[]): Promise<void> {
+  const { results } = await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+  const present = new Set(results.map((column) => column.name));
+  for (const column of columns) {
+    if (!present.has(column.name)) await db.prepare(column.ddl).run();
+  }
+}
+
 /** Creates or upgrades the schema. Safe to call as often as you like. */
 export async function bootstrapSchema(db: D1Database): Promise<void> {
   await db.batch([
@@ -214,11 +229,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare("DROP TABLE IF EXISTS inboxes"),
   ]);
 
-  const { results } = await db.prepare("PRAGMA table_info(messages)").all<{ name: string }>();
-  const present = new Set(results.map((column) => column.name));
-  for (const column of ADDED_COLUMNS) {
-    if (!present.has(column.name)) await db.prepare(column.ddl).run();
-  }
+  await addColumns(db, "messages", ADDED_COLUMNS);
   for (const sql of LATE_INDEXES) await db.prepare(sql).run();
   await migrateAddresses(db);
 }
@@ -264,6 +275,17 @@ export function ensureSchema(db: D1Database): Promise<void> {
 export async function getSetting(db: D1Database, key: string): Promise<string | null> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = ?1").bind(key).first<{ value: string }>();
   return row?.value ?? null;
+}
+
+/** Several settings in one statement, for callers on the ingest path. */
+export async function getSettings(db: D1Database, keys: string[]): Promise<Map<string, string>> {
+  if (!keys.length) return new Map();
+  const holes = keys.map((_, n) => `?${n + 1}`).join(",");
+  const { results } = await db
+    .prepare(`SELECT key, value FROM settings WHERE key IN (${holes})`)
+    .bind(...keys)
+    .all<{ key: string; value: string }>();
+  return new Map(results.map((row) => [row.key, row.value]));
 }
 
 export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {

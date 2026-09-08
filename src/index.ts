@@ -103,7 +103,7 @@ export default {
     await purge(
       env,
       `SELECT id FROM messages WHERE starred = 0 AND id NOT IN
-         (SELECT id FROM messages ORDER BY starred DESC, received_at DESC, id DESC LIMIT ?1)`,
+         (SELECT id FROM messages ORDER BY ${KEEP_ORDER} LIMIT ?1)`,
       [limits.total]
     );
 
@@ -118,6 +118,16 @@ export default {
     await sweepOrphanAttachments(env.DB);
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * What survives the global cap, most worth keeping first.
+ *
+ * Starred mail first, because that is the owner saying so. Then junk last of
+ * all, because it is the one box whose contents they have already been told
+ * are worth nothing -- without that, a run of junk evicts real mail on age
+ * alone. Everything else falls back to newest-first.
+ */
+export const KEEP_ORDER = "starred DESC, (box = 'junk') ASC, received_at DESC, id DESC";
 
 /** Deletes the messages a query selects, along with their attachment rows. */
 async function purge(env: Env, sql: string, binds: unknown[]): Promise<void> {

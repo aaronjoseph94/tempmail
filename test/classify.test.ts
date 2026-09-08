@@ -3,6 +3,8 @@
  * ever shows the box it asked for.
  */
 import { beforeEach, describe, expect, it } from "vitest";
+import { KEEP_ORDER } from "../src/index";
+import { LIMIT_RANGES } from "../src/limits";
 import { buildMail, call, deliver, env, freshDatabase, json, signIn } from "./helpers";
 
 let cookie: string;
@@ -84,5 +86,46 @@ describe("boxes", () => {
     const msg = await json(await call(`/api/messages/${id}`, { cookie }));
     expect(msg.box).toBe("screener");
     expect(msg.boxReason).toBe("a test put it here");
+  });
+});
+
+describe("boxes and the caps", () => {
+  const countIn = async (box: string, address?: string) =>
+    (await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM messages WHERE box = ?1${address ? " AND address = ?2" : ""}`
+    ).bind(...(address ? [box, address] : [box])).first<{ n: number }>())!.n;
+
+  it("gives each box its own per-address quota", async () => {
+    const address = "flood@mail.example.test";
+    const cap = LIMIT_RANGES.perAddress.min;
+    await call("/api/settings", { method: "PUT", cookie, json: { perAddress: cap } });
+    for (let i = 0; i < cap; i++) await deliver(buildMail({ subject: `Real ${i}` }), address);
+    // A guessing attack is exactly what fills the Screener, and it must not be
+    // able to push an address's real mail out of the inbox on the way.
+    for (let i = 0; i < cap + 5; i++) await place("screener", address);
+    await deliver(buildMail({ subject: "Newest" }), address);
+
+    expect(await countIn("inbox", address)).toBe(cap);
+    expect(await countIn("screener", address)).toBe(cap + 5);
+    const inbox = await json(await call(`/api/messages?address=${address}`, { cookie }));
+    expect(inbox.messages[0].subject).toBe("Newest");
+    // The oldest real message is the one that went, not all of them.
+    expect(inbox.messages.some((m: any) => m.subject === "Real 0")).toBe(false);
+    expect(inbox.messages.some((m: any) => m.subject === "Real 1")).toBe(true);
+  }, 20_000);
+
+  it("throws junk away before anything else when the global cap bites", async () => {
+    // Asserted against the ordering the cron uses rather than by seeding past
+    // the cap's 100-message floor, which costs half a minute to say the same
+    // thing. KEEP_ORDER is the whole of what decides this.
+    await place("junk", "j@mail.example.test", "junk-newest");
+    await new Promise((r) => setTimeout(r, 2));
+    await place("inbox", "keep@mail.example.test", "inbox-older");
+    await env.DB.prepare("UPDATE messages SET received_at = received_at - 60000 WHERE id = 'inbox-older'").run();
+    await place("inbox", "starred@mail.example.test", "starred-oldest");
+    await env.DB.prepare("UPDATE messages SET starred = 1, received_at = received_at - 120000 WHERE id = 'starred-oldest'").run();
+
+    const { results } = await env.DB.prepare(`SELECT id FROM messages ORDER BY ${KEEP_ORDER}`).all<{ id: string }>();
+    expect(results.map((r) => r.id)).toEqual(["starred-oldest", "inbox-older", "junk-newest"]);
   });
 });

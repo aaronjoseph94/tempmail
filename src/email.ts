@@ -135,7 +135,10 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   const text = clip(parsed.text);
   const html = clip(parsed.html);
   const subject = clip(parsed.subject)?.trim() || "(no subject)";
-  const code = extractCode(subject, text ?? (html ? htmlToText(html) : null));
+  // The readable text of the message, whatever it arrived as. Worked out once:
+  // htmlToText over a 250 KB body is not something to do three times.
+  const plain = text ?? (html ? htmlToText(html) : null);
+  const code = extractCode(subject, plain);
   const id = crypto.randomUUID();
   const authResults = headerValue(parsed.headers, "authentication-results");
   const authSummary = parseAuthResults(authResults);
@@ -150,8 +153,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     from: sender.address.toLowerCase(),
     fromName: sender.name || null,
     subject,
-    text,
-    html,
+    plain,
+    code,
     hasAttachment: attachments.length > 0,
     addressRow: lifecycle.row,
   });
@@ -198,12 +201,18 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
 
   // Keep only the newest N per address, so a flood to one address cannot fill
   // the database. Starred mail is never pruned.
+  //
+  // Scoped to the box the message just landed in, and on both sides of the NOT
+  // IN. One quota shared across boxes meant a flood of screened mail -- which
+  // is exactly what an address-guessing attack produces -- pushed an address's
+  // real inbox out from under it, and trimming only the outer half would have
+  // left the keep-set counting held mail against the inbox all the same.
   const stale = await env.DB.prepare(
     `SELECT id FROM messages
-      WHERE address = ?1 AND starred = 0 AND id NOT IN
-        (SELECT id FROM messages WHERE address = ?1 ORDER BY received_at DESC, id DESC LIMIT ?2)`
+      WHERE address = ?1 AND box = ?3 AND starred = 0 AND id NOT IN
+        (SELECT id FROM messages WHERE address = ?1 AND box = ?3 ORDER BY received_at DESC, id DESC LIMIT ?2)`
   )
-    .bind(to, limits.perAddress)
+    .bind(to, limits.perAddress, verdict.box)
     .all<{ id: string }>();
   await deleteMessagesByIds(env.DB, stale.results.map((row) => row.id));
 

@@ -154,7 +154,13 @@ const ROUTES = [
 
 function route(method: string, path: string, handler: Handler) {
   // "/api/messages/:id" becomes /^\/api\/messages\/(?<id>[^/]+)$/
-  const pattern = new RegExp("^" + path.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$");
+  //
+  // The path is escaped first, so a literal dot in a route -- "/api/x.mbox" --
+  // matches a dot rather than any character. Neither ":" nor a word character
+  // is a metacharacter, so the placeholder substitution still sees what it
+  // expects afterwards.
+  const literal = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp("^" + literal.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$");
   return { method, pattern, handler };
 }
 
@@ -382,6 +388,15 @@ interface AddressListRow extends AddressRow {
  * GET /api/addresses — every address with its counts, lifecycle and leaks.
  * Addresses without mail (fresh burners) are listed too.
  */
+/**
+ * How many addresses the rail will render.
+ *
+ * The mail side is a catch-all, so anyone who guesses addresses at the domain
+ * creates a row per guess. Without a ceiling one afternoon of that renders tens
+ * of thousands of rail rows into the page and the app stops being usable.
+ */
+export const MAX_RAIL_ADDRESSES = 500;
+
 async function listAddresses({ env }: Ctx): Promise<Response> {
   const now = Date.now();
   const [{ results: rows }, { results: senders }] = await Promise.all([
@@ -396,11 +411,15 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
          LEFT JOIN (SELECT address, COUNT(*) AS count, SUM(read = 0) AS unread, SUM(starred) AS starred,
                            MAX(received_at) AS last_received_at, MIN(received_at) AS first_received_at
                       FROM messages WHERE deleted_at IS NULL AND box = 'inbox' GROUP BY address) m ON m.address = u.address
-        ORDER BY COALESCE(m.last_received_at, a.created_at) DESC`
-    ).all<AddressListRow>(),
+        ORDER BY COALESCE(m.last_received_at, a.created_at) DESC
+        LIMIT ?1`
+    ).bind(MAX_RAIL_ADDRESSES + 1).all<AddressListRow>(),
     env.DB.prepare(
+      // Bounded for the same reason as the rail above: one pair per
+      // address-and-sender-domain is unbounded on a catch-all.
       `SELECT address, substr(from_address, instr(from_address, '@') + 1) AS domain, COUNT(*) AS n, MAX(received_at) AS last
-         FROM messages WHERE deleted_at IS NULL GROUP BY address, domain`
+         FROM messages WHERE deleted_at IS NULL GROUP BY address, domain
+        ORDER BY last DESC LIMIT 5000`
     ).all<{ address: string; domain: string; n: number; last: number }>(),
   ]);
 
@@ -414,8 +433,12 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
     leaksFor.set(sender.address, list);
   }
 
+  const truncated = rows.length > MAX_RAIL_ADDRESSES;
+  if (truncated) rows.length = MAX_RAIL_ADDRESSES;
+
   return json({
     boxes: await boxCounts(env.DB),
+    truncated,
     addresses: rows.map((row) => ({
       address: row.address,
       label: row.label ?? null,

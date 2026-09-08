@@ -10,8 +10,12 @@
  * Precedence, most authoritative first:
  *
  *   1. Rules      — the owner said so explicitly. Nothing overrules that.
- *   2. Junk       — learned from their own marks, and only when it is sure.
- *   3. Screener   — a sender nobody has vouched for waits to be let in.
+ *   2. Screener   — a sender nobody has vouched for waits to be let in.
+ *   3. Junk       — learned from their own marks, and only when it is sure.
+ *
+ * The Screener sits above the junk filter on purpose: there is no sense scoring
+ * mail from someone nobody has vouched for, and a held message is a question
+ * rather than a verdict.
  *
  * This runs inside the Email Routing handler, where a throw would bounce mail
  * that was otherwise perfectly deliverable. So the whole thing is wrapped: any
@@ -37,8 +41,10 @@ export interface Candidate {
   from: string;
   fromName: string | null;
   subject: string;
-  text: string | null;
-  html: string | null;
+  /** The message as readable text, whatever it arrived as. */
+  plain: string | null;
+  /** The verification code the message carries, if any. */
+  code: string | null;
   hasAttachment: boolean;
   /** The address's row, when the inbox already knew about it. */
   addressRow: AddressRow | null;

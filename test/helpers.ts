@@ -42,18 +42,27 @@ export function cookieFrom(res: Response): string {
   return (res.headers.get("set-cookie") ?? "").split(";")[0];
 }
 
-/** Wipes every table between tests (the schema itself stays). */
+/**
+ * Wipes every table between tests (the schema itself stays).
+ *
+ * Read from sqlite_master rather than listed by hand: a hardcoded list silently
+ * stops wiping the moment a feature adds a table, and the leak shows up as an
+ * unrelated suite failing depending on which order the files ran in.
+ */
 export async function freshDatabase(): Promise<void> {
   await bootstrapSchema(env.DB);
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM attachment_chunks"),
-    env.DB.prepare("DELETE FROM attachments"),
-    env.DB.prepare("DELETE FROM address_labels"),
-    env.DB.prepare("DELETE FROM addresses"),
-    env.DB.prepare("DELETE FROM push_subscriptions"),
-    env.DB.prepare("DELETE FROM messages"),
-    env.DB.prepare("DELETE FROM settings"),
-  ]);
+  const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>();
+  // Anything starting with "sqlite_" or "_" belongs to SQLite or to D1 itself
+  // (_cf_KV among them) and refuses to be written to.
+  const ours = results.map((t) => t.name).filter((name) => !name.startsWith("sqlite_") && !name.startsWith("_"));
+  // A virtual table's shadow tables are cleared through the virtual table.
+  const shadow = new Set(ours.filter((n) => n.endsWith("_fts")).flatMap((n) =>
+    ["data", "idx", "content", "docsize", "config"].map((suffix) => `${n}_${suffix}`)));
+  await env.DB.batch(ours
+    .filter((name) => !shadow.has(name))
+    .map((name) => env.DB.prepare(
+      name.endsWith("_fts") ? `INSERT INTO ${name}(${name}) VALUES('delete-all')` : `DELETE FROM ${name}`
+    )));
 }
 
 /** Runs first-time setup and returns a signed-in session cookie. */
