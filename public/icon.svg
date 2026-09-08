@@ -1,7 +1,13 @@
+<!-- The tab icon. Two shapes and nothing else: at 16px only the silhouette
+     survives, so the clock hand this used to carry inside the pip is gone. It
+     rendered as a smudge. Paint order matters: the dark disc goes down after
+     the envelope, not before it, so it actually cuts a ring and the pip reads
+     as its own object instead of fusing with the envelope's corner. The pip's
+     green is the signal colour the live dot uses in the app. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#121213"/>
-  <rect x="11" y="19" width="42" height="28" rx="5" fill="#ffffff"/>
-  <path d="M15 24l17 12 17-12" fill="none" stroke="#121213" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="49" cy="17" r="7" fill="#3ddc97"/>
-  <path d="M49 13v4.5l3 1.8" fill="none" stroke="#121213" stroke-width="2.2" stroke-linecap="round"/>
+  <rect width="64" height="64" rx="14" fill="#121213"/>
+  <rect x="8" y="18" width="43" height="30" rx="5" fill="#ffffff"/>
+  <path d="M13 24l16.5 11.5L46 24" fill="none" stroke="#121213" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="51" cy="15" r="12" fill="#121213"/>
+  <circle cx="51" cy="15" r="8.5" fill="#3ddc97"/>
 </svg>
