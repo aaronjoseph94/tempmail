@@ -17,6 +17,7 @@ export async function loadConfig() {
 
 function listUrl({ cursor = null, limit = state.windowSize } = {}) {
   const params = new URLSearchParams();
+  if (state.box !== "inbox") params.set("box", state.box);
   if (state.filter) params.set("address", state.filter);
   if (state.query) params.set("q", state.query);
   if (state.view === "unread") params.set("unread", "1");
@@ -36,7 +37,7 @@ export async function refresh({ announce = false } = {}) {
 
   const previousNewest = state.newestSeen;
   applyList(list);
-  applyRail(rail.addresses);
+  applyRail(rail.addresses, rail.boxes);
   if (announce && state.polledOnce && state.newestSeen > previousNewest) announceNewMail(previousNewest);
   state.polledOnce = true;
   saveCache();
@@ -76,8 +77,9 @@ async function checkWaiting(messages) {
   } catch { /* the next poll tries again */ }
 }
 
-export function applyRail(addresses) {
+export function applyRail(addresses, boxes) {
   state.addresses = addresses;
+  if (boxes) state.boxCounts = boxes;
   state.newestSeen = Math.max(state.newestSeen, ...addresses.map((a) => a.lastReceivedAt || 0));
   renderRail();
   renderTitle();

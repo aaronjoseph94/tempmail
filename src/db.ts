@@ -53,7 +53,9 @@ const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
   list_unsubscribe TEXT,
   list_unsubscribe_post TEXT,
   auth_results TEXT,
-  auth_summary TEXT
+  auth_summary TEXT,
+  box          TEXT NOT NULL DEFAULT 'inbox',
+  box_reason   TEXT
 )`;
 
 const CREATE_SETTINGS = `CREATE TABLE IF NOT EXISTS settings (
@@ -144,11 +146,19 @@ const ADDED_COLUMNS = [
   { name: "list_unsubscribe_post", ddl: "ALTER TABLE messages ADD COLUMN list_unsubscribe_post TEXT" },
   { name: "auth_results", ddl: "ALTER TABLE messages ADD COLUMN auth_results TEXT" },
   { name: "auth_summary", ddl: "ALTER TABLE messages ADD COLUMN auth_summary TEXT" },
+  // Which box the message landed in, and the one-line reason it is there.
+  // Everything that already existed was ordinary mail, which is the default.
+  { name: "box", ddl: "ALTER TABLE messages ADD COLUMN box TEXT NOT NULL DEFAULT 'inbox'" },
+  { name: "box_reason", ddl: "ALTER TABLE messages ADD COLUMN box_reason TEXT" },
 ];
 
 /** Indexes on columns that older databases only gain from ADDED_COLUMNS. */
 const LATE_INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages (deleted_at)",
+  // Every list query is scoped to one box, either across the inbox or within
+  // one address, so both shapes get an index that ends in the sort column.
+  "CREATE INDEX IF NOT EXISTS idx_messages_box ON messages (box, received_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_messages_address_box ON messages (address, box, received_at DESC)",
 ];
 
 /** Creates or upgrades the schema. Safe to call as often as you like. */

@@ -10,6 +10,7 @@
 import PostalMime, { type Email } from "postal-mime";
 import type { Env } from "./index";
 import { addressVerdict, recordArrival, senderDomain } from "./addresses";
+import { classify, type Box } from "./classify";
 import { deleteMessagesByIds } from "./db";
 import { headerValue, parseAuthResults, parseSentAt } from "./headers";
 import { pokeHub } from "./live";
@@ -37,7 +38,7 @@ export interface InboundMail {
 }
 
 export type IngestResult =
-  | { ok: true; id: string; address: string; code: string | null; from: string; subject: string }
+  | { ok: true; id: string; address: string; code: string | null; from: string; subject: string; box: Box; trashed: boolean }
   | { ok: false; reason: string };
 
 /**
@@ -80,8 +81,13 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env, ct
 /**
  * Everything that follows a stored message but must not delay or fail the
  * ingest itself: telling open browsers, and (later) pushing to phones.
+ *
+ * Only mail that reached the inbox is announced. Mail a rule binned, the junk
+ * filter caught or the Screener is holding is waiting to be looked at, not
+ * something to wake a phone for.
  */
 export function afterIngest(env: Env, ctx: ExecutionContext | undefined, stored: Extract<IngestResult, { ok: true }>): void {
+  if (stored.box !== "inbox" || stored.trashed) return;
   const live = pokeHub(env, { type: "new", address: stored.address, id: stored.id, code: stored.code, at: Date.now() });
   const push = anySubscriptions(env)
     .then((any) => (any ? sendPush(env, { id: stored.id, address: stored.address, code: stored.code, from: stored.from, subject: stored.subject.slice(0, 80) }) : undefined))
@@ -113,10 +119,10 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   }
   // Expired and blocked addresses bounce before the body is even read.
   const now = Date.now();
-  const verdict = await addressVerdict(env.DB, to, now);
-  if (!verdict.accept) {
+  const lifecycle = await addressVerdict(env.DB, to, now);
+  if (!lifecycle.accept) {
     console.log("rejecting mail for", to, "(address no longer accepts mail)");
-    return { ok: false, reason: verdict.reason };
+    return { ok: false, reason: lifecycle.reason };
   }
 
   const raw = await new Response(mail.raw).arrayBuffer();
@@ -137,11 +143,25 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
   // Metadata first, so the row is written even if an attachment write fails.
   const attachments = describeAttachments(parsed, limits.attachmentBytes);
 
+  // Where it goes: the owner's rules, then the junk filter, then the Screener.
+  // Never throws, so a message can be misfiled but never lost.
+  const verdict = await classify(env.DB, {
+    to,
+    from: sender.address.toLowerCase(),
+    fromName: sender.name || null,
+    subject,
+    text,
+    html,
+    hasAttachment: attachments.length > 0,
+    addressRow: lifecycle.row,
+  });
+
   await env.DB.prepare(
     `INSERT INTO messages
        (id, address, from_name, from_address, subject, snippet, code, text_body, html_body, attachments, received_at, read, starred,
-        message_id, in_reply_to, references_hdr, reply_to, sent_at, list_unsubscribe, list_unsubscribe_post, auth_results, auth_summary)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0, 0, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)`
+        message_id, in_reply_to, references_hdr, reply_to, sent_at, list_unsubscribe, list_unsubscribe_post, auth_results, auth_summary,
+        box, box_reason, deleted_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?21, ?22, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?23, ?24, ?25)`
   )
     .bind(
       id,
@@ -163,7 +183,12 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
       clipHeader(headerValue(parsed.headers, "list-unsubscribe")),
       clipHeader(headerValue(parsed.headers, "list-unsubscribe-post")),
       clipHeader(authResults),
-      authSummary ? JSON.stringify(authSummary) : null
+      authSummary ? JSON.stringify(authSummary) : null,
+      verdict.read ? 1 : 0,
+      verdict.star ? 1 : 0,
+      verdict.box,
+      verdict.reason,
+      verdict.trash ? now : null
     )
     .run();
 
@@ -182,8 +207,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     .all<{ id: string }>();
   await deleteMessagesByIds(env.DB, stale.results.map((row) => row.id));
 
-  console.log("stored mail for", to, "subject:", subject);
-  return { ok: true, id, address: to, code, from: sender.name || sender.address, subject };
+  console.log("stored mail for", to, "in", verdict.box, "subject:", subject);
+  return { ok: true, id, address: to, code, from: sender.name || sender.address, subject, box: verdict.box, trashed: verdict.trash };
 }
 
 /** Header values are kept whole but never past a few KB. */

@@ -637,5 +637,5 @@ function refreshRailSoon() {
 
 export async function loadAddresses() {
   const data = await api("/api/addresses");
-  applyRail(data.addresses);
+  applyRail(data.addresses, data.boxes);
 }

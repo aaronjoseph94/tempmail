@@ -26,6 +26,7 @@ import {
 } from "./limits";
 import { normalizeDomain, SNIPPET_LENGTH } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
+import { BOXES, isBox, type Box } from "./classify";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
@@ -323,11 +324,11 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
       `SELECT u.address, a.label, COALESCE(a.mode, 'permanent') AS mode, a.expires_at, a.owner_domain,
               COALESCE(a.created_at, m.first_received_at) AS created_at, a.first_seen_at,
               m.count, m.unread, m.starred, m.last_received_at
-         FROM (SELECT address FROM addresses UNION SELECT address FROM messages WHERE deleted_at IS NULL) u
+         FROM (SELECT address FROM addresses UNION SELECT address FROM messages WHERE deleted_at IS NULL AND box = 'inbox') u
          LEFT JOIN addresses a ON a.address = u.address
          LEFT JOIN (SELECT address, COUNT(*) AS count, SUM(read = 0) AS unread, SUM(starred) AS starred,
                            MAX(received_at) AS last_received_at, MIN(received_at) AS first_received_at
-                      FROM messages WHERE deleted_at IS NULL GROUP BY address) m ON m.address = u.address
+                      FROM messages WHERE deleted_at IS NULL AND box = 'inbox' GROUP BY address) m ON m.address = u.address
         ORDER BY COALESCE(m.last_received_at, a.created_at) DESC`
     ).all<AddressListRow>(),
     env.DB.prepare(
@@ -347,6 +348,7 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
   }
 
   return json({
+    boxes: await boxCounts(env.DB),
     addresses: rows.map((row) => ({
       address: row.address,
       label: row.label ?? null,
@@ -364,6 +366,24 @@ async function listAddresses({ env }: Ctx): Promise<Response> {
       leaks: (leaksFor.get(row.address) ?? []).sort((a, b) => b.last - a.last),
     })),
   });
+}
+
+/**
+ * How much mail is waiting in each box other than the inbox, so the rail can
+ * show its pinned rows without a second round trip. Boxes with nothing in them
+ * are still reported, as zero: the rail decides what to show, not this.
+ */
+async function boxCounts(db: D1Database): Promise<Record<string, { count: number; unread: number }>> {
+  const { results } = await db
+    .prepare(
+      `SELECT box, COUNT(*) AS count, SUM(read = 0) AS unread
+         FROM messages WHERE deleted_at IS NULL AND box != 'inbox' GROUP BY box`
+    )
+    .all<{ box: string; count: number; unread: number }>();
+  const out: Record<string, { count: number; unread: number }> = {};
+  for (const box of BOXES) if (box !== "inbox") out[box] = { count: 0, unread: 0 };
+  for (const row of results) out[row.box] = { count: row.count, unread: row.unread ?? 0 };
+  return out;
 }
 
 const ADDRESS_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -520,12 +540,19 @@ function parseCursor(value: string | null): { receivedAt: number; id: string } |
 }
 
 /**
- * GET /api/messages?address=&q=&cursor=&limit=&unread=1&starred=1
+ * GET /api/messages?address=&q=&cursor=&limit=&unread=1&starred=1&box=
  * Newest first. Search is a case-insensitive substring match over the
  * subject, sender, recipient and snippet.
+ *
+ * Every list is scoped to one box. Leaving `box` off means the inbox, so mail
+ * the Screener is holding or the junk filter caught never turns up in a list
+ * that did not ask for it -- including the lists older clients ask for.
  */
 async function listMessages({ env, url }: Ctx): Promise<Response> {
   const address = url.searchParams.get("address")?.trim().toLowerCase() || null;
+  const boxParam = url.searchParams.get("box");
+  if (boxParam !== null && !isBox(boxParam)) return json({ error: "Unknown box" }, 400);
+  const box: Box = boxParam ?? "inbox";
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
   const limit = clampPageSize(url.searchParams.get("limit"), PAGE_SIZE, 1, MAX_PAGE_SIZE);
   const cursorText = url.searchParams.get("cursor");
@@ -534,6 +561,7 @@ async function listMessages({ env, url }: Ctx): Promise<Response> {
 
   const where: string[] = ["deleted_at IS NULL"];
   const binds: unknown[] = [];
+  where.push(`box = ?${binds.push(box)}`);
   if (address) where.push(`address = ?${binds.push(address)}`);
   if (url.searchParams.get("unread") === "1") where.push("read = 0");
   if (url.searchParams.get("starred") === "1") where.push("starred = 1");
@@ -578,6 +606,7 @@ interface MessageRow {
   message_id: string | null; in_reply_to: string | null; references_hdr: string | null; reply_to: string | null;
   sent_at: number | null; list_unsubscribe: string | null; list_unsubscribe_post: string | null;
   auth_results: string | null; auth_summary: string | null;
+  box: Box; box_reason: string | null;
 }
 
 function authOf(row: MessageRow): AuthSummary | null {
@@ -648,6 +677,8 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     sentAt: row.sent_at,
     auth: authOf(row),
     unsubscribe: unsubscribeOf(row),
+    box: row.box,
+    boxReason: row.box_reason,
   });
 }
 
@@ -831,7 +862,11 @@ async function deleteMessages({ request, env, url }: Ctx): Promise<Response> {
   return json({ error: "Say which address to wipe, pass all=1, or send ids" }, 400);
 }
 
-/** POST /api/read-all?address=x marks one address read; without it, everything. */
+/**
+ * POST /api/read-all?address=x marks one address read; without it, everything.
+ * Only the inbox: "mark all read" must not quietly clear the Screener's badge
+ * for mail nobody has looked at.
+ */
 async function markAllRead({ env, url }: Ctx): Promise<Response> {
   const raw = url.searchParams.get("address");
   // "?address=" is a caller that meant to scope the call and lost the value;
@@ -839,9 +874,9 @@ async function markAllRead({ env, url }: Ctx): Promise<Response> {
   if (raw !== null && !raw.trim()) return json({ error: "No address given" }, 400);
   const address = raw?.trim().toLowerCase();
   if (address) {
-    await env.DB.prepare("UPDATE messages SET read = 1 WHERE address = ?1 AND read = 0 AND deleted_at IS NULL").bind(address).run();
+    await env.DB.prepare("UPDATE messages SET read = 1 WHERE address = ?1 AND read = 0 AND deleted_at IS NULL AND box = 'inbox'").bind(address).run();
   } else {
-    await env.DB.prepare("UPDATE messages SET read = 1 WHERE read = 0 AND deleted_at IS NULL").run();
+    await env.DB.prepare("UPDATE messages SET read = 1 WHERE read = 0 AND deleted_at IS NULL AND box = 'inbox'").run();
   }
   return json({ ok: true });
 }

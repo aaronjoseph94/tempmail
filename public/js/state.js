@@ -15,6 +15,8 @@ export const state = {
   address: "",           // generated local part, e.g. "quiet-otter-42"
   messages: [],
   addresses: [],
+  box: "inbox",          // which mailbox: inbox | screener | junk
+  boxCounts: {},         // how much is waiting in the boxes that are not the inbox
   filter: "",            // address being viewed; "" is all mail
   candidate: "",         // the local part the new-inbox sheet is offering
   query: "",             // search text

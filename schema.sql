@@ -29,13 +29,18 @@ CREATE TABLE IF NOT EXISTS messages (
   list_unsubscribe TEXT,
   list_unsubscribe_post TEXT,
   auth_results TEXT,                       -- Cloudflare's Authentication-Results, verbatim
-  auth_summary TEXT                        -- JSON {"spf","dkim","dmarc"} parsed from it
+  auth_summary TEXT,                       -- JSON {"spf","dkim","dmarc"} parsed from it
+  -- Which mailbox the message landed in and why (see src/classify.ts).
+  box          TEXT NOT NULL DEFAULT 'inbox', -- inbox | screener | junk
+  box_reason   TEXT                        -- one line for the reader: why it is here
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_address ON messages (address, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_received_at ON messages (received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_starred ON messages (starred, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages (deleted_at);
+CREATE INDEX IF NOT EXISTS idx_messages_box ON messages (box, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_address_box ON messages (address, box, received_at DESC);
 
 -- Every address the inbox knows: its nickname, lifecycle and first sender.
 -- Unknown addresses get a permanent row on their first message, so the
