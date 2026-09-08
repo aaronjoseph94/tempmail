@@ -1,0 +1,542 @@
+/* Painting the rail, the list and the header; search and the view filters. */
+
+import { PAGE_SIZE, state } from "./state.js";
+import { $, dayLabel, escapeHtml, formatBytes, formatWhen, initialsFor, isDesktop, plural, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
+import { api, send } from "./api.js";
+import { applyRail, refresh } from "./data.js";
+import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
+
+/* -------------------------------------------------------------- rendering */
+
+/* The site's name lives in a server setting so a fork can rename itself
+   without editing markup. This is the fallback until /api/config answers, and
+   it is the only place the default is written on this side. */
+const BRAND_DEFAULT = "Temp Email";
+export function brandName() {
+  return state.config?.brandName || BRAND_DEFAULT;
+}
+
+export function renderBrand() {
+  const name = brandName();
+  $("brand-name").textContent = name;
+  $("brand-link").setAttribute("aria-label", `${name} home`);
+  $("set-brand").value = state.config?.brandName || "";
+  renderTitle();
+}
+
+export function renderTitle() {
+  const unread = state.addresses.reduce((n, a) => n + (a.unread || 0), 0);
+  document.title = unread ? `(${unread}) ${brandName()}` : brandName();
+}
+
+export function renderDomain() {
+  renderBrand();
+  state.mailDomain = state.config?.mailDomain || state.mailDomain || "";
+  $("domain-pill").hidden = !state.mailDomain;
+  $("domain-label").textContent = state.mailDomain;
+  renderAddressCard();
+}
+
+export function renderAddressCard() {
+  $("addr-local").textContent = state.address;
+  $("addr-domain").textContent = state.mailDomain ? `@${state.mailDomain}` : "@…";
+  $("addr-hint").hidden = !!state.mailDomain;
+}
+
+function totals() {
+  return {
+    count: state.addresses.reduce((n, a) => n + a.count, 0),
+    unread: state.addresses.reduce((n, a) => n + a.unread, 0),
+  };
+}
+
+export function renderStorage() {
+  const cap = state.config?.limits?.total;
+  if (!cap) return;
+  const used = totals().count;
+  $("storage-fill").style.width = `${Math.min(100, (used / cap) * 100).toFixed(1)}%`;
+  renderRoll($("storage-used"), used);
+  $("storage-cap").textContent = `of ${cap.toLocaleString()} kept`;
+  $("retention-note").textContent =
+    `Mail deletes itself after ${state.config.retentionDays} days. ` +
+    `Up to ${state.config.limits.perAddress} messages per address, ` +
+    `${formatBytes(state.config.limits.rawBytes)} per message.`;
+}
+
+export function renderRail() {
+  const all = totals();
+  const sig = JSON.stringify([state.filter, all, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
+  if (sig !== state.railSig) {
+    const hadRows = state.railSig !== "";
+    state.railSig = sig;
+    const rows = [railRow({ address: "", label: "All mail", count: all.count, unread: all.unread, all: true })];
+    for (const a of state.addresses) {
+      rows.push(railRow({ address: a.address, label: a.address.split("@")[0], name: a.label, count: a.count, unread: a.unread, entry: a }));
+    }
+    // A freshly rolled address has no mail yet but can still be selected.
+    if (state.filter && !state.addresses.some((a) => a.address === state.filter)) {
+      rows.push(railRow({ address: state.filter, label: state.filter.split("@")[0], count: 0, unread: 0 }));
+    }
+    if (!state.addresses.length) rows.push('<div class="rail-empty">No mail received yet</div>');
+    // The rows live in exactly one place: the rail on desktop, the phone's
+    // picker below 900px. Rendering into both would leave two elements for
+    // every data-address, which makes every selector -- ours and the tests' --
+    // ambiguous. The breakpoint listener re-renders when the width crosses.
+    const target = isDesktop() ? $("rail-list") : $("picker-list");
+    const other = isDesktop() ? $("picker-list") : $("rail-list");
+    if (other.firstChild) other.replaceChildren();
+    target.innerHTML = rows.join("");
+    if (hadRows) for (const badge of target.querySelectorAll(".badge")) badge.classList.add("bump");
+    $("addr-count").textContent = state.addresses.length ? String(state.addresses.length) : "";
+  }
+  moveRailHighlight();
+  renderViewChips();
+  renderListHead();
+}
+
+function railRow({ address, label, name, count, unread, all = false, entry = null }) {
+  const active = state.filter === address;
+  const tally = unread > 0 ? `<span class="badge">${unread}</span>` : `<span class="count">${count}</span>`;
+  const local = escapeHtml(label);
+  const life = lifeChip(entry);
+  // A named address shows its name with the raw local part underneath.
+  const body = name
+    ? `<span class="stack-2"><span class="tag-label">${escapeHtml(name)}${life}</span><span class="sub">${local}</span></span>`
+    : `<span class="name">${local}${life}</span>`;
+  const blocked = entry?.mode === "blocked";
+  const tools = all ? "" : `<div class="rail-tools">
+    <button class="rename" data-rename="${escapeHtml(address)}" aria-label="Name ${escapeHtml(address)}" title="Give this address a name"><svg class="icon sm"><use href="#i-tag"/></svg></button>
+    <button class="burn${blocked ? " on" : ""}" data-burn="${escapeHtml(address)}" aria-pressed="${blocked}" aria-label="${blocked ? "Unblock" : "Block"} ${escapeHtml(address)}" title="${blocked ? "Unblock this address" : "Block this address: mail to it bounces"}"><svg class="icon sm"><use href="#i-ban"/></svg></button>
+    <button class="wipe" data-kill="${escapeHtml(address)}" aria-label="Delete the inbox ${escapeHtml(address)}" title="Delete this inbox and all its mail"><svg class="icon sm"><use href="#i-trash"/></svg></button>
+  </div>`;
+  const icon = all ? '<svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>' : "";
+  const dead = entry?.dead ? " dead" : "";
+  return `<div class="rail-row">
+    <button class="rail-item${all ? " all" : ""}${active ? " active" : ""}${dead}" data-address="${escapeHtml(address)}"${active ? ' aria-current="true"' : ""} title="${escapeHtml(address || "Every address")}">
+      ${icon}${body}${tally}
+    </button>${tools}</div>`;
+}
+
+/** The small lifecycle tag on a rail row: "<1h", "23h", "6d", "blocked". */
+function lifeChip(entry) {
+  if (!entry) return "";
+  if (entry.mode === "blocked") return '<span class="life dead">blocked</span>';
+  if (entry.mode === "expires") {
+    const left = entry.expiresAt - Date.now();
+    if (left <= 0) return '<span class="life dead">expired</span>';
+    return `<span class="life${left < 3600000 * 2 ? " soon" : ""}" title="Bounces mail from ${formatWhen(entry.expiresAt)}">${timeLeft(left)}</span>`;
+  }
+  return "";
+}
+
+function timeLeft(ms) {
+  // Rounding up first made every surviving address at least "1h", so an
+  // address with four minutes left looked as safe as one with fifty-nine.
+  if (ms < 3600000) return "<1h";
+  const h = Math.ceil(ms / 3600000);
+  if (h < 48) return `${h}h`;
+  return `${Math.ceil(h / 24)}d`;
+}
+
+/** Client-side twins of the server's leak rules. */
+export function domainOf(address) {
+  const at = (address || "").lastIndexOf("@");
+  return at < 0 ? null : address.slice(at + 1).toLowerCase();
+}
+export function relatedDomain(a, b) {
+  if (!a || !b) return false;
+  return a === b || a.endsWith("." + b) || b.endsWith("." + a);
+}
+
+/**
+ * Removes an inbox outright: its mail, then the address row itself, so it stops
+ * appearing in the rail. Not undoable, so it asks first.
+ */
+export async function deleteInbox(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const count = entry?.count ?? 0;
+  const what = count ? `${address} and ${plural(count, "message")}` : address;
+  if (!confirm(`Delete ${what}? This cannot be undone.`)) return;
+  try {
+    if (count) await send("DELETE", `/api/messages?address=${encodeURIComponent(address)}`);
+    await send("DELETE", `/api/addresses/${encodeURIComponent(address)}`);
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  if (state.open?.address === address) closeMessage();
+  if (state.filter === address) setFilter("");
+  toast(`Deleted ${address.split("@")[0]}`, "i-trash");
+  refresh().catch(() => {});
+}
+
+/** Blocks an address, or unblocks a blocked one, with an Undo on the toast. */
+export async function toggleBlock(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const blocking = entry?.mode !== "blocked";
+  const previous = entry?.mode ?? "permanent";
+  // What Undo should send. An expiry already in the past would be rejected,
+  // so there is nothing to restore for an address that has since expired.
+  let revert = null;
+  if (previous === "blocked") revert = { mode: "blocked" };
+  else if (previous === "expires") revert = entry?.expiresAt > Date.now() ? { mode: "expires", expiresAt: entry.expiresAt } : null;
+  else revert = { mode: "permanent" };
+  try {
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, { mode: blocking ? "blocked" : "permanent" });
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  const text = blocking ? `Blocked ${address.split("@")[0]}: mail to it now bounces` : `Unblocked ${address.split("@")[0]}`;
+  toast(text, "i-ban", revert ? {
+    action: "Undo",
+    onAction: () => send("PUT", `/api/addresses/${encodeURIComponent(address)}`, revert).then(() => refresh()).catch((e) => toast(e.message, "i-warn")),
+  } : {});
+  await refresh().catch(() => {});
+  if (state.open?.address === address) renderLeakStrip(state.open);
+}
+
+/** Lets the owner say which service an address was made for. */
+export async function setOwner(address) {
+  const entry = state.addresses.find((a) => a.address === address);
+  const answer = prompt("Which service was this address given to? (a domain, like netflix.com)", entry?.ownerDomain ?? "");
+  if (answer === null) return;
+  try {
+    await send("PUT", `/api/addresses/${encodeURIComponent(address)}`, { ownerDomain: answer.trim() });
+    toast(answer.trim() ? `Owner set to ${answer.trim().toLowerCase()}` : "Owner cleared", "i-tick");
+  } catch (err) {
+    toast(err.message, "i-warn");
+  }
+  refresh().catch(() => {});
+}
+
+/**
+ * What Leaks is for, in the view rather than in a tooltip nobody hovers.
+ * It answers the question the tab raises before the cards below can.
+ */
+const LEAKS_INTRO = `<section class="leak-intro">
+  <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Who has your address</h3>
+  <p>Each inbox remembers the first company that wrote to it. If anyone else
+  turns up, that company shared or sold your address — and you can see exactly
+  who, and shut the address down, without touching the rest of your mail.</p>
+</section>`;
+
+/** The Leaks view: every address hearing from someone other than its owner. */
+function leaksHtml() {
+  const leaked = state.addresses.filter((a) => a.leaks?.length);
+  return LEAKS_INTRO + leaked.map((a) => {
+    const name = a.label ? `${escapeHtml(a.label)} <span class="sub">${escapeHtml(a.address.split("@")[0])}</span>` : escapeHtml(a.address.split("@")[0]);
+    const senders = a.leaks.map((l) =>
+      `<li><span class="mono">${escapeHtml(l.domain)}</span><span class="dim">${plural(l.count, "message")} · ${timeAgo(l.last)}</span></li>`).join("");
+    return `<article class="leak${a.mode === "blocked" ? " blocked" : ""}">
+      <header>
+        <h3>${name}</h3>
+        <p class="dim">Given to <button type="button" class="link mono" data-owner="${escapeHtml(a.address)}" title="Change the owner">${escapeHtml(a.ownerDomain)}</button>, but also hears from:</p>
+      </header>
+      <ul>${senders}</ul>
+      <div class="leak-actions">
+        <button type="button" class="btn sm ${a.mode === "blocked" ? "ghost" : ""}" data-burn="${escapeHtml(a.address)}">
+          <svg class="icon sm"><use href="#i-ban"/></svg>${a.mode === "blocked" ? "Unblock" : "Block address"}
+        </button>
+        <button type="button" class="btn sm ghost" data-address="${escapeHtml(a.address)}">Show its mail</button>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+/**
+ * Slides the single highlight element behind the active rail row: measure the
+ * target, then let CSS spring the pill's offset and size to match, so it
+ * travels rather than jumping. Desktop only -- below 900px the rows live in
+ * the picker sheet, where each carries its own fill and there is no rail to
+ * slide anything along.
+ */
+export function moveRailHighlight() {
+  const list = $("rail-list");
+  const active = list.querySelector(".rail-item.active");
+  if (!active) {
+    list.style.setProperty("--hl-o", "0");
+    return;
+  }
+  const listBox = list.getBoundingClientRect();
+  const box = active.getBoundingClientRect();
+  list.style.setProperty("--hl-y", `${box.top - listBox.top + list.scrollTop}px`);
+  list.style.setProperty("--hl-x", `${box.left - listBox.left + list.scrollLeft}px`);
+  list.style.setProperty("--hl-w", `${box.width}px`);
+  list.style.setProperty("--hl-h", `${box.height}px`);
+  list.style.setProperty("--hl-o", "1");
+  // Skip the travel animation on the very first measurement.
+  if (list.dataset.ready === "false") {
+    requestAnimationFrame(() => { list.dataset.ready = "true"; });
+  }
+}
+
+/** The same treatment for the Rich / Plain segmented control. */
+export function moveSegHighlight(seg = $("body-toggle")) {
+  const active = seg.querySelector('[aria-pressed="true"]');
+  if (!active || seg.hidden) return;
+  const box = active.getBoundingClientRect();
+  const segBox = seg.getBoundingClientRect();
+  seg.style.setProperty("--seg-x", `${box.left - segBox.left}px`);
+  seg.style.setProperty("--seg-w", `${box.width}px`);
+  if (seg.dataset.ready === "false") requestAnimationFrame(() => { seg.dataset.ready = "true"; });
+}
+
+function renderViewChips() {
+  const unread = totals().unread;
+  $("pip-unread").hidden = unread === 0;
+  $("pip-leaks").hidden = !state.addresses.some((a) => a.leaks?.length);
+  for (const chip of document.querySelectorAll("[data-view]")) {
+    const on = chip.dataset.view === state.view;
+    chip.classList.toggle("active", on);
+    chip.setAttribute("aria-pressed", String(on));
+  }
+}
+
+export function renderListHead() {
+  const entry = state.filter ? state.addresses.find((a) => a.address === state.filter) : null;
+  const count = state.filter ? entry?.count ?? 0 : totals().count;
+  const unread = state.filter ? entry?.unread ?? 0 : totals().unread;
+  $("list-title").textContent = state.filter || "All mail";
+  $("list-sub").textContent = count ? `${plural(count, "message")}${unread ? ` · ${unread} unread` : ""}` : "";
+  $("btn-wipe").hidden = !state.filter;
+  $("btn-rename").hidden = !state.filter;
+  const blocked = entry?.mode === "blocked";
+  $("btn-burn").hidden = !state.filter;
+  $("btn-burn").setAttribute("aria-pressed", String(blocked));
+  $("btn-burn").classList.toggle("on", blocked);
+  $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
+  $("btn-burn").setAttribute("aria-label", $("btn-burn").title);
+  $("btn-read-all").hidden = unread === 0;
+}
+
+function matchesQuery(m) {
+  if (!state.query) return true;
+  const q = state.query.toLowerCase();
+  return [m.subject, m.fromName, m.fromAddress, m.address, m.snippet].some((v) => (v || "").toLowerCase().includes(q));
+}
+
+export function visibleMessages() {
+  return state.messages.filter(matchesQuery);
+}
+
+function feedScroller() {
+  return isDesktop() ? $("feed") : document.scrollingElement;
+}
+
+export function skeletonRows(n = 6) {
+  return Array.from({ length: n }, () => `
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk circle"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding-top:4px">
+        <div class="sk line" style="width:38%"></div>
+        <div class="sk line" style="width:72%"></div>
+        <div class="sk line" style="width:56%"></div>
+      </div>
+    </div>`).join("");
+}
+
+export function renderFeed(arrived = new Set()) {
+  if (state.view === "leaks") {
+    const leaked = state.addresses.filter((a) => a.leaks?.length);
+    const sig = JSON.stringify(["leaks", leaked.map((a) => [a.address, a.mode, a.ownerDomain, a.leaks])]);
+    if (sig !== state.feedSig) {
+      state.feedSig = sig;
+      $("feed").innerHTML = leaksHtml();
+      $("feed").setAttribute("aria-busy", "false");
+    }
+    $("btn-more").hidden = true;
+    renderEmpty(leaked.length);
+    return;
+  }
+  const visible = visibleMessages();
+  const sig = JSON.stringify([state.view, state.filter, state.query, state.open?.id, state.hasMore, visible.map((m) => [m.id, m.read, m.starred])]);
+  const timesStale = Date.now() - state.lastFeedRender > 60000; // "5m" labels drift
+  if (sig === state.feedSig && !timesStale && arrived.size === 0) return;
+  state.feedSig = sig;
+  state.lastFeedRender = Date.now();
+
+  // Rebuilding resets the scroll position, so restore it afterwards.
+  const scroller = feedScroller();
+  const scrollTop = scroller.scrollTop;
+
+  const html = [];
+  let group = null;
+  let stagger = 0;
+  for (const m of visible) {
+    const label = dayLabel(m.receivedAt);
+    if (label !== group) {
+      group = label;
+      html.push(`<div class="day">${escapeHtml(label)}</div>`);
+    }
+    html.push(mailRow(m, arrived.has(m.id) ? stagger++ : -1));
+  }
+  $("feed").innerHTML = html.join("");
+  scroller.scrollTop = scrollTop;
+
+  renderEmpty(visible.length);
+  $("btn-more").hidden = !state.hasMore || !!state.query;
+  $("search-count").textContent = state.query ? `${visible.length}` : "";
+  $("search-clear").hidden = !state.query;
+}
+
+function mailRow(m, staggerIndex) {
+  const from = senderLabel(m);
+  const local = m.address.split("@")[0];
+  const classes = [
+    "mail",
+    m.read ? "" : "unread",
+    m.id === state.open?.id ? "open" : "",
+    state.picked.has(m.id) ? "picked" : "",
+    staggerIndex >= 0 ? "arrived" : "",
+  ].filter(Boolean).join(" ");
+  const delay = staggerIndex >= 0 ? ` style="--stagger:${Math.min(staggerIndex, 6) * 45}ms"` : "";
+  return `<div class="${classes}" data-id="${escapeHtml(m.id)}" role="button" tabindex="0"${delay}>
+    <span class="tick-box" aria-hidden="true"><svg class="icon"><use href="#i-tick"/></svg></span>
+    <span class="avatar" aria-hidden="true">${escapeHtml(initialsFor(from))}</span>
+    <span class="mail-body">
+      <span class="mail-top">
+        <span class="mail-from">${escapeHtml(from)}</span>
+        <span class="mail-aside">
+          <span class="mail-time" title="${escapeHtml(formatWhen(m.receivedAt))}">${escapeHtml(timeAgo(m.receivedAt))}</span>
+          <button class="star${m.starred ? " on" : ""}" data-star="${escapeHtml(m.id)}" aria-label="${m.starred ? "Unstar" : "Star"} this message" aria-pressed="${!!m.starred}">
+            <svg class="icon sm"><use href="#i-star"/></svg>
+          </button>
+        </span>
+      </span>
+      <span class="mail-subject">${escapeHtml(m.subject || "(no subject)")}</span>
+      ${m.snippet ? `<span class="mail-snippet">${escapeHtml(m.snippet)}</span>` : ""}
+      <span class="mail-tags">
+        <span class="tag addr" title="${escapeHtml(m.address)}"><span class="at">@</span>${escapeHtml(local)}</span>
+        ${m.code ? `<span class="tag code" data-code="${escapeHtml(m.code)}" role="button" tabindex="0" title="Copy code"><svg class="icon"><use href="#i-key"/></svg>${escapeHtml(m.code)}</span>` : ""}
+        ${m.hasAttachments ? '<span class="tag" title="Has attachments"><svg class="icon"><use href="#i-clip"/></svg></span>' : ""}
+      </span>
+    </span>
+  </div>`;
+}
+
+function renderEmpty(visibleCount) {
+  const empty = $("feed-empty");
+  empty.hidden = visibleCount > 0;
+  if (visibleCount > 0) return;
+  const firstRun = state.addresses.length === 0 && !state.query && !state.filter && state.view === "all";
+  $("empty-steps").hidden = !firstRun;
+  $("empty-hint").hidden = !firstRun;
+  if (state.query) {
+    $("empty-title").textContent = "No matches";
+    $("empty-text").textContent = `Nothing matches “${state.query}”.`;
+  } else if (state.view === "unread") {
+    $("empty-title").textContent = "All caught up";
+    $("empty-text").textContent = "Nothing unread here.";
+  } else if (state.view === "starred") {
+    $("empty-title").textContent = "No starred mail";
+    $("empty-text").textContent = "Star a message to keep it past the nightly cleanup.";
+  } else if (state.view === "leaks") {
+    $("empty-title").textContent = "Nobody has shared your address";
+    $("empty-text").textContent =
+      "Each inbox remembers the first company that wrote to it. Every one of yours still only hears from that company, so none of them has passed your address on.";
+  } else if (state.filter) {
+    $("empty-title").textContent = "Nothing here yet";
+    $("empty-text").textContent = `Send something to ${state.filter} and it will appear here.`;
+  } else {
+    $("empty-title").textContent = "No mail yet";
+    $("empty-text").textContent = firstRun ? "Three steps and your first message lands here." : "";
+  }
+}
+
+/* ----------------------------------------------------- filtering + search */
+
+export function setFilter(address) {
+  if (state.filter === address) return;
+  state.filter = address;
+  state.windowSize = PAGE_SIZE;
+  if (state.open && !isDesktop()) closeMessage();
+  renderRail();
+  // Keep the newly selected row in view in the rail's own scroller.
+  $("rail-list").querySelector(".rail-item.active")?.scrollIntoView({
+    behavior: reducedMotion.matches ? "auto" : "smooth", block: "nearest",
+  });
+  refresh().catch((err) => toast(err.message, "i-warn"));
+}
+
+let searchTimer = null;
+export function setQuery(text) {
+  state.query = text.trim();
+  state.windowSize = PAGE_SIZE;
+  renderFeed();                                    // filter what is already loaded…
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => refresh().catch(() => {}), 250);  // …then ask the server
+}
+
+export function focusSearch() {
+  document.body.classList.add("searching");
+  $("btn-search").setAttribute("aria-expanded", "true");
+  $("search").focus();
+  $("search").select();
+}
+
+export function toggleSearch() {
+  if (document.body.classList.contains("searching")) {
+    document.body.classList.remove("searching");
+    $("btn-search").setAttribute("aria-expanded", "false");
+    if (state.query) { $("search").value = ""; setQuery(""); }
+  } else {
+    focusSearch();
+  }
+}
+
+/* ------------------------------------------------------- views + starring */
+
+export function setView(view) {
+  if (state.view === view) return;
+  // Nothing in the Leaks view is selectable, so selection mode cannot follow us there.
+  if (view === "leaks" && state.selecting) setSelecting(false);
+  state.view = view;
+  state.windowSize = PAGE_SIZE;
+  renderViewChips();
+  refresh().catch((err) => toast(err.message, "i-warn"));
+}
+
+/** Stars or unstars one message, updating the row before the server replies. */
+export async function toggleStar(id, button) {
+  const listed = state.messages.find((m) => m.id === id);
+  const next = !(listed?.starred ?? state.open?.starred);
+
+  if (button) {
+    button.classList.toggle("on", next);
+    button.setAttribute("aria-pressed", String(next));
+    if (next) {
+      button.classList.remove("just-starred");
+      void button.offsetWidth;      // restart the pop even on a repeat star
+      button.classList.add("just-starred");
+    }
+  }
+
+  try {
+    await send("PATCH", `/api/messages/${encodeURIComponent(id)}`, { starred: next });
+  } catch (err) {
+    toast(err.message, "i-warn");
+    button?.classList.toggle("on", !next);
+    return;
+  }
+  if (listed) listed.starred = next;
+  if (state.open?.id === id) {
+    state.open.starred = next;
+    paintStar();                   // not renderViewer: reloading the body would jump the page
+  }
+  // The starred view drops the row as soon as it is unstarred.
+  if (state.view === "starred" && !next) refresh().catch(() => {});
+  else { state.feedSig = ""; renderFeed(); }
+  refreshRailSoon();
+}
+
+let railTimer = null;
+function refreshRailSoon() {
+  clearTimeout(railTimer);
+  railTimer = setTimeout(() => loadAddresses().catch(() => {}), 400);
+}
+
+export async function loadAddresses() {
+  const data = await api("/api/addresses");
+  applyRail(data.addresses);
+}

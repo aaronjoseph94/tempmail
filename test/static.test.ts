@@ -7,7 +7,7 @@ const html = { headers: { accept: "text/html,application/xhtml+xml" } };
 
 describe("before signing in", () => {
   it("shows the sign-in page for every page URL, with a 200 and no redirect", async () => {
-    for (const path of ["/", "/index.html", "/login", "/anything/else", "/app.js"]) {
+    for (const path of ["/", "/index.html", "/login", "/anything/else", "/js/main.js"]) {
       const res = await call(path, html);
       expect(res.status, path).toBe(200);
       const body = await res.text();
@@ -40,9 +40,15 @@ describe("before signing in", () => {
     }
   });
 
-  it("does not leak the app script", async () => {
-    const res = await call("/app.js");
-    expect(await res.text()).not.toContain("openMessage");
+  it("does not leak the app's modules", async () => {
+    // The app is a module graph now, and every file in it is signed-in only.
+    // A missing PUBLIC_FILES entry does not 404, it falls through to the
+    // sign-in page, so this asserts on the content rather than on the status.
+    for (const name of ["main", "state", "util", "api", "data", "render", "viewer", "inbox", "settings", "keys"]) {
+      const body = await (await call(`/js/${name}.js`)).text();
+      expect(body, name).not.toContain("openMessage");
+      expect(body.toLowerCase(), name).toContain("<!doctype html>");
+    }
   });
 });
 
@@ -53,12 +59,19 @@ describe("after signing in", () => {
     expect(page.status).toBe(200);
     const body = await page.text();
     expect(body).toContain('id="feed"');
-    expect(body).toContain('<script src="/app.js');
+    expect(body).toContain('<script type="module" src="/js/main.js');
     expect(page.headers.get("content-security-policy")).toContain("script-src 'self'");
 
-    const script = await call("/app.js", { cookie });
-    expect(script.status).toBe(200);
-    expect(await script.text()).toContain("openMessage");
+    // The entry point and one module it reaches only by import, so a broken
+    // specifier shows up here rather than as a blank page in the browser.
+    const entry = await call("/js/main.js", { cookie });
+    expect(entry.status).toBe(200);
+    const source = await entry.text();
+    expect(source).toContain('from "./viewer.js"');
+
+    const viewer = await call("/js/viewer.js", { cookie });
+    expect(viewer.status).toBe(200);
+    expect(await viewer.text()).toContain("export async function openMessage");
   });
 
   it("sends /login back to the inbox", async () => {
