@@ -2142,7 +2142,14 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
 #new-inbox .drawer-scroll { padding-bottom: 0; }
 
 @media (min-width: 900px) {
-  dialog.sheet { inset: 0; display: grid; place-items: center; }
+  /* width and height back to auto, which is the whole fix. dialog.drawer sets
+     margin: 0, so the UA margin that would have centred this is gone, and a
+     <dialog> is width/height: fit-content by default -- so inset: 0 alone left
+     the box exactly the size of its panel, pinned to the corner, with
+     place-items centring the panel inside that box rather than on screen.
+     auto lets a fixed box stretch between its insets, and it does not pick up
+     the scrollbar width the way 100vw would. */
+  dialog.sheet { inset: 0; width: auto; height: auto; display: grid; place-items: center; }
   dialog.sheet:not([open]) { display: none; }
   dialog.sheet .drawer-panel {
     width: min(420px, calc(100vw - 32px));
