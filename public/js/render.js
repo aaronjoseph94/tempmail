@@ -210,21 +210,10 @@ export async function setOwner(address) {
   refresh().catch(() => {});
 }
 
-/**
- * What Leaks is for, in the view rather than in a tooltip nobody hovers.
- * It answers the question the tab raises before the cards below can.
- */
-const LEAKS_INTRO = `<section class="leak-intro">
-  <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Who has your address</h3>
-  <p>Each inbox remembers the first company that wrote to it. If anyone else
-  turns up, that company shared or sold your address — and you can see exactly
-  who, and shut the address down, without touching the rest of your mail.</p>
-</section>`;
-
 /** The Leaks view: every address hearing from someone other than its owner. */
 function leaksHtml() {
   const leaked = state.addresses.filter((a) => a.leaks?.length);
-  return LEAKS_INTRO + leaked.map((a) => {
+  return leaked.map((a) => {
     const name = a.label ? `${escapeHtml(a.label)} <span class="sub">${escapeHtml(a.address.split("@")[0])}</span>` : escapeHtml(a.address.split("@")[0]);
     const senders = a.leaks.map((l) =>
       `<li><span class="mono">${escapeHtml(l.domain)}</span><span class="dim">${plural(l.count, "message")} · ${timeAgo(l.last)}</span></li>`).join("");
@@ -434,7 +423,7 @@ function renderEmpty(visibleCount) {
   } else if (state.view === "leaks") {
     $("empty-title").textContent = "Nobody has shared your address";
     $("empty-text").textContent =
-      "Each inbox remembers the first company that wrote to it. Every one of yours still only hears from that company, so none of them has passed your address on.";
+      "Inboxes remember their original sender. If someone else emails you, you'll know who leaked your address.";
   } else if (state.filter) {
     $("empty-title").textContent = "Nothing here yet";
     $("empty-text").textContent = `Send something to ${state.filter} and it will appear here.`;

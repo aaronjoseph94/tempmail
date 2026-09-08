@@ -1309,31 +1309,6 @@ body.waiting { overflow: hidden; }
   .body-code:hover { background: var(--accent-a10); text-decoration-color: var(--accent); }
 }
 
-/* The explainer above the cards. It answers "what is this view" before the
-   cards below can, which a title attribute on the tab never did. */
-.leak-intro {
-  margin: var(--s-6) var(--s-6) var(--s-4);
-  padding: var(--s-8);
-  border-radius: var(--r-lg);
-  background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6);
-}
-.leak-intro h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin: 0 0 var(--s-3);
-  font-size: var(--t-base);
-  font-weight: 600;
-}
-.leak-intro h3 .icon { color: var(--ink3); }
-.leak-intro p {
-  margin: 0;
-  max-width: 62ch;
-  font-size: var(--t-md);
-  line-height: 1.55;
-  color: var(--ink2);
-}
 .leak h3 { font-size: var(--t-base); font-weight: 600; margin: 0 0 2px; }
 .leak h3 .sub { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--ink3); font-size: var(--t-sm); margin-left: 6px; }
 .leak header p { margin: 0; font-size: var(--t-md); }
