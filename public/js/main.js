@@ -282,6 +282,7 @@ window.addEventListener("online", () => {
   state.notify = store.get(PREFS.notify) === "on";
   state.autoRefresh = store.get(PREFS.autoRefresh) !== "off";
   state.alwaysImages = store.get(PREFS.images) === "on";
+  state.leaksSeen = Number(store.get(PREFS.leaksSeen)) || 0;
   $("domain-pill").classList.toggle("paused", !state.autoRefresh);
   state.address = store.get(PREFS.address) || generateAddress();
   store.set(PREFS.address, state.address);

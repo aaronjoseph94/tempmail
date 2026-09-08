@@ -1,7 +1,7 @@
 /* Painting the rail, the list and the header; search and the view filters. */
 
-import { PAGE_SIZE, state } from "./state.js";
-import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, timeAgo, toast } from "./util.js";
+import { PAGE_SIZE, PREFS, state } from "./state.js";
+import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, store, timeAgo, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { applyRail, refresh } from "./data.js";
 import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
@@ -271,10 +271,37 @@ export function moveSegHighlight(seg = $("body-toggle")) {
   if (seg.dataset.ready === "false") requestAnimationFrame(() => { seg.dataset.ready = "true"; });
 }
 
+/* The newest leak anywhere, or 0. A leak carries the time the stranger wrote. */
+function newestLeak() {
+  let newest = 0;
+  for (const a of state.addresses) for (const l of a.leaks || []) newest = Math.max(newest, l.last);
+  return newest;
+}
+
+/*
+ * Everything the Leaks view is showing counts as seen from here on.
+ *
+ * The pip has to mean "there is something in here you have not looked at". It
+ * used to mean "a leak exists", and a leak is a permanent fact about an
+ * address -- once a stranger has written to it, it has been leaked forever --
+ * so the pip could never go out however many times you visited.
+ *
+ * The watermark is stamped from the leaks themselves rather than from the
+ * clock: the timestamps come from the server, and a browser running behind it
+ * would otherwise mark a leak seen a moment before it was able to arrive.
+ */
+function markLeaksSeen() {
+  const newest = newestLeak();
+  if (newest <= state.leaksSeen) return;
+  state.leaksSeen = newest;
+  store.set(PREFS.leaksSeen, String(newest));
+  renderViewChips();
+}
+
 function renderViewChips() {
   const unread = totals().unread;
   $("pip-unread").hidden = unread === 0;
-  $("pip-leaks").hidden = !state.addresses.some((a) => a.leaks?.length);
+  $("pip-leaks").hidden = !state.addresses.some((a) => a.leaks?.some((l) => l.last > state.leaksSeen));
   for (const chip of document.querySelectorAll("[data-view]")) {
     const on = chip.dataset.view === state.view;
     chip.classList.toggle("active", on);
@@ -403,6 +430,7 @@ let flipQuery = null;
 export function renderFeed(arrived = new Set()) {
   if (state.view === "leaks") {
     const leaked = state.addresses.filter((a) => a.leaks?.length);
+    markLeaksSeen();
     const sig = JSON.stringify(["leaks", leaked.map((a) => [a.address, a.mode, a.ownerDomain, a.leaks])]);
     if (sig !== state.feedSig) {
       state.feedSig = sig;

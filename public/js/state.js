@@ -25,6 +25,7 @@ export const state = {
   showHtml: true,
   imagesAllowed: false,
   newestSeen: 0,         // receivedAt of the newest mail seen; newer than this is "new"
+  leaksSeen: 0,          // the newest leak the Leaks view has shown; newer than this is unseen
   polledOnce: false,
   pollTimer: null,
   feedSig: "",
@@ -45,7 +46,7 @@ export const state = {
 export const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
   images: "always_images", address: "address", theme: "theme", push: "push",
-  scheme: "scheme",
+  scheme: "scheme", leaksSeen: "leaks_seen",
 };
 
 /* Accent presets. Every one is contrast-checked against c1 through c5 in both
