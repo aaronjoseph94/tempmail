@@ -460,14 +460,23 @@ async function restore(ids) {
 }
 
 /** Manual refresh from the button or the R key; the icon spins while it runs. */
+const SPIN_MS = 1000;   // must match the spin animation's period in style.css
+
 export async function manualRefresh() {
   const button = $("btn-refresh");
+  const started = performance.now();
   button.classList.add("spinning");
   clearTimeout(state.pollTimer);
   try {
     await poll();
   } finally {
-    setTimeout(() => button.classList.remove("spinning"), 400);
+    // Let it finish the turn it is on. Dropping the class part-way through
+    // snaps the icon back to zero from whatever angle it had reached, which
+    // is the jolt at the end of a quick refresh -- and a quick refresh is the
+    // usual case. Waiting out the remainder costs at most one second and
+    // always lands on 360, where removing the class is invisible.
+    const wait = SPIN_MS - ((performance.now() - started) % SPIN_MS);
+    setTimeout(() => button.classList.remove("spinning"), wait);
   }
 }
 

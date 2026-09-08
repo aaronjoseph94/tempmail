@@ -189,9 +189,6 @@
   /* Motion */
   --ease: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* A rotation that accelerates and settles rather than running at a constant
-     rate, so a short refresh does not look like it stopped dead. */
-  --ease-spin: cubic-bezier(0.55, 0.15, 0.35, 0.9);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --d-fast: 0.12s;   /* exits */
   --d-mid: 0.18s;
@@ -1982,7 +1979,11 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 
 /* The refresh icon turns while a manual check runs. */
 .icon-btn .icon { transition: rotate var(--d-mid) var(--ease); }
-.icon-btn.spinning .icon { animation: spin 900ms var(--ease-spin) infinite; }
+/* linear, not eased. An eased curve on a looping rotation accelerates and
+   settles inside every single turn, so the icon visibly hitches at each loop
+   boundary -- easing is for one revolution, not for a spinner. A whole second
+   per turn also reads as working rather than as flickering. */
+.icon-btn.spinning .icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { rotate: 360deg; } }
 
 /* A label beside a control that is not a switch (the theme picker). */
