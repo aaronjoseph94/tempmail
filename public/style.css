@@ -1066,43 +1066,65 @@ body.waiting { overflow: hidden; }
 
 /* ---- view filter chips ---- */
 
+/* Tabs, not a pill. Four words on a rule, with a marker under the one you are
+   on -- the same thing a browser's tab strip says, without a container drawn
+   around it or a lozenge sliding about inside it. */
 .view-filters {
   display: flex;
   flex: none;
-  gap: 4px;
+  justify-content: space-between;
+  gap: var(--s-3);
   min-width: 0;
-  padding: 4px;
-  background: var(--c5);
-  border-radius: var(--r-full);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  padding: 0 var(--s-1);
+  box-shadow: inset 0 -1px 0 0 var(--c6);
 }
+/* The padding is the tap target, not decoration: the pill sized every tab
+   equally, and a tab that is only as wide as the word "All" is 17px of
+   clickable width. */
 .view-chip {
-  flex: 1 1 0;
-  min-width: 0;
+  position: relative;
+  min-width: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 2px;
-  border-radius: var(--r-full);
+  gap: var(--s-3);
+  padding: 8px var(--s-3) 10px;
   color: var(--ink3);
-  font-size: var(--t-xs);
+  font-size: var(--t-md);
   font-weight: 500;
+  white-space: nowrap;
   white-space: nowrap;
   overflow: hidden;
   transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
 }
-.view-chip:active { transform: scale(0.95); }
-.view-chip.active {
-  background: var(--c2);
-  color: var(--ink);
-  font-weight: 600;
-  box-shadow: var(--shadow-1);
+.view-chip:active { transform: scale(0.96); }
+.view-chip.active { color: var(--ink); font-weight: 600; }
+/* The marker sits on the row's own rule and grows out of the middle of the
+   label, so moving between tabs reads as one mark travelling rather than two
+   blinking. */
+.view-chip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  scale: 0 1;
+  opacity: 0;
+  transition: scale var(--d-slow) var(--ease-out), opacity var(--d-fast) var(--ease);
 }
+.view-chip.active::after { scale: 1 1; opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .view-chip:hover { color: var(--ink2); }
+}
+/* Sits beside a label rather than against it: the flex gap above spaces it,
+   so it reads as a mark on the tab and not as a letter of the word. */
 .pip {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  margin-left: var(--s-1);
   flex: none;
 }
 
@@ -2508,8 +2530,8 @@ body.gate {
   .empty { padding: 40px 24px; }
   .toast { bottom: calc(18px + env(safe-area-inset-bottom)); }
 
-  .view-filters { margin-bottom: 4px; }
-  .view-chip { padding: 8px 6px; font-size: var(--t-sm); min-height: 44px; }
+  .view-filters { margin-bottom: 4px; gap: var(--s-4); }
+  .view-chip { padding: 10px var(--s-3); min-width: 44px; min-height: 44px; }
   .limits { grid-template-columns: 1fr; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
   .star { opacity: 1; width: 44px; height: 44px; }
