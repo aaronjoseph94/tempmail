@@ -337,11 +337,12 @@ export function wireFeedGestures() {
   };
 
   function settle(row, cls) {
-    row.classList.remove("swiping", "armed");
+    row.classList.remove("swiping", "armed", "sw-l", "sw-r");
     row.classList.add(cls);
     row.style.removeProperty("translate");
     const done = () => {
       row.classList.remove(cls);
+      row.style.removeProperty("--sw-dx");
       row.removeEventListener("transitionend", done);
     };
     row.addEventListener("transitionend", done);
@@ -392,8 +393,15 @@ export function wireFeedGestures() {
     // A poll can rebuild the list underneath the finger. Once the row is
     // detached, moving it does nothing anyone can see -- let go instead.
     if (!g.row.isConnected) { feed.classList.remove("swiping"); g = null; return; }
+    // The browser is still free to pan vertically under pan-y, so a swipe that
+    // is not perfectly level scrolls the page while the row moves. Once the
+    // axis is decided the gesture is ours: take the touch off the scroller.
+    if (e.cancelable) e.preventDefault();
     g.dx = dx;
     g.row.style.translate = `${dx}px`;
+    g.row.style.setProperty("--sw-dx", `${dx}px`);
+    g.row.classList.toggle("sw-l", dx < 0);
+    g.row.classList.toggle("sw-r", dx > 0);
     g.row.classList.toggle("armed", Math.abs(dx) > g.width * COMMIT);
   });
 
@@ -410,7 +418,7 @@ export function wireFeedGestures() {
     if (!commit) { settle(gesture.row, "swipe-back"); return; }
     // Send it the way it was going, then delete. deleteMessage adds .leaving
     // and rebuilds the list; this just carries the row off screen first.
-    gesture.row.classList.remove("swiping", "armed");
+    gesture.row.classList.remove("swiping");
     gesture.row.classList.add("swipe-out");
     gesture.row.style.translate = `${gesture.dx > 0 ? 110 : -110}%`;
     deleteMessage(gesture.id);
