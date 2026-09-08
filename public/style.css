@@ -1183,35 +1183,48 @@ body.waiting { overflow: hidden; }
 .rail-item .count { font-size: var(--t-sm); color: var(--ink3); }
 
 /* Name / block / wipe sit in one cluster so they never stack on the count. */
+/* The row's hover actions sit over its right edge rather than in the flex
+   flow. Animating each button from width 0 to 28px reflowed the whole row on
+   every frame -- three buttons, every hover, while the name beside them
+   re-measured and re-ellipsised. Out of flow, the only things that move are
+   opacity and translate, which the compositor handles without touching
+   layout, and the name keeps its full width whenever the tools are away. */
 .rail-tools {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  translate: 0 -50%;
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: none;
-  padding-left: 6px;
-  padding-right: 4px;
+  padding-left: var(--s-10);
+  /* Fades the name out behind the buttons instead of letting the two collide. */
+  background: linear-gradient(90deg, transparent, var(--c3) var(--s-10));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--d-mid) var(--ease);
 }
+.rail-row:has(.rail-item.active) .rail-tools { background: linear-gradient(90deg, transparent, var(--c4) var(--s-10)); }
 .rail-tools button {
   display: grid;
   place-items: center;
-  width: 0;
+  width: 28px;
   height: 28px;
-  overflow: hidden;
   border-radius: var(--r-sm);
   color: var(--ink3);
-  opacity: 0;
-  scale: 0.9;
-  pointer-events: none;
-  transition: opacity var(--d-mid) var(--ease), scale var(--d-mid) var(--ease-spring), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease), width var(--d-mid) var(--ease);
+  translate: var(--s-3) 0;
+  transition: translate var(--d-slow) var(--ease-spring), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
+}
+.rail-row:hover .rail-tools,
+.rail-row:focus-within .rail-tools,
+.rail-tools:has(.burn.on) {
+  opacity: 1;
+  pointer-events: auto;
 }
 .rail-row:hover .rail-tools button,
 .rail-row:focus-within .rail-tools button,
 .rail-tools .burn.on {
-  width: 28px;
-  overflow: visible;
-  opacity: 1;
-  scale: 1;
-  pointer-events: auto;
+  translate: 0 0;
 }
 .rail-row:hover .rail-item .count,
 .rail-row:hover .rail-item .badge,
@@ -1273,6 +1286,53 @@ body.waiting { overflow: hidden; }
   background: var(--c2);
   box-shadow: inset 0 0 0 1px var(--c6);
   display: flex; flex-direction: column; gap: 10px;
+}
+/* A code-shaped run in the body, made tappable. Underlined rather than filled:
+   there can be several in one message, and the filled chip is reserved for the
+   one code the server named. */
+.body-code {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 1px 3px;
+  margin: 0 -3px;
+  border-radius: var(--r-sm);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-a28);
+  transition: background var(--d-mid) var(--ease), text-decoration-color var(--d-mid) var(--ease);
+}
+.body-code:active { background: var(--accent-a16); }
+@media (hover: hover) and (pointer: fine) {
+  .body-code:hover { background: var(--accent-a10); text-decoration-color: var(--accent); }
+}
+
+/* The explainer above the cards. It answers "what is this view" before the
+   cards below can, which a title attribute on the tab never did. */
+.leak-intro {
+  margin: var(--s-6) var(--s-6) var(--s-4);
+  padding: var(--s-8);
+  border-radius: var(--r-lg);
+  background: var(--c2);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+.leak-intro h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+.leak-intro h3 .icon { color: var(--ink3); }
+.leak-intro p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--ink2);
 }
 .leak h3 { font-size: var(--t-base); font-weight: 600; margin: 0 0 2px; }
 .leak h3 .sub { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--ink3); font-size: var(--t-sm); margin-left: 6px; }

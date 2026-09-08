@@ -244,6 +244,65 @@ function linkify(text) {
   return out + escapeHtml(text.slice(last));
 }
 
+/**
+ * Code-shaped runs in the plain-text body, made tappable to copy.
+ *
+ * The server picks one code per message and the chip at the top of the list
+ * carries it; this is for the ones it does not pick -- a message with no
+ * "code"/"verification" wording anywhere, a second code further down, or a
+ * letters-and-digits code, none of which extractCode will name. Those sit in
+ * the body as plain text with no affordance at all, and are exactly the thing
+ * the reader opened the mail for.
+ *
+ * The digit shape is the server's own candidate rule (src/text.ts), so the
+ * same prices, times, dates, phone numbers and "#12345" references are
+ * excluded here. It is deliberately looser than extractCode about context:
+ * being wrong here copies a number the reader did not want, while being wrong
+ * there would put it on a lock screen.
+ */
+const BODY_CODE =
+  /(?<![\d#$€£]|\d[ .,:/-])(\d{3}[ -]\d{3}|\d{4,8})(?![ -]?\d|[.,]\d|[%:/-]|\s?(?:am|pm)\b)|\b(?=[A-Z0-9]{6,10}\b)(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{6,10}\b/g;
+
+function looksLikeCode(raw) {
+  const flat = raw.replace(/[ -]/g, "");
+  // Four-digit years are almost never codes, the same exception the server makes.
+  return !(flat.length === 4 && +flat >= 1900 && +flat <= 2099);
+}
+
+function markCodes(root) {
+  // A TreeWalker rather than a regex over innerHTML: linkify has already put
+  // anchors in there, and rewriting markup with a pattern is how you end up
+  // matching inside an href.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => (node.parentElement.closest("a, .tag") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const targets = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    BODY_CODE.lastIndex = 0;
+    if (BODY_CODE.test(node.nodeValue)) targets.push(node);
+  }
+  for (const node of targets) {
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    BODY_CODE.lastIndex = 0;
+    for (const match of node.nodeValue.matchAll(BODY_CODE)) {
+      if (!looksLikeCode(match[0])) continue;
+      frag.append(node.nodeValue.slice(last, match.index));
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "body-code";
+      button.dataset.code = match[0].replace(/[ -]/g, "");
+      button.title = "Copy this code";
+      button.textContent = match[0];
+      frag.append(button);
+      last = match.index + match[0].length;
+    }
+    if (last === 0) continue;              // every match was a year
+    frag.append(node.nodeValue.slice(last));
+    node.replaceWith(frag);
+  }
+}
+
 function initialsFor(name) {
   const parts = name.trim().split(/[\s.<@_-]+/).filter(Boolean);
   return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
@@ -763,10 +822,21 @@ async function setOwner(address) {
   refresh().catch(() => {});
 }
 
+/**
+ * What Leaks is for, in the view rather than in a tooltip nobody hovers.
+ * It answers the question the tab raises before the cards below can.
+ */
+const LEAKS_INTRO = `<section class="leak-intro">
+  <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Who has your address</h3>
+  <p>Each inbox remembers the first company that wrote to it. If anyone else
+  turns up, that company shared or sold your address — and you can see exactly
+  who, and shut the address down, without touching the rest of your mail.</p>
+</section>`;
+
 /** The Leaks view: every address hearing from someone other than its owner. */
 function leaksHtml() {
   const leaked = state.addresses.filter((a) => a.leaks?.length);
-  return leaked.map((a) => {
+  return LEAKS_INTRO + leaked.map((a) => {
     const name = a.label ? `${escapeHtml(a.label)} <span class="sub">${escapeHtml(a.address.split("@")[0])}</span>` : escapeHtml(a.address.split("@")[0]);
     const senders = a.leaks.map((l) =>
       `<li><span class="mono">${escapeHtml(l.domain)}</span><span class="dim">${plural(l.count, "message")} · ${timeAgo(l.last)}</span></li>`).join("");
@@ -787,10 +857,11 @@ function leaksHtml() {
 }
 
 /**
- * Slides the single highlight element behind the active rail row, the way
- * Animate UI's highlight primitive does: measure the target, then let CSS
- * spring the pill's offset and size to match. Vertical on desktop, where the
- * rail is a column; horizontal on a phone, where it is a chip strip.
+ * Slides the single highlight element behind the active rail row: measure the
+ * target, then let CSS spring the pill's offset and size to match, so it
+ * travels rather than jumping. Desktop only -- below 900px the rows live in
+ * the picker sheet, where each carries its own fill and there is no rail to
+ * slide anything along.
  */
 function moveRailHighlight() {
   const list = $("rail-list");
@@ -973,8 +1044,9 @@ function renderEmpty(visibleCount) {
     $("empty-title").textContent = "No starred mail";
     $("empty-text").textContent = "Star a message to keep it past the nightly cleanup.";
   } else if (state.view === "leaks") {
-    $("empty-title").textContent = "No leaks detected";
-    $("empty-text").textContent = "Every address here only hears from the service it was given to.";
+    $("empty-title").textContent = "Nobody has shared your address";
+    $("empty-text").textContent =
+      "Each inbox remembers the first company that wrote to it. Every one of yours still only hears from that company, so none of them has passed your address on.";
   } else if (state.filter) {
     $("empty-title").textContent = "Nothing here yet";
     $("empty-text").textContent = `Send something to ${state.filter} and it will appear here.`;
@@ -1199,6 +1271,7 @@ function renderBody() {
     frameObserver?.disconnect();
     frame.srcdoc = "";
     text.innerHTML = linkify(msg.textBody || (msg.htmlBody ? "(no plain-text version)" : "(empty message)"));
+    markCodes(text);
   }
 }
 
@@ -2476,6 +2549,17 @@ $("mail-menu").addEventListener("keydown", (e) => {
   }
 });
 
+/* Copying a code, wherever it is spelled: the chip on a list row, the chip in
+   the open message, or a code-shaped run in the body that markCodes wrapped. */
+function copyCodeFrom(target) {
+  const code = target.closest("[data-code]");
+  if (!code) return false;
+  copyText(code.dataset.code).then((ok) => toast(ok ? `Copied ${code.dataset.code}` : "Couldn't copy", "i-key"));
+  return true;
+}
+
+$("msg-text").addEventListener("click", (e) => copyCodeFrom(e.target));
+
 $("feed").addEventListener("click", (e) => {
   const star = e.target.closest("[data-star]");
   if (star) {
@@ -2483,11 +2567,7 @@ $("feed").addEventListener("click", (e) => {
     toggleStar(star.dataset.star, star);
     return;
   }
-  const code = e.target.closest("[data-code]");
-  if (code) {
-    copyText(code.dataset.code).then((ok) => toast(ok ? `Copied ${code.dataset.code}` : "Couldn't copy", "i-key"));
-    return;
-  }
+  if (copyCodeFrom(e.target)) return;
   const row = e.target.closest(".mail");
   if (!row) return;
   if (state.selecting) togglePick(row.dataset.id);
