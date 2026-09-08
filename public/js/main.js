@@ -12,33 +12,17 @@ import { PREFS, state } from "./state.js";
 import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
 import { deleteInbox, moveRailHighlight, moveSegHighlight, renderDomain, renderFeed, renderRail, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
-import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMailMenu, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen } from "./viewer.js";
+import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
 
-let pressTimer = 0;
-$("feed").addEventListener("pointerdown", (e) => {
-  if (e.pointerType !== "touch") return;
-  const row = e.target.closest(".mail");
-  if (!row) return;
-  const { clientX, clientY } = e;
-  pressTimer = setTimeout(() => openMailMenu({ clientX, clientY }, row.dataset.id), 550);
-});
-$("feed").addEventListener("pointerup", () => clearTimeout(pressTimer));
-$("feed").addEventListener("pointercancel", () => clearTimeout(pressTimer));
-$("feed").addEventListener("pointermove", () => clearTimeout(pressTimer));
-
-$("feed").addEventListener("contextmenu", (e) => {
-  const row = e.target.closest(".mail");
-  if (!row) return;
-  e.preventDefault();
-  clearTimeout(pressTimer);
-  openMailMenu(e, row.dataset.id);
-});
-$("feed").addEventListener("scroll", closeMailMenu, { passive: true });
+/* Long-press, swipe-to-delete and the context menu all begin with one
+   pointerdown on the feed, so they are one state machine rather than four
+   listeners racing each other. */
+wireFeedGestures();
 
 $("mail-menu").addEventListener("click", (e) => {
   const item = e.target.closest("[data-act]");

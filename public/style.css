@@ -1511,6 +1511,13 @@ body.selecting .mail .star { display: none; }
   text-align: left;
   box-shadow: inset 0 -1px 0 0 var(--c6);
   user-select: none;
+  /* Vertical panning stays the scroller's; horizontal is the swipe's. Without
+     this the browser claims the gesture and fires pointercancel about 30px in,
+     so a swipe could never reach its commit point. Declared twice on purpose:
+     a browser that cannot parse pinch-zoom drops that whole line and keeps the
+     first, which costs pinch-to-zoom on a row but keeps the swipe working. */
+  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
   transition: background var(--d-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) { .mail:hover { background: var(--c3); } }
@@ -1549,6 +1556,24 @@ body.selecting .mail .star { display: none; }
   60%  { opacity: 1; translate: 0 0; background: var(--signal-a12); }
   100% { opacity: 1; translate: 0 0; background: transparent; }
 }
+/* ---- swipe a row away, on touch ----
+   The row itself moves; nothing is revealed behind it, which keeps this to
+   three rules and avoids a second painted layer having to be kept in step
+   with the row's position inside a virtualised, re-rendered list. Past the
+   commit point the row goes red, so the outcome is legible before release. */
+.mail.swiping { transition: none; z-index: 1; will-change: translate; }
+.mail.swipe-back,
+.mail.swipe-out {
+  z-index: 1;
+  will-change: translate;
+  transition: translate var(--d-slow) var(--ease-spring), background var(--d-fast) var(--ease);
+}
+.mail.swipe-out { transition: translate var(--d-slow) var(--ease), opacity var(--d-slow) var(--ease); opacity: 0; }
+.mail.armed { background: var(--danger-a12); }
+/* Only while a swipe is in flight: at rest .feed keeps overflow-x visible so
+   the 2px focus ring on a full-width row is not clipped for keyboard users. */
+.feed.swiping { overflow-x: clip; }
+
 .mail.leaving { animation: leave var(--d-slow) var(--ease) both; }
 @keyframes leave {
   to { opacity: 0; translate: 12px 0; }

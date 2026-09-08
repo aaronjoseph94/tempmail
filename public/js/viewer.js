@@ -276,8 +276,170 @@ async function deleteMessage(id) {
     closeMessage();
     if (next && isDesktop()) openMessage(next.id);
   }
-  toast("Message deleted", "i-trash", { action: "Undo", onAction: () => restore([id]) });
+  noteDeleted(id);
   refresh().catch(() => {});
+}
+
+/*
+ * The toast has one slot: raising a second one replaces the first's Undo button
+ * and its ten-second window. That was survivable when deleting took a
+ * right-click and a menu; a swipe makes two deletes about a second's work, and
+ * the first message would quietly become unrecoverable. So deletes that land
+ * inside one window accumulate, and Undo brings back everything it names.
+ */
+let pendingUndo = [];
+
+function noteDeleted(id) {
+  pendingUndo.push(id);
+  const ids = pendingUndo.slice();
+  toast(ids.length === 1 ? "Message deleted" : `${ids.length} messages deleted`, "i-trash", {
+    action: "Undo",
+    onAction: () => { pendingUndo = []; restore(ids); },
+  });
+  // The window closes with the toast, however it closes.
+  clearTimeout(noteDeleted.t);
+  noteDeleted.t = setTimeout(() => { pendingUndo = []; }, 10200);
+}
+
+/* --------------------------------------------------------- feed gestures */
+
+/*
+ * Long-press and swipe-to-delete, as one state machine.
+ *
+ * They share a pointerdown, so they cannot be two independent handlers: the
+ * press timer has to die the moment a drag is recognised, and the drag has to
+ * lose to the scroller if the finger is really going up or down.
+ *
+ * Touch only. A mouse has a right-click and a keyboard has the context menu,
+ * and a pointer that can hover has no business flinging rows around.
+ */
+const SLOP = 10;        // px of travel before the axis is decided
+const EDGE = 28;        // px at each screen edge left to the browser's back gesture
+const COMMIT = 0.28;    // fraction of the row's width that counts as "delete it"
+const PRESS_MS = 550;
+
+export function wireFeedGestures() {
+  const feed = $("feed");
+  let press = 0;
+  let g = null;               // the gesture in flight, or null
+  let swallow = false;        // eat the click a finished swipe leaves behind
+  let swallowTimer = 0;
+
+  const cancelPress = () => { clearTimeout(press); press = 0; };
+  const armSwallow = () => {
+    swallow = true;
+    clearTimeout(swallowTimer);
+    swallowTimer = setTimeout(() => { swallow = false; }, 700);
+  };
+
+  function settle(row, cls) {
+    row.classList.remove("swiping", "armed");
+    row.classList.add(cls);
+    row.style.removeProperty("translate");
+    const done = () => {
+      row.classList.remove(cls);
+      row.removeEventListener("transitionend", done);
+    };
+    row.addEventListener("transitionend", done);
+    // transitionend never fires under prefers-reduced-motion, where the
+    // duration is ~0, so the class would stick and keep the row lifted.
+    setTimeout(done, 400);
+  }
+
+  feed.addEventListener("pointerdown", (e) => {
+    g = null;
+    swallow = false;
+    cancelPress();
+    if (e.pointerType !== "touch" || !e.isPrimary || state.selecting) return;
+    const row = e.target.closest(".mail");
+    if (!row) return;
+    // The outer few px of the screen belong to the platform's back gesture,
+    // which no amount of touch-action can hold on to. Starting a swipe there
+    // races the browser and loses.
+    if (e.clientX < EDGE || e.clientX > innerWidth - EDGE) return;
+    g = { row, id: row.dataset.id, x: e.clientX, y: e.clientY, axis: null, dx: 0 };
+    const { clientX, clientY } = e;
+    press = setTimeout(() => {
+      g = null;
+      // Lifting a finger after a long press still synthesises a click, and
+      // nothing suppresses it: the menu opened, and the message opened behind
+      // it. Arm the same guard the swipe uses.
+      armSwallow();
+      openMailMenu({ clientX, clientY }, row.dataset.id);
+    }, PRESS_MS);
+  });
+
+  feed.addEventListener("pointermove", (e) => {
+    if (!g) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.axis) {
+      if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+      cancelPress();
+      // Vertical wins outright: the list scrolls, and this gesture is over.
+      if (Math.abs(dy) >= Math.abs(dx)) { g = null; return; }
+      g.axis = "x";
+      g.width = g.row.getBoundingClientRect().width;
+      feed.classList.add("swiping");
+      g.row.classList.add("swiping");
+      // No setPointerCapture: a touch pointer already has implicit capture on
+      // the element it went down on, and asking for it again drops the capture
+      // outright on Chrome, which strands the gesture a few pixels in.
+    }
+    // A poll can rebuild the list underneath the finger. Once the row is
+    // detached, moving it does nothing anyone can see -- let go instead.
+    if (!g.row.isConnected) { feed.classList.remove("swiping"); g = null; return; }
+    g.dx = dx;
+    g.row.style.translate = `${dx}px`;
+    g.row.classList.toggle("armed", Math.abs(dx) > g.width * COMMIT);
+  });
+
+  const end = (e) => {
+    cancelPress();
+    if (!g) return;
+    const gesture = g;
+    g = null;
+    if (gesture.axis !== "x") return;
+    feed.classList.remove("swiping");
+    armSwallow();
+    if (!gesture.row.isConnected) return;
+    const commit = e.type === "pointerup" && Math.abs(gesture.dx) > gesture.width * COMMIT;
+    if (!commit) { settle(gesture.row, "swipe-back"); return; }
+    // Send it the way it was going, then delete. deleteMessage adds .leaving
+    // and rebuilds the list; this just carries the row off screen first.
+    gesture.row.classList.remove("swiping", "armed");
+    gesture.row.classList.add("swipe-out");
+    gesture.row.style.translate = `${gesture.dx > 0 ? 110 : -110}%`;
+    deleteMessage(gesture.id);
+  };
+  feed.addEventListener("pointerup", end);
+  feed.addEventListener("pointercancel", end);
+
+  /* A finished swipe still ends in a click on some browsers, and that click
+     would open the message the user just threw away. It is swallowed in the
+     capture phase with stopImmediatePropagation, because there is a second
+     capture listener on this same node (the leak-card router in main.js) and
+     plain stopPropagation would not stop a sibling on the same node.
+
+     The flag is armed only by a gesture that actually went sideways, and it is
+     disarmed three ways -- by the click it was meant for, by the next
+     pointerdown, and by a timer -- so it can never sit waiting to eat an
+     unrelated tap later on. */
+  feed.addEventListener("click", (e) => {
+    if (!swallow) return;
+    swallow = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }, true);
+
+  feed.addEventListener("contextmenu", (e) => {
+    const row = e.target.closest(".mail");
+    if (!row) return;
+    e.preventDefault();
+    cancelPress();
+    g = null;
+    openMailMenu(e, row.dataset.id);
+  });
+  feed.addEventListener("scroll", () => { cancelPress(); closeMailMenu(); }, { passive: true });
 }
 
 /** Brings trashed messages back; the toast's Undo button lands here. */
