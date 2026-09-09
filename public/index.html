@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=71" />
+  <link rel="stylesheet" href="/style.css?v=72" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -393,6 +393,16 @@
           </form>
           <p class="hint">Mail is accepted for every domain routed to this Worker; this only sets what is shown and generated. The first one is the default.</p>
           <p class="hint" id="domain-note" hidden></p>
+        </section>
+
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-key"/></svg>Passkeys</h3>
+          <p class="hint">Sign in with your face, your fingerprint or a security key instead of typing the password. The password still works, and is how you get back in if you lose the device.</p>
+          <div class="passkey-list" id="passkey-list"></div>
+          <button type="button" class="btn sm primary" id="passkey-add">
+            <svg class="icon sm"><use href="#i-plus"/></svg><span>Add a passkey</span>
+          </button>
+          <p class="hint" id="passkey-note" hidden></p>
         </section>
 
         <section class="drawer-sec">
@@ -785,6 +795,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=71"></script>
+  <script type="module" src="/js/main.js?v=72"></script>
 </body>
 </html>

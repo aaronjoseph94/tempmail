@@ -150,6 +150,21 @@ const CREATE_JUNK_TOKENS = `CREATE TABLE IF NOT EXISTS junk_tokens (
 )`;
 
 /**
+ * Passkeys registered for this inbox.
+ *
+ * The public half only: a passkey's private key never leaves the device it was
+ * made on, which is the whole point of it.
+ */
+const CREATE_CREDENTIALS = `CREATE TABLE IF NOT EXISTS credentials (
+  id           TEXT PRIMARY KEY,
+  public_key   TEXT NOT NULL,
+  sign_count   INTEGER NOT NULL DEFAULT 0,
+  name         TEXT,
+  created_at   INTEGER NOT NULL,
+  last_used_at INTEGER
+)`;
+
+/**
  * What has been unsubscribed from, and how it went.
  *
  * Keyed by list rather than by sender: one company runs several lists, and
@@ -305,6 +320,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_JUNK_TOKENS),
     db.prepare(CREATE_RULES),
     db.prepare(CREATE_UNSUBSCRIBES),
+    db.prepare(CREATE_CREDENTIALS),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),

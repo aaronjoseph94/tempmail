@@ -3,6 +3,7 @@
 import { CACHE_KEY, PREFS, SCHEMES, state } from "./state.js";
 import { $, copyText, escapeHtml, hideToast, isDesktop, plural, reducedMotion, store, toast } from "./util.js";
 import { api, send } from "./api.js";
+import { loadPasskeys } from "./passkeys.js";
 import { poll, refresh } from "./data.js";
 import { brandName, moveSegHighlight, renderBrand, renderDomain, renderFeed, renderRail, renderStorage, renderTitle, visibleMessages } from "./render.js";
 import { bumpUnread, closeMessage, openMessage, prepareOpen, renderBody, sendInSlices } from "./viewer.js";
@@ -42,6 +43,7 @@ export function openSettings() {
   $("set-screener").checked = !!cfg.screener;
   renderJunkState();
   renderExport();
+  loadPasskeys().catch(() => {});
   $("set-autorefresh").checked = state.autoRefresh;
   $("set-images").checked = state.alwaysImages;
   $("set-clean-links").checked = state.cleanLinks;

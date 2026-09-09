@@ -7,8 +7,8 @@
  */
 
 import {
-  CLEAR_SESSION_COOKIE, checkPassword, clearFailedLogins, clientIp, createPassword, hasValidSession,
-  lockoutSecondsLeft, noteFailedLogin, passwordProblem, passwordSource, replacePassword, sessionCookie,
+  CLEAR_SESSION_COOKIE, checkPassword, checkTicket, clearFailedLogins, clientIp, createPassword, hasValidSession,
+  issueTicket, lockoutSecondsLeft, noteFailedLogin, passwordProblem, passwordSource, replacePassword, sessionCookie,
   timingSafeEqual,
 } from "./auth";
 import {
@@ -32,6 +32,10 @@ import { JUNK_MIN_TRAINED, junkTokens, trainTokens } from "./junk";
 import { MAX_RULES, MAX_RULE_VALUE, RULE_ACTIONS, RULE_FIELDS, isRuleAction, isRuleField, needsValue } from "./rules";
 import { htmlToText } from "./text";
 import { buildMessage, toMboxEntry, type ExportAttachment, type ExportMessage } from "./mime";
+import {
+  base64urlToBytes, bytesToBase64url, CHALLENGE_TTL_MS, counterLooksCloned, ES256, readAuthenticatorData,
+  readClientData, rpIdHash, sameBytes, verifyAssertion, type CredentialRow,
+} from "./webauthn";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
@@ -51,6 +55,8 @@ export async function handlePublicApi(request: Request, env: Env, url: URL, ctx?
   if (key === "POST /api/login") return login(request, env);
   if (key === "POST /api/setup") return setup(request, env);
   if (key === "POST /api/logout") return json({ ok: true }, 200, { "set-cookie": CLEAR_SESSION_COOKIE });
+  if (key === "POST /api/webauthn/login/options") return passkeyLoginOptions(request, env, url);
+  if (key === "POST /api/webauthn/login") return passkeyLogin(request, env, url);
   if (key === "POST /api/dev/ingest") return devIngest(request, env, url, ctx); // guarded by its own key
   return null;
 }
@@ -81,6 +87,9 @@ async function status(request: Request, env: Env): Promise<Response> {
     setupRequired: source === "none",
     passwordSource: source,
     brandName: await brandName(env),
+    // Whether to offer the passkey button at all. A count, not a list: the
+    // credential ids are handed out only when someone asks to sign in.
+    passkeys: (await env.DB.prepare("SELECT COUNT(*) AS n FROM credentials").first<{ n: number }>())?.n ?? 0,
   });
 }
 
@@ -158,6 +167,10 @@ const ROUTES = [
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
   route("GET", "/api/addresses/:address/subscriptions", listSubscriptions),
   route("POST", "/api/unsubscribe", unsubscribeMany),
+  route("GET", "/api/passkeys", listPasskeys),
+  route("POST", "/api/passkeys/options", passkeyRegisterOptions),
+  route("POST", "/api/passkeys", registerPasskey),
+  route("DELETE", "/api/passkeys/:id", forgetPasskey),
   route("GET", "/api/rules", listRules),
   route("PUT", "/api/rules", putRules),
   route("POST", "/api/junk", markJunk),
@@ -820,6 +833,175 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     box: row.box,
     boxReason: row.box_reason,
   });
+}
+
+/* ------------------------------------------------------------- passkeys */
+
+/**
+ * What the browser calls this site, and what it will compare against.
+ *
+ * Both come from the request rather than from configuration: a Worker answers
+ * on whatever hostname is pointed at it, and a passkey registered on one is not
+ * valid on another. Reading them from the request is what makes this work on
+ * the workers.dev name and on a custom domain without being told about either.
+ */
+function relyingParty(url: URL): { id: string; origin: string } {
+  return { id: url.hostname, origin: url.origin };
+}
+
+async function passkeyRows(db: D1Database): Promise<CredentialRow[]> {
+  const { results } = await db
+    .prepare("SELECT id, public_key, sign_count, name, created_at, last_used_at FROM credentials ORDER BY created_at")
+    .all<CredentialRow>();
+  return results;
+}
+
+/** GET /api/passkeys — the passkeys registered, without their keys. */
+async function listPasskeys({ env }: Ctx): Promise<Response> {
+  const rows = await passkeyRows(env.DB);
+  return json({
+    passkeys: rows.map((row) => ({ id: row.id, name: row.name, createdAt: row.created_at, lastUsedAt: row.last_used_at })),
+  });
+}
+
+/**
+ * POST /api/passkeys/options — what the browser needs to make one.
+ *
+ * The user handle is the same for every passkey here, because there is one
+ * account: that is what lets a second passkey replace a first on the same
+ * device rather than piling up.
+ */
+async function passkeyRegisterOptions({ env, url }: Ctx): Promise<Response> {
+  const rp = relyingParty(url);
+  const existing = await passkeyRows(env.DB);
+  return json({
+    challenge: await issueTicket(env, "passkey-register", CHALLENGE_TTL_MS),
+    rp: { id: rp.id, name: await brandName(env) },
+    user: { id: "owner", name: "owner", displayName: await brandName(env) },
+    pubKeyCredParams: [{ type: "public-key", alg: ES256 }],
+    excludeCredentials: existing.map((row) => ({ type: "public-key", id: row.id })),
+    timeout: CHALLENGE_TTL_MS,
+  });
+}
+
+/**
+ * POST /api/passkeys — stores one.
+ *
+ * The public key arrives as SPKI from the browser's own getPublicKey(), so
+ * there is no CBOR to parse and no COSE key to decode. A browser too old to
+ * offer it is told plainly rather than silently registering something that
+ * cannot be verified later.
+ */
+async function registerPasskey({ request, env, url }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  const rp = relyingParty(url);
+  const id = String(body.id ?? "");
+  const publicKey = String(body.publicKey ?? "");
+  const challenge = String(body.challenge ?? "");
+  if (!id || !publicKey) return json({ error: "This browser cannot make a passkey this inbox can check." }, 400);
+  if (Number(body.alg) !== ES256) return json({ error: "That passkey uses an algorithm this inbox does not accept." }, 400);
+  if (!(await checkTicket(env, "passkey-register", challenge))) {
+    return json({ error: "That took too long. Try again." }, 400);
+  }
+
+  const client = readClientData(base64urlToBytes(String(body.clientDataJSON ?? "")), {
+    type: "webauthn.create",
+    challenge: bytesToBase64url(new TextEncoder().encode(challenge)),
+    origin: rp.origin,
+  });
+  if (!client.ok) return json({ error: client.why }, 400);
+
+  const name = String(body.name ?? "").trim().slice(0, 40) || "Passkey";
+  await env.DB
+    .prepare(
+      `INSERT INTO credentials (id, public_key, sign_count, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET public_key = excluded.public_key, name = excluded.name`
+    )
+    .bind(id.slice(0, 400), publicKey.slice(0, 2000), Number(body.signCount) || 0, name, Date.now())
+    .run();
+  return listPasskeys({ env } as Ctx);
+}
+
+/**
+ * DELETE /api/passkeys/:id
+ *
+ * Removing the last one is allowed: the password is still there, and a passkey
+ * that cannot be removed is worse than none.
+ */
+async function forgetPasskey({ env, params }: Ctx): Promise<Response> {
+  await env.DB.prepare("DELETE FROM credentials WHERE id = ?1").bind(params.id).run();
+  return listPasskeys({ env } as Ctx);
+}
+
+/** POST /api/webauthn/login/options — before there is a session. */
+async function passkeyLoginOptions(_request: Request, env: Env, url: URL): Promise<Response> {
+  const rows = await passkeyRows(env.DB);
+  if (!rows.length) return json({ error: "No passkeys are registered." }, 404);
+  return json({
+    challenge: await issueTicket(env, "passkey-login", CHALLENGE_TTL_MS),
+    rpId: relyingParty(url).id,
+    allowCredentials: rows.map((row) => ({ type: "public-key", id: row.id })),
+    timeout: CHALLENGE_TTL_MS,
+  });
+}
+
+/**
+ * POST /api/webauthn/login — the assertion, and a session if it holds up.
+ *
+ * Throttled on the same counter as the password, so a passkey cannot be used
+ * to sidestep the lockout, and a failure here costs an attempt just as a wrong
+ * password does.
+ */
+async function passkeyLogin(request: Request, env: Env, url: URL): Promise<Response> {
+  const ip = clientIp(request);
+  const locked = lockoutSecondsLeft(ip);
+  if (locked > 0) return json({ error: `Too many attempts. Try again in ${describeWait(locked)}.` }, 429);
+
+  const body = await readJson(request);
+  const rp = relyingParty(url);
+  const challenge = String(body.challenge ?? "");
+  const id = String(body.id ?? "");
+  const refuse = (why: string, status = 401) => {
+    noteFailedLogin(ip);
+    return json({ error: why }, status);
+  };
+
+  if (!(await checkTicket(env, "passkey-login", challenge))) return refuse("That sign-in expired. Try again.", 400);
+
+  const row = await env.DB
+    .prepare("SELECT id, public_key, sign_count, name, created_at, last_used_at FROM credentials WHERE id = ?1")
+    .bind(id)
+    .first<CredentialRow>();
+  if (!row) return refuse("That passkey is not registered here.");
+
+  const client = readClientData(base64urlToBytes(String(body.clientDataJSON ?? "")), {
+    type: "webauthn.get",
+    challenge: bytesToBase64url(new TextEncoder().encode(challenge)),
+    origin: rp.origin,
+  });
+  if (!client.ok) return refuse(client.why);
+
+  const authenticatorData = base64urlToBytes(String(body.authenticatorData ?? ""));
+  const parsed = readAuthenticatorData(authenticatorData);
+  if (!parsed) return refuse("That passkey sent something this inbox cannot read.");
+  if (!sameBytes(parsed.rpIdHash, await rpIdHash(rp.id))) return refuse("That passkey belongs to a different site.");
+  if (!parsed.userPresent) return refuse("Nobody was there when that passkey answered.");
+  if (counterLooksCloned(row.sign_count, parsed.signCount)) return refuse("That passkey looks like a copy of one.");
+
+  const held = await verifyAssertion({
+    publicKeySpki: base64urlToBytes(row.public_key),
+    authenticatorData,
+    clientDataJSON: base64urlToBytes(String(body.clientDataJSON ?? "")),
+    signature: base64urlToBytes(String(body.signature ?? "")),
+  });
+  if (!held) return refuse("That passkey did not check out.");
+
+  await env.DB
+    .prepare("UPDATE credentials SET sign_count = ?2, last_used_at = ?3 WHERE id = ?1")
+    .bind(row.id, parsed.signCount, Date.now())
+    .run();
+  clearFailedLogins(ip);
+  return json({ ok: true }, 200, { "set-cookie": await sessionCookie(env) });
 }
 
 /* ---------------------------------------------------------------- rules */

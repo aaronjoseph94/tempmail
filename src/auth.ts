@@ -206,6 +206,57 @@ export async function sessionCookie(env: Env): Promise<string> {
 
 export const CLEAR_SESSION_COOKIE = `${SESSION_COOKIE}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
 
+/* -------------------------------------------------------------- tickets */
+
+/**
+ * A short-lived signed string, for a ceremony that has to survive one round
+ * trip without anything being written down.
+ *
+ * Used as the WebAuthn challenge. The alternative -- a row per pending
+ * ceremony -- would mean an unauthenticated caller could write to the database
+ * simply by asking to sign in, which is a worse problem than the one it solves.
+ *
+ * Signed with the session secret, so it is only valid for this instance, and
+ * carries its own expiry.
+ */
+export async function issueTicket(env: Env, purpose: string, ttlMs: number): Promise<string> {
+  const key = await loadSigningKey(env);
+  if (!key) throw new Error("no password configured");
+  const body = `${purpose}.${randomHex(16)}.${Date.now() + ttlMs}`;
+  return `${body}.${await hmacHex(key.secret, body)}`;
+}
+
+/**
+ * Whether a ticket is one we issued, for this purpose, and still valid.
+ *
+ * Single use is enforced in memory rather than in the database, for the same
+ * reason the ticket is not a row: an unauthenticated caller must not be able to
+ * make us write. Isolates come and go, so a replay of a captured assertion
+ * inside the ticket's two-minute life could in principle land on a different
+ * isolate -- an attacker who can already read TLS traffic. The password path
+ * has the same exposure and the trade is deliberate.
+ */
+const usedTickets = new Map<string, number>();
+
+export async function checkTicket(env: Env, purpose: string, ticket: string): Promise<boolean> {
+  const parts = ticket.split(".");
+  if (parts.length !== 4) return false;
+  const [kind, , expiry, signature] = parts;
+  if (kind !== purpose) return false;
+  const expiresAt = Number(expiry);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt < Date.now()) return false;
+
+  const key = await loadSigningKey(env);
+  if (!key) return false;
+  if (!timingSafeEqual(signature, await hmacHex(key.secret, parts.slice(0, 3).join(".")))) return false;
+
+  const now = Date.now();
+  for (const [seen, at] of usedTickets) if (at < now) usedTickets.delete(seen);
+  if (usedTickets.has(ticket)) return false;
+  usedTickets.set(ticket, expiresAt);
+  return true;
+}
+
 /* ------------------------------------------------------- login throttle */
 
 // Best effort and per isolate: five failures from one IP lock it out for 15

@@ -9,7 +9,7 @@ describe("first-run setup", () => {
     // sign-in page reads this before any session exists, and it is the only
     // endpoint that answers then.
     const status = await json(await call("/api/status"));
-    expect(status).toEqual({ authed: false, setupRequired: true, passwordSource: "none", brandName: "Temp Email" });
+    expect(status).toEqual({ authed: false, setupRequired: true, passwordSource: "none", brandName: "Temp Email", passkeys: 0 });
   });
 
   it("refuses to sign in before a password exists", async () => {

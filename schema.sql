@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS senders (
   first_seen_at INTEGER
 );
 
+-- Passkeys registered for this inbox: the public half only, because a passkey's
+-- private key never leaves the device it was made on.
+CREATE TABLE IF NOT EXISTS credentials (
+  id           TEXT PRIMARY KEY,                  -- the credential id, base64url
+  public_key   TEXT NOT NULL,                     -- SPKI, base64url, ES256
+  sign_count   INTEGER NOT NULL DEFAULT 0,
+  name         TEXT,
+  created_at   INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+
 -- What has been unsubscribed from, and how it went. Keyed by list rather than
 -- by sender: one company runs several, and leaving one is not leaving the rest.
 CREATE TABLE IF NOT EXISTS unsubscribes (

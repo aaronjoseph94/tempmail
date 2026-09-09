@@ -773,6 +773,24 @@ select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--r
 .sub-meta { font-size: var(--t-sm); color: var(--ink3); }
 .sub-status.ok { color: var(--signal); }
 .sub-status.bad { color: var(--danger); }
+
+/* ---- passkeys ---- */
+.passkey-list:empty { display: none; }
+.passkey-list { display: flex; flex-direction: column; gap: 4px; }
+.passkey-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; min-height: max(40px, var(--tap-min));
+  background: var(--c3); border-radius: var(--r-md);
+}
+.passkey-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.passkey-name { font-size: var(--t-md); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.passkey-when { font-size: var(--t-sm); color: var(--ink3); }
+.passkey-drop {
+  display: grid; place-items: center; flex: none;
+  width: max(36px, var(--tap-min)); height: max(36px, var(--tap-min));
+  color: var(--ink3); background: none; border: 0; border-radius: var(--r-md); cursor: pointer;
+}
+.passkey-drop:hover { color: var(--danger); background: var(--c5); }
 .rule-tools .toggle[aria-pressed="true"] { color: var(--accent); }
 .rule-form { display: flex; flex-direction: column; gap: 10px; }
 @media (min-width: 560px) {

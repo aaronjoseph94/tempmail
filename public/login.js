@@ -137,6 +137,67 @@
     document.title = `${name} \u00b7 sign in`;
   }
 
+  /* ------------------------------------------------------------ passkeys */
+
+  const base64url = {
+    toBytes(value) {
+      const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+      const binary = atob(padded);
+      const out = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+      return out;
+    },
+    fromBuffer(buffer) {
+      let binary = "";
+      for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    },
+  };
+
+  const passkeysUsable = () =>
+    typeof PublicKeyCredential !== "undefined" && !!navigator.credentials?.get && isSecureContext;
+
+  /**
+   * Signs in with a passkey.
+   *
+   * The challenge is the server's own signed string, sent as bytes: the
+   * authenticator signs over it, and the server checks its own signature on
+   * the way back rather than having stored anything in the meantime.
+   */
+  async function signInWithPasskey() {
+    const button = $("passkey-btn");
+    showError("");
+    button.disabled = true;
+    try {
+      const options = await post("/api/webauthn/login/options", {});
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: new TextEncoder().encode(options.challenge),
+          rpId: options.rpId,
+          timeout: options.timeout,
+          userVerification: "preferred",
+          allowCredentials: options.allowCredentials.map((c) => ({ type: "public-key", id: base64url.toBytes(c.id) })),
+        },
+      });
+      if (!assertion) throw new Error("No passkey was offered.");
+      await post("/api/webauthn/login", {
+        id: assertion.id,
+        challenge: options.challenge,
+        clientDataJSON: base64url.fromBuffer(assertion.response.clientDataJSON),
+        authenticatorData: base64url.fromBuffer(assertion.response.authenticatorData),
+        signature: base64url.fromBuffer(assertion.response.signature),
+      });
+      location.replace("/");
+    } catch (err) {
+      // A cancelled prompt is a decision, not a failure worth shouting about.
+      if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) showError("");
+      else showError(err.message || "That passkey did not work.");
+      button.disabled = false;
+    }
+  }
+
+  $("passkey-btn").addEventListener("click", signInWithPasskey);
+
   fetch("/api/status")
     .then((res) => res.json())
     .then((status) => {
@@ -148,6 +209,7 @@
         show(setupForm);
       } else {
         show(loginForm);
+        $("passkey-btn").hidden = !(status.passkeys > 0 && passkeysUsable());
       }
     })
     .catch(() => show(loginForm));

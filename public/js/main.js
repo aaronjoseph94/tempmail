@@ -15,6 +15,7 @@ import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSeg
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
 import { closeSubs, onSubClick, openSubs, runSubs } from "./subs.js";
+import { addPasskey, onPasskeyClick } from "./passkeys.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, updateExportLink, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
@@ -247,6 +248,8 @@ $("set-clean-links").addEventListener("change", (e) => setCleanLinks(e.target.ch
 $("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
 $("junk-forget").addEventListener("click", forgetJunk);
 $("export-scope").addEventListener("change", updateExportLink);
+$("passkey-add").addEventListener("click", addPasskey);
+$("passkey-list").addEventListener("click", onPasskeyClick);
 
 /* Rules */
 fillRuleForm();
