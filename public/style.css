@@ -1429,6 +1429,9 @@ body.waiting { overflow: hidden; }
    and the affirmative answer is the only thing with any weight. */
 .leak-strip.screen { background: var(--c3); color: var(--ink2); box-shadow: inset 0 0 0 1px var(--c7); }
 .leak-strip.screen .icon { color: var(--ink3); }
+/* Quieter still: this one reports rather than asks, so it reads as a footnote
+   the eye can skip. */
+.leak-strip.quiet { background: none; box-shadow: none; padding: 2px 2px 8px; color: var(--ink3); font-size: var(--t-sm); }
 
 /* Leak cards in the list column. */
 .leak {

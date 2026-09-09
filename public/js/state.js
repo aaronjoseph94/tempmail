@@ -26,6 +26,7 @@ export const state = {
   nextCursor: null,
   windowSize: PAGE_SIZE, // how many messages the list holds and each poll refreshes
   open: null,            // full message object in the viewer
+  prepared: null,        // the open message's cleaned body, trackers and links
   showHtml: true,
   imagesAllowed: false,
   newestSeen: 0,         // receivedAt of the newest mail seen; newer than this is "new"
@@ -44,12 +45,13 @@ export const state = {
   selecting: false,
   picked: new Set(),
   alwaysImages: false,
+  cleanLinks: true,      // strip follow-me parameters and unwrap redirects
 };
 
 /** Preference keys kept per device rather than on the server. */
 export const PREFS = {
   sound: "sound", notify: "notify", autoRefresh: "auto_refresh",
-  images: "always_images", address: "address", theme: "theme", push: "push",
+  images: "always_images", cleanLinks: "clean_links", address: "address", theme: "theme", push: "push",
   scheme: "scheme", leaksSeen: "leaks_seen",
 };
 

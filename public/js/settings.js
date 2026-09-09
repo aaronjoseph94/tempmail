@@ -5,7 +5,7 @@ import { $, copyText, escapeHtml, hideToast, isDesktop, plural, reducedMotion, s
 import { api, send } from "./api.js";
 import { poll, refresh } from "./data.js";
 import { brandName, moveSegHighlight, renderBrand, renderDomain, renderFeed, renderRail, renderStorage, renderTitle, visibleMessages } from "./render.js";
-import { bumpUnread, closeMessage, openMessage, sendInSlices } from "./viewer.js";
+import { bumpUnread, closeMessage, openMessage, prepareOpen, renderBody, sendInSlices } from "./viewer.js";
 
 /* --------------------------------------------------------------- settings */
 
@@ -43,6 +43,7 @@ export function openSettings() {
   renderJunkState();
   $("set-autorefresh").checked = state.autoRefresh;
   $("set-images").checked = state.alwaysImages;
+  $("set-clean-links").checked = state.cleanLinks;
   $("set-sound").checked = state.sound;
   $("set-notify").checked = state.notify && "Notification" in window && Notification.permission === "granted";
   syncPushSwitch().catch(() => {});
@@ -121,6 +122,20 @@ export function setAlwaysImages(on) {
   state.alwaysImages = on;
   store.set(PREFS.images, on ? "on" : "off");
   $("set-images").checked = on;
+}
+
+/**
+ * Whether links are cleaned before they are shown.
+ *
+ * On by default, and switchable because this rewrites what the sender wrote. A
+ * link that has been over-cleaned is a broken link, and when that happens the
+ * owner needs a way to see the original rather than a bug report to file.
+ */
+export function setCleanLinks(on) {
+  state.cleanLinks = on;
+  store.set(PREFS.cleanLinks, on ? "on" : "off");
+  $("set-clean-links").checked = on;
+  if (state.open) { prepareOpen(); renderBody(); }
 }
 
 /**

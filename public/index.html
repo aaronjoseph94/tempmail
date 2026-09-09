@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=67" />
+  <link rel="stylesheet" href="/style.css?v=68" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -293,6 +293,11 @@
           <button type="button" class="btn sm" id="msg-warn-plain">Show plain text</button>
         </div>
 
+        <div id="msg-privacy" class="leak-strip screen quiet" hidden>
+          <svg class="icon sm" aria-hidden="true"><use href="#i-eye-off"/></svg>
+          <span id="msg-privacy-text"></span>
+        </div>
+
         <div id="msg-junk" class="leak-strip screen" hidden>
           <svg class="icon sm" aria-hidden="true"><use href="#i-ban"/></svg>
           <span id="msg-junk-text"></span>
@@ -463,6 +468,10 @@
           <label class="switch">
             <input type="checkbox" id="set-images" /><span class="track"></span>
             <span class="label">Always load remote images<small>Off keeps tracking pixels blocked until you ask</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-clean-links" checked /><span class="track"></span>
+            <span class="label">Clean up links<small>Removes the codes that follow you between sites, and shows where a redirect really goes</small></span>
           </label>
         </section>
 
@@ -730,6 +739,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=67"></script>
+  <script type="module" src="/js/main.js?v=68"></script>
 </body>
 </html>

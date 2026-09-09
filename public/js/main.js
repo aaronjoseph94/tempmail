@@ -15,7 +15,7 @@ import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSeg
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
-import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
+import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
@@ -242,6 +242,7 @@ $("label-form").addEventListener("submit", (e) => {
 $("limits-form").addEventListener("submit", saveLimits);
 $("set-autorefresh").addEventListener("change", (e) => setAutoRefresh(e.target.checked));
 $("set-images").addEventListener("change", (e) => setAlwaysImages(e.target.checked));
+$("set-clean-links").addEventListener("change", (e) => setCleanLinks(e.target.checked));
 $("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
 $("junk-forget").addEventListener("click", forgetJunk);
 
@@ -320,6 +321,8 @@ window.addEventListener("online", () => {
   state.notify = store.get(PREFS.notify) === "on";
   state.autoRefresh = store.get(PREFS.autoRefresh) !== "off";
   state.alwaysImages = store.get(PREFS.images) === "on";
+  // On unless it has been turned off: the default is the point of the feature.
+  state.cleanLinks = store.get(PREFS.cleanLinks) !== "off";
   state.leaksSeen = Number(store.get(PREFS.leaksSeen)) || 0;
   $("domain-pill").classList.toggle("paused", !state.autoRefresh);
   state.address = store.get(PREFS.address) || generateAddress();

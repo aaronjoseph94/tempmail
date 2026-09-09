@@ -2,6 +2,7 @@
 
 import { state } from "./state.js";
 import { $, copyText, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, linkify, markCodes, plural, senderLabel, toast } from "./util.js";
+import { cleanLink, looksLikeTracker, trackerCompany } from "./trackers.js";
 import { api, send } from "./api.js";
 import { poll, refresh } from "./data.js";
 import { closeListMenu, domainOf, moveSegHighlight, relatedDomain, renderFeed, renderRail, renderTitle, toggleBlock, toggleStar, visibleMessages } from "./render.js";
@@ -59,6 +60,8 @@ function renderViewer() {
   $("message").hidden = !msg;
   if (!msg) return;
 
+  prepareOpen();
+
   const from = senderLabel(msg);
   $("msg-subject").textContent = msg.subject || "(no subject)";
   const avatar = $("msg-avatar");
@@ -70,6 +73,7 @@ function renderViewer() {
   renderAuthBadge(msg);
   renderUnsubChip(msg);
   renderWarnStrip(msg);
+  renderPrivacyStrip();
   // Angle brackets are mail-header syntax; on a line of its own the address
   // needs no delimiters. Hidden outright when the name slot already holds it,
   // so the sender block never carries a blank row.
@@ -121,33 +125,104 @@ function hasRemoteImages(html) {
 }
 
 /**
- * Makes an email's HTML safe to display: no scripts, no meta refresh, no
- * <base> hijack, inline cid: images resolved from the attachments, links
- * opening in a new tab, and a Content-Security-Policy that blocks remote
- * images (tracking pixels) until the reader asks for them.
+ * Makes an email's HTML safe to display, and reports what it found.
+ *
+ * Parsed rather than pattern-matched. A regex over markup gets `&amp;` inside
+ * an href wrong -- which is how most real query strings are written, so half
+ * the tracking parameters would survive a cleaning pass that never noticed --
+ * and it cannot tell an <img> that is one pixel across from one that is not.
+ * DOMParser runs no scripts and loads nothing, so parsing is not a risk here;
+ * it is simply the tool that reads HTML correctly.
+ *
+ * Returns the cleaned body along with what was blocked and what was tidied, so
+ * the reader can be told rather than left to wonder.
  */
-function prepareHtml(html, attachments, allowImages, messageId) {
-  const inline = new Map();
-  attachments.forEach((a, idx) => {
-    if (a.contentId && a.stored) {
-      inline.set(a.contentId.toLowerCase(), `/api/messages/${encodeURIComponent(messageId)}/attachments/${idx}?inline=1`);
-    }
-  });
+function prepareMessage(html, attachments, messageId) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
 
-  let out = html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
-    .replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, "")
-    .replace(/<base\b[^>]*>/gi, "");
-
-  if (inline.size) {
-    out = out.replace(/(src|background)\s*=\s*(["']?)cid:([^"'\s>]+)\2/gi, (whole, attr, quote, id) => {
-      let key = id;
-      try { key = decodeURIComponent(id); } catch { /* use it as-is */ }
-      const url = inline.get(key.toLowerCase());
-      return url ? `${attr}="${url}"` : whole;
-    });
+  // No scripts, no meta-refresh, and no <base> of the sender's choosing.
+  for (const node of doc.querySelectorAll("script, base")) node.remove();
+  for (const meta of doc.querySelectorAll("meta")) {
+    if ((meta.getAttribute("http-equiv") || "").toLowerCase() === "refresh") meta.remove();
   }
 
+  // Inline images, resolved to the endpoint that serves the attachment.
+  const inline = new Map();
+  attachments.forEach((attachment, index) => {
+    if (attachment.contentId && attachment.stored) {
+      inline.set(attachment.contentId.toLowerCase(), `/api/messages/${encodeURIComponent(messageId)}/attachments/${index}?inline=1`);
+    }
+  });
+  if (inline.size) {
+    for (const node of doc.querySelectorAll("[src^='cid:'], [background^='cid:']")) {
+      for (const attribute of ["src", "background"]) {
+        const value = node.getAttribute(attribute);
+        if (!value || !/^cid:/i.test(value)) continue;
+        let key = value.slice(4);
+        try { key = decodeURIComponent(key); } catch { /* use it as it came */ }
+        const url = inline.get(key.toLowerCase());
+        if (url) node.setAttribute(attribute, url);
+      }
+    }
+  }
+
+  // Who is watching. The images are blocked by the frame's own policy whether
+  // or not they are recognised here; this only puts names to them.
+  const companies = new Map();
+  let pixels = 0;
+  for (const image of doc.querySelectorAll("img[src]")) {
+    let url;
+    try {
+      url = new URL(image.getAttribute("src"), "https://mail.invalid/");
+    } catch {
+      continue;
+    }
+    if (url.hostname === "mail.invalid") continue;                 // inline or relative
+    if (!looksLikeTracker(url, image.getAttribute("width"), image.getAttribute("height"))) continue;
+    pixels++;
+    const company = trackerCompany(url.hostname) ?? url.hostname.replace(/^www\./, "");
+    companies.set(company, (companies.get(company) ?? 0) + 1);
+  }
+
+  // Where the links really go. Switched off, the message keeps the links the
+  // sender wrote -- the destination is still named, which costs nothing.
+  let cleaned = 0;
+  let unwrapped = 0;
+  for (const anchor of doc.querySelectorAll("a[href]")) {
+    const result = cleanLink(anchor.getAttribute("href"));
+    if (!result) continue;
+    if (state.cleanLinks && (result.unwrapped || result.stripped)) {
+      anchor.setAttribute("href", result.url.toString());
+      cleaned++;
+      if (result.unwrapped) unwrapped++;
+    }
+    // The true destination, as a native tooltip. The frame is sandboxed and
+    // runs no script of ours, so an attribute the browser itself renders is
+    // the only hover this side of the boundary that can work at all.
+    anchor.setAttribute("title", result.host);
+  }
+
+  return {
+    body: doc.head.innerHTML + doc.body.innerHTML,
+    trackers: { count: pixels, companies: [...companies.keys()] },
+    links: { cleaned, unwrapped },
+  };
+}
+
+/**
+ * Cleans the open message once and keeps the result.
+ *
+ * What the cleaning finds does not depend on whether images are allowed -- only
+ * the policy in frameDocument() does -- so this runs when the message opens and
+ * again only if the owner changes their mind about cleaning links at all.
+ */
+export function prepareOpen() {
+  const msg = state.open;
+  state.prepared = msg?.htmlBody ? prepareMessage(msg.htmlBody, msg.attachments || [], msg.id) : null;
+}
+
+/** Wraps a prepared body in the frame document, with the policy for it. */
+function frameDocument(body, allowImages) {
   // 'self' covers the inline-image endpoint; remote hosts stay blocked until
   // the reader asks for them, so tracking pixels do not fire on open.
   const csp = `default-src 'none'; img-src 'self' data: blob:${allowImages ? " https: http:" : ""}; style-src 'unsafe-inline'; font-src data:`;
@@ -160,7 +235,7 @@ function prepareHtml(html, attachments, allowImages, messageId) {
   // Always wrap. Looking for the message's own <head> with a regex meant a
   // "<head>" inside a comment or an attribute value could place the policy
   // where it does not apply, leaving the document with no CSP at all.
-  return `<!doctype html><html><head>${head}</head><body>${out}</body></html>`;
+  return `<!doctype html><html><head>${head}</head><body>${body}</body></html>`;
 }
 
 let frameObserver = null;
@@ -176,6 +251,8 @@ export function renderBody() {
   moveSegHighlight();
   $("btn-images").querySelector("span").textContent = state.imagesAllowed ? "Hide images" : "Load images";
   $("btn-images").setAttribute("aria-pressed", String(state.imagesAllowed));
+  // The line changes with the answer: blocked, or allowed to fire after all.
+  renderPrivacyStrip();
   $("msg-body").classList.toggle("plain", !useHtml);
   frame.hidden = !useHtml;
   text.hidden = useHtml;
@@ -186,7 +263,7 @@ export function renderBody() {
     const held = frame.getBoundingClientRect().height;
     if (held > 0) frame.style.height = `${held}px`;
     frame.onload = () => fitFrame(frame);
-    frame.srcdoc = prepareHtml(msg.htmlBody, msg.attachments || [], state.imagesAllowed, msg.id);
+    frame.srcdoc = frameDocument(state.prepared?.body ?? "", state.imagesAllowed);
   } else {
     frameObserver?.disconnect();
     frame.srcdoc = "";
@@ -632,11 +709,46 @@ function editDistance(a, b) {
 function renderWarnStrip(msg) {
   const strip = $("msg-warn");
   const entry = state.addresses.find((a) => a.address === msg.address);
-  const flags = analyseLinks(msg.htmlBody, [entry?.ownerDomain, domainOf(msg.fromAddress)]);
+  const flags = analyseLinks(state.prepared?.body ?? msg.htmlBody, [entry?.ownerDomain, domainOf(msg.fromAddress)]);
   strip.hidden = flags.length === 0;
   if (!flags.length) return;
   $("msg-warn-text").textContent = `Links in this message look suspicious. ${flags.join(". ")}.`;
   $("msg-warn-plain").hidden = !msg.textBody;
+}
+
+/**
+ * What was blocked and what was tidied, in one line.
+ *
+ * The app already blocked tracking pixels and said nothing about it, which is
+ * the least useful way to do a good thing. Naming the companies is the whole
+ * point: "blocked 3 trackers" is trivia, "Mailchimp, Meta and Segment" is
+ * information.
+ */
+export function renderPrivacyStrip() {
+  const strip = $("msg-privacy");
+  const found = state.prepared;
+  const trackers = found?.trackers.count ?? 0;
+  const cleaned = found?.links.cleaned ?? 0;
+  strip.hidden = trackers === 0 && cleaned === 0;
+  if (strip.hidden) return;
+
+  const parts = [];
+  if (trackers) {
+    const who = found.trackers.companies.slice(0, 3).join(", ");
+    const rest = found.trackers.companies.length - 3;
+    const named = who ? ` — ${who}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    parts.push(state.imagesAllowed
+      ? `${plural(trackers, "tracker")} allowed to load${named}`
+      : `Blocked ${plural(trackers, "tracker")}${named}`);
+  }
+  if (cleaned) {
+    parts.push(found.links.unwrapped
+      ? `cleaned ${plural(cleaned, "link")}, ${found.links.unwrapped} of them redirects`
+      : `cleaned ${plural(cleaned, "link")}`);
+  }
+  // Sentence case, however the pieces line up.
+  const text = parts.join(" · ");
+  $("msg-privacy-text").textContent = text.charAt(0).toUpperCase() + text.slice(1) + ".";
 }
 
 /**
