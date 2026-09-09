@@ -2,7 +2,9 @@
  * The classification spine: every message lands in a box, and a list only
  * ever shows the box it asked for.
  */
+import { createScheduledController } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import worker from "../src/index";
 import { KEEP_ORDER, LIMIT_RANGES } from "../src/limits";
 import { buildMail, call, deliver, env, freshDatabase, json, signIn } from "./helpers";
 
@@ -451,5 +453,60 @@ describe("rules", () => {
     await env.DB.prepare("DROP TABLE rules").run();
     expect(await deliver(buildMail({ subject: "Survives" }), "a@mail.example.test")).toEqual([]);
     expect((await boxOf("Survives"))?.box).toBe("inbox");
+  });
+});
+
+describe("searching inside messages", () => {
+  const find = async (q: string) => json(await call(`/api/messages?q=${encodeURIComponent(q)}`, { cookie }));
+
+  /* Past the 160 characters that become the snippet, so the word really is
+     only in the body and not already on screen in the list. */
+  const buried = (word: string) => `${"Thank you for your recent order with us. ".repeat(8)}The reference is ${word}.`;
+
+  it("finds words that appear only in the body", async () => {
+    await deliver(buildMail({ subject: "Nothing useful here", text: buried("PLUMBUS-4417") }), "a@mail.example.test");
+    const found = await find("plumbus");
+    expect(found.messages.map((m: any) => m.subject)).toEqual(["Nothing useful here"]);
+    expect(found.messages[0].foundInBody).toBe(true);
+  });
+
+  it("says when the match was somewhere already on screen", async () => {
+    await deliver(buildMail({ subject: "Visible words", text: "unrelated body" }), "a@mail.example.test");
+    const found = await find("visible");
+    expect(found.messages[0].foundInBody).toBe(false);
+  });
+
+  it("looks inside an HTML-only message too", async () => {
+    await deliver(buildMail({ subject: "Rich", text: null, html: `<p>${buried("<b>quokka</b>")}</p>` }), "a@mail.example.test");
+    expect((await find("quokka")).messages.map((m: any) => m.subject)).toEqual(["Rich"]);
+  });
+
+  it("keeps searching scoped to the box and the address", async () => {
+    await deliver(buildMail({ subject: "Findable one", text: "shared needle word" }), "one@mail.example.test");
+    await deliver(buildMail({ subject: "Findable two", text: "shared needle word" }), "two@mail.example.test");
+    await env.DB.prepare("UPDATE messages SET box = 'junk' WHERE subject = 'Findable two'").run();
+
+    expect((await find("needle")).messages.map((m: any) => m.subject)).toEqual(["Findable one"]);
+    const junk = await json(await call("/api/messages?box=junk&q=needle", { cookie }));
+    expect(junk.messages.map((m: any) => m.subject)).toEqual(["Findable two"]);
+    const scoped = await json(await call("/api/messages?address=one@mail.example.test&q=needle", { cookie }));
+    expect(scoped.messages).toHaveLength(1);
+  });
+
+  it("treats a wildcard as a character, not a pattern", async () => {
+    await deliver(buildMail({ subject: "Percent", text: "one hundred percent" }), "a@mail.example.test");
+    // "%" unescaped would match every message ever stored.
+    expect((await find("%")).messages).toHaveLength(0);
+    expect((await find("_")).messages).toHaveLength(0);
+  });
+
+  it("makes older mail searchable in the background", async () => {
+    await deliver(buildMail({ subject: "Older", text: buried("haystack") }), "a@mail.example.test");
+    // As though it had arrived before the column existed.
+    await env.DB.prepare("UPDATE messages SET search_text = NULL WHERE subject = 'Older'").run();
+    expect((await find("haystack")).messages).toHaveLength(0);
+
+    await worker.scheduled(createScheduledController(), env, { waitUntil() {}, passThroughOnException() {} } as any);
+    expect((await find("haystack")).messages.map((m: any) => m.subject)).toEqual(["Older"]);
   });
 });

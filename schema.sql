@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS messages (
   -- Which mailbox the message landed in and why (see src/classify.ts).
   box          TEXT NOT NULL DEFAULT 'inbox', -- inbox | screener | junk
   box_reason   TEXT,                       -- one line for the reader: why it is here
-  trained      TEXT                        -- what this taught the junk filter: NULL | junk | ham
+  trained      TEXT,                       -- what this taught the junk filter: NULL | junk | ham
+  search_text  TEXT                        -- the message as flat text, clipped, so search can look inside it
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_address ON messages (address, received_at DESC);

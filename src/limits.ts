@@ -33,6 +33,16 @@ export const MAX_RAW_BYTES = 25 * 1024 * 1024;
 /** Each stored body (text and HTML separately) is cut at this many characters. */
 export const MAX_BODY_CHARS = 250_000;
 
+/**
+ * How much of a message search looks inside.
+ *
+ * Enough for anything anyone searches for -- the sender, the order number, the
+ * one sentence they remember -- and small enough that scanning every message
+ * stays a scan rather than an outing. A quarter-megabyte body is nearly all
+ * quoted history and CSS.
+ */
+export const SEARCH_TEXT_CHARS = 8_000;
+
 /** Attachment bytes kept per message. Anything past it keeps name and size only. */
 export const ATTACHMENT_STORE_CAP = 25 * 1024 * 1024;
 

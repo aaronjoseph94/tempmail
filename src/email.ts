@@ -15,7 +15,7 @@ import { deleteMessagesByIds } from "./db";
 import { headerValue, parseAuthResults, parseSentAt } from "./headers";
 import { pokeHub } from "./live";
 import { anySubscriptions, sendPush } from "./push";
-import { ATTACHMENT_CHUNK_CHARS, ATTACHMENT_CHUNKS_PER_WRITE, MAX_BODY_CHARS, resolveLimits } from "./limits";
+import { ATTACHMENT_CHUNK_CHARS, ATTACHMENT_CHUNKS_PER_WRITE, MAX_BODY_CHARS, SEARCH_TEXT_CHARS, resolveLimits } from "./limits";
 import { extractCode, htmlToText, makeSnippet } from "./text";
 
 export interface StoredAttachment {
@@ -165,8 +165,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     `INSERT INTO messages
        (id, address, from_name, from_address, subject, snippet, code, text_body, html_body, attachments, received_at, read, starred,
         message_id, in_reply_to, references_hdr, reply_to, sent_at, list_unsubscribe, list_unsubscribe_post, auth_results, auth_summary,
-        box, box_reason, deleted_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?21, ?22, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?23, ?24, ?25)`
+        box, box_reason, deleted_at, search_text)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?21, ?22, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?23, ?24, ?25, ?26)`
   )
     .bind(
       id,
@@ -193,7 +193,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
       verdict.star ? 1 : 0,
       verdict.box,
       verdict.reason,
-      verdict.trash ? now : null
+      verdict.trash ? now : null,
+      searchText(plain)
     )
     .run();
 
@@ -229,6 +230,13 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
 
   console.log("stored mail for", to, "in", verdict.box, "subject:", subject);
   return { ok: true, id, address: to, code, from: sender.name || sender.address, subject, box: verdict.box, trashed: verdict.trash };
+}
+
+/** What search reads: the message as text, clipped and whitespace-collapsed. */
+export function searchText(plain: string | null): string | null {
+  if (!plain) return null;
+  const flat = plain.replace(/\s+/g, " ").trim();
+  return flat ? flat.slice(0, SEARCH_TEXT_CHARS) : null;
 }
 
 /** Header values are kept whole but never past a few KB. */

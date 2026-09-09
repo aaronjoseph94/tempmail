@@ -460,8 +460,16 @@ export function dismissListMenu() {
   $("btn-list-menu").focus();
 }
 
+/**
+ * The optimistic filter that runs while a search is still being typed.
+ *
+ * Once the server has answered this exact query, its answer *is* the list. It
+ * can see inside messages and this cannot, so filtering again here would hide
+ * every result that matched the body -- which is the whole feature.
+ */
 function matchesQuery(m) {
   if (!state.query) return true;
+  if (state.servedQuery === state.query) return true;
   const q = state.query.toLowerCase();
   return [m.subject, m.fromName, m.fromAddress, m.address, m.snippet].some((v) => (v || "").toLowerCase().includes(q));
 }
@@ -504,7 +512,7 @@ export function renderFeed(arrived = new Set()) {
     return;
   }
   const visible = visibleMessages();
-  const sig = JSON.stringify([state.view, state.filter, state.query, state.open?.id, state.hasMore, state.mailDomains.length, visible.map((m) => [m.id, m.read, m.starred])]);
+  const sig = JSON.stringify([state.view, state.filter, state.query, state.servedQuery, state.open?.id, state.hasMore, state.mailDomains.length, visible.map((m) => [m.id, m.read, m.starred, m.foundInBody])]);
   const timesStale = Date.now() - state.lastFeedRender > 60000; // "5m" labels drift
   if (sig === state.feedSig && !timesStale && arrived.size === 0) return;
   state.feedSig = sig;
@@ -571,6 +579,7 @@ function mailRow(m, staggerIndex) {
         <span class="tag addr" title="${escapeHtml(m.address)}"><span class="at">@</span>${escapeHtml(local)}</span>
         ${m.code ? `<span class="tag code" data-code="${escapeHtml(m.code)}" role="button" tabindex="0" title="Copy code"><svg class="icon"><use href="#i-key"/></svg>${escapeHtml(m.code)}</span>` : ""}
         ${m.hasAttachments ? '<span class="tag" title="Has attachments"><svg class="icon"><use href="#i-clip"/></svg></span>' : ""}
+        ${m.foundInBody && state.query ? '<span class="tag" title="The words you searched for are inside this message"><svg class="icon"><use href="#i-search"/></svg>in the message</span>' : ""}
       </span>
     </span>
   </div>`;

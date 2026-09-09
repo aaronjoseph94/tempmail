@@ -12,6 +12,9 @@ import { hasValidSession } from "./auth";
 import { deleteMessagesByIds, ensureSchema, sweepOrphanAttachments } from "./db";
 import { handleEmail } from "./email";
 import { sweepJunkTokens } from "./junk";
+import { htmlToText } from "./text";
+import { SEARCH_TEXT_CHARS } from "./limits";
+import { searchText } from "./email";
 import type { InboxHub } from "./live";
 
 export { InboxHub } from "./live";
@@ -119,8 +122,44 @@ export default {
     await sweepOrphanAttachments(env.DB);
     // And trims the junk filter's vocabulary, which otherwise only grows.
     await sweepJunkTokens(env.DB);
+    // Mail that arrived before search could look inside it, a batch a night.
+    await backfillSearch(env.DB);
   },
 } satisfies ExportedHandler<Env>;
+
+/** How many old messages one nightly run makes searchable. */
+const SEARCH_BACKFILL_BATCH = 500;
+
+/**
+ * Fills in search_text for mail that arrived before the column existed.
+ *
+ * A batch a night rather than all at once on a cold start: the work is only
+ * worth doing once, and nothing is broken while it is pending -- those messages
+ * are simply searchable by sender and subject in the meantime, exactly as they
+ * were before. An empty result is written as "" rather than left NULL, so a
+ * message whose body is only whitespace is not reconsidered every night.
+ */
+async function backfillSearch(db: D1Database): Promise<void> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, substr(text_body, 1, ?1) AS text_body, substr(html_body, 1, ?2) AS html_body
+         FROM messages
+        WHERE search_text IS NULL AND (text_body IS NOT NULL OR html_body IS NOT NULL)
+        LIMIT ?3`
+    )
+    .bind(SEARCH_TEXT_CHARS, SEARCH_TEXT_CHARS * 5, SEARCH_BACKFILL_BATCH)
+    .all<{ id: string; text_body: string | null; html_body: string | null }>();
+  if (!results.length) return;
+
+  await db.batch(
+    results.map((row) =>
+      db
+        .prepare("UPDATE messages SET search_text = ?1 WHERE id = ?2")
+        .bind(searchText(row.text_body ?? (row.html_body ? htmlToText(row.html_body) : null)) ?? "", row.id)
+    )
+  );
+  console.log("made", results.length, "older messages searchable");
+}
 
 /** Deletes the messages a query selects, along with their attachment rows. */
 async function purge(env: Env, sql: string, binds: unknown[]): Promise<void> {

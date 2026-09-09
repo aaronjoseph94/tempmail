@@ -22,6 +22,7 @@ export const state = {
   filter: "",            // address being viewed; "" is all mail
   candidate: "",         // the local part the new-inbox sheet is offering
   query: "",             // search text
+  servedQuery: null,     // the query state.messages was actually fetched with
   hasMore: false,
   nextCursor: null,
   windowSize: PAGE_SIZE, // how many messages the list holds and each poll refreshes

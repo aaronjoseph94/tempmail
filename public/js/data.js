@@ -32,8 +32,13 @@ let refreshSeq = 0;
 /** Reloads the list and the address rail. With announce, reports new arrivals. */
 export async function refresh({ announce = false } = {}) {
   const seq = ++refreshSeq;
+  // Captured before the request, not read after it: by the time this resolves
+  // the box may hold something else, and the list has to say which question it
+  // is the answer to.
+  const asked = state.query;
   const [list, rail] = await Promise.all([api(listUrl()), api("/api/addresses")]);
   if (seq !== refreshSeq) return; // a newer refresh already landed
+  state.servedQuery = asked;
 
   const previousNewest = state.newestSeen;
   applyList(list);

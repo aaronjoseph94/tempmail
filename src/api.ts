@@ -628,6 +628,19 @@ interface ListRow {
   has_attachments: number;
 }
 
+/**
+ * Whether the only place this row matched was inside the message.
+ *
+ * Worked out here rather than in SQL because everything it needs is already in
+ * the row. It is what lets the list say "found in the message" instead of
+ * showing a result with no visible reason to be there.
+ */
+function matchedOnlyInBody(row: ListRow, query: string): boolean {
+  const needle = query.toLowerCase();
+  const shown = [row.subject, row.from_name, row.from_address, row.address, row.snippet];
+  return !shown.some((value) => (value ?? "").toLowerCase().includes(needle));
+}
+
 function toListItem(row: ListRow) {
   return {
     id: row.id,
@@ -689,9 +702,11 @@ async function listMessages({ env, url }: Ctx): Promise<Response> {
   if (query) {
     const like = "%" + query.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
     const n = binds.push(like);
+    // search_text last: the metadata columns are short and settle most
+    // queries, and SQLite stops at the first term that matches.
     where.push(
       `(subject LIKE ?${n} ESCAPE '\\' OR from_name LIKE ?${n} ESCAPE '\\' OR from_address LIKE ?${n} ESCAPE '\\'` +
-        ` OR address LIKE ?${n} ESCAPE '\\' OR snippet LIKE ?${n} ESCAPE '\\')`
+        ` OR address LIKE ?${n} ESCAPE '\\' OR snippet LIKE ?${n} ESCAPE '\\' OR search_text LIKE ?${n} ESCAPE '\\')`
     );
   }
   if (cursor) {
@@ -714,7 +729,7 @@ async function listMessages({ env, url }: Ctx): Promise<Response> {
   const rows = hasMore ? results.slice(0, limit) : results;
   const last = rows[rows.length - 1];
   return json({
-    messages: rows.map(toListItem),
+    messages: rows.map((row) => ({ ...toListItem(row), foundInBody: query ? matchedOnlyInBody(row, query) : false })),
     hasMore,
     nextCursor: hasMore && last ? `${last.received_at}:${last.id}` : null,
   });

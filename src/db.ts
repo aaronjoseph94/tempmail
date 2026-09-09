@@ -239,6 +239,9 @@ const ADDED_COLUMNS = [
   // 'ham'. Without it a message could be marked junk twice and count twice,
   // and flipping a verdict would add without ever taking back.
   { name: "trained", ddl: "ALTER TABLE messages ADD COLUMN trained TEXT" },
+  // The readable text of the message, clipped, so search can look inside it
+  // without dragging a quarter-megabyte body through every comparison.
+  { name: "search_text", ddl: "ALTER TABLE messages ADD COLUMN search_text TEXT" },
 ];
 
 /** Columns `addresses` gained after its first release. */
