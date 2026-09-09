@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=70" />
+  <link rel="stylesheet" href="/style.css?v=71" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -479,6 +479,20 @@
         </section>
 
         <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Your mail</h3>
+          <div class="row fields">
+            <label class="field">
+              <span>Download <em>one archive any mail app can open</em></span>
+              <select id="export-scope"></select>
+            </label>
+            <a class="btn sm primary" id="export-go" href="/api/export/mbox" download>
+              <svg class="icon sm"><use href="#i-download"/></svg><span>Download</span>
+            </a>
+          </div>
+          <p class="hint">An <code>.mbox</code> file, rebuilt from what was kept &mdash; senders, dates, both versions of the body and every attachment. The original bytes are not stored, so the sender&rsquo;s exact formatting is not part of it.</p>
+        </section>
+
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-database"/></svg>Storage &amp; limits</h3>
           <div class="meter">
             <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
@@ -771,6 +785,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=70"></script>
+  <script type="module" src="/js/main.js?v=71"></script>
 </body>
 </html>

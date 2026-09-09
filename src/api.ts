@@ -31,6 +31,7 @@ import { BOXES, isBox, isVerdict, type Box } from "./classify";
 import { JUNK_MIN_TRAINED, junkTokens, trainTokens } from "./junk";
 import { MAX_RULES, MAX_RULE_VALUE, RULE_ACTIONS, RULE_FIELDS, isRuleAction, isRuleField, needsValue } from "./rules";
 import { htmlToText } from "./text";
+import { buildMessage, toMboxEntry, type ExportAttachment, type ExportMessage } from "./mime";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
@@ -153,6 +154,7 @@ const ROUTES = [
   route("DELETE", "/api/messages/:id", deleteMessage),
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
+  route("GET", "/api/export/mbox", exportMbox),
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
   route("GET", "/api/addresses/:address/subscriptions", listSubscriptions),
   route("POST", "/api/unsubscribe", unsubscribeMany),
@@ -1530,34 +1532,154 @@ async function downloadAttachment({ env, params, url }: Ctx): Promise<Response> 
   );
 }
 
-/** GET /api/messages/:id/export — the message as a plain .txt file. */
+/**
+ * GET /api/messages/:id/export — the message as a .eml file.
+ *
+ * Built by the same code as the mbox archive, so one message and all of them
+ * cannot disagree about what a message looks like. It used to be a .txt
+ * transcript that dropped the HTML and every attachment.
+ */
 async function exportMessage({ env, params }: Ctx): Promise<Response> {
-  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow>();
+  const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow & ExportMessage>();
   if (!row) return json({ error: "Message not found" }, 404);
 
-  const attachments = await attachmentsFor(env.DB, row);
-  const body = [
-    `From: ${row.from_name ? `${row.from_name} <${row.from_address}>` : row.from_address}`,
-    `To: ${row.address}`,
-    `Date: ${new Date(row.sent_at ?? row.received_at).toUTCString()}`,
-    `Subject: ${row.subject ?? "(no subject)"}`,
-    row.message_id ? `Message-ID: ${row.message_id}` : null,
-    row.auth_summary ? `Authentication: ${Object.entries(authOf(row) ?? {}).map(([k, v]) => `${k}=${v}`).join(" ")}` : null,
-    attachments.length ? `Attachments: ${attachments.map((a) => `${a.filename} (${a.size} bytes)`).join(", ")}` : null,
-    "",
-    row.text_body ?? (row.html_body ? "(HTML only — open it in the app to read it)" : "(empty message)"),
-  ]
-    .filter((line) => line !== null)
-    .join("\n");
-
+  const body = buildMessage(row, await exportAttachments(env.DB, row.id));
   const name = (row.subject ?? "message").replace(/[^\w -]+/g, "").trim().slice(0, 60) || "message";
   return withSecurityHeaders(
     new Response(body, {
       headers: {
-        "content-type": "text/plain; charset=utf-8",
-        "content-disposition": contentDisposition("attachment", `${name}.txt`),
+        "content-type": "message/rfc822",
+        "content-disposition": contentDisposition("attachment", `${name}.eml`),
       },
     })
+  );
+}
+
+/* --------------------------------------------------------------- export */
+
+/**
+ * Messages read per page.
+ *
+ * Whole rows, so this is the memory bound directly: fifty messages whose
+ * bodies are at the 250 000-character ceiling is about 25 MB, and real ones are
+ * a fraction of that. Bigger pages would mean fewer round trips (see the note
+ * on the route below) at a memory cost that stops being safe.
+ */
+const EXPORT_PAGE = 50;
+
+/** The attachment bytes for one message, or nothing when there are none. */
+async function exportAttachments(db: D1Database, messageId: string): Promise<ExportAttachment[]> {
+  const { results } = await db
+    .prepare("SELECT idx, filename, content_type, chunks FROM attachments WHERE message_id = ?1 AND chunks > 0 ORDER BY idx")
+    .bind(messageId)
+    .all<{ idx: number; filename: string; content_type: string; chunks: number }>();
+  if (!results.length) return [];
+
+  // One message at a time. Attachments are capped per message on the way in,
+  // so this is bounded; a page's worth at once would not be.
+  const { results: pieces } = await db
+    .prepare("SELECT idx, seq, data FROM attachment_chunks WHERE message_id = ?1 ORDER BY idx, seq")
+    .bind(messageId)
+    .all<{ idx: number; seq: number; data: string }>();
+
+  return results.map((meta) => ({
+    filename: meta.filename,
+    contentType: meta.content_type,
+    chunks: pieces.filter((piece) => piece.idx === meta.idx).map((piece) => piece.data),
+  }));
+}
+
+/**
+ * GET /api/export/mbox[?address=]
+ *
+ * Every message as one mbox archive, streamed. Thunderbird, Apple Mail and
+ * anything else that reads mbox will open it.
+ *
+ * Streamed and paged because the alternative is holding the whole inbox in
+ * memory. The one thing that can stop it early is Cloudflare's per-request
+ * limit on binding calls -- fifty on the free plan -- which a very large inbox
+ * will reach. When it does, the archive ends with a message saying so and
+ * naming the date it reached, rather than simply stopping and looking complete.
+ * Exporting one address at a time stays well inside the limit.
+ */
+async function exportMbox({ env, url }: Ctx): Promise<Response> {
+  const address = url.searchParams.get("address")?.trim().toLowerCase() || null;
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const pump = async () => {
+    let cursor = { at: 0, id: "" };
+    let written = 0;
+    let lastAt = 0;
+    try {
+      for (;;) {
+        const binds: unknown[] = [cursor.at, cursor.id];
+        let where = "deleted_at IS NULL AND (received_at > ?1 OR (received_at = ?1 AND id > ?2))";
+        if (address) where += ` AND address = ?${binds.push(address)}`;
+        const { results } = await env.DB
+          .prepare(
+            `SELECT id, address, from_name, from_address, subject, text_body, html_body, received_at, sent_at,
+                    message_id, in_reply_to, references_hdr, reply_to, list_unsubscribe, auth_results, box, starred,
+                    attachments
+               FROM messages WHERE ${where}
+              ORDER BY received_at, id LIMIT ?${binds.push(EXPORT_PAGE)}`
+          )
+          .bind(...binds)
+          .all<ExportMessage & { attachments: string | null }>();
+        if (!results.length) break;
+
+        for (const message of results) {
+          const has = !!message.attachments && message.attachments !== "[]";
+          const files = has ? await exportAttachments(env.DB, message.id) : [];
+          await writer.write(encoder.encode(toMboxEntry(message, files)));
+          written++;
+          lastAt = message.received_at;
+          cursor = { at: message.received_at, id: message.id };
+        }
+        if (results.length < EXPORT_PAGE) break;
+      }
+      console.log("exported", written, "messages");
+    } catch (err) {
+      console.error("export stopped early", err);
+      await writer
+        .write(encoder.encode(truncationNotice(written, lastAt)))
+        .catch(() => {});
+    } finally {
+      await writer.close().catch(() => {});
+    }
+  };
+  // Not awaited: the response has to be returned so the body can start
+  // streaming. Reading it is what keeps this running.
+  pump();
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  return withSecurityHeaders(
+    new Response(readable, {
+      headers: {
+        "content-type": "application/mbox",
+        "cache-control": "no-store",
+        "content-disposition": contentDisposition("attachment", `${address ? address.replace(/[^\w.-]+/g, "-") : "inbox"}-${stamp}.mbox`),
+      },
+    })
+  );
+}
+
+/** The last entry in an archive that could not be finished. */
+function truncationNotice(written: number, lastAt: number): string {
+  const reached = lastAt ? new Date(lastAt).toUTCString() : "the beginning";
+  return toMboxEntry(
+    {
+      id: "truncated", address: "you", from_name: "Your inbox", from_address: "export@localhost",
+      subject: "This export stopped early",
+      text_body:
+        `This archive holds ${written} message${written === 1 ? "" : "s"}, up to ${reached}, and then stopped.\n\n` +
+        "Cloudflare limits how much a single request may do, and a large inbox reaches it. " +
+        "Nothing has been lost: export one address at a time from Settings and each archive will be complete.",
+      html_body: null, received_at: Date.now(), sent_at: null, message_id: null, in_reply_to: null,
+      references_hdr: null, reply_to: null, list_unsubscribe: null, auth_results: null, box: "inbox", starred: 0,
+    },
+    []
   );
 }
 

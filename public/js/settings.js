@@ -41,6 +41,7 @@ export function openSettings() {
   renderLimits();
   $("set-screener").checked = !!cfg.screener;
   renderJunkState();
+  renderExport();
   $("set-autorefresh").checked = state.autoRefresh;
   $("set-images").checked = state.alwaysImages;
   $("set-clean-links").checked = state.cleanLinks;
@@ -291,6 +292,28 @@ export async function forgetJunk() {
   state.railSig = "";
   renderRail();
   toast("The junk filter has forgotten everything", "i-refresh");
+}
+
+/**
+ * The download picker: everything, or one address at a time.
+ *
+ * One address at a time is not only tidiness. Cloudflare caps how much a single
+ * request may do, and a very large inbox reaches it mid-archive; the archive
+ * says so when that happens, and this is what it tells the reader to use.
+ */
+function renderExport() {
+  const select = $("export-scope");
+  const chosen = select.value;
+  const options = ['<option value="">Everything</option>']
+    .concat((state.addresses || []).map((a) => `<option value="${escapeHtml(a.address)}">${escapeHtml(a.address)}</option>`));
+  select.innerHTML = options.join("");
+  select.value = (state.addresses || []).some((a) => a.address === chosen) ? chosen : "";
+  updateExportLink();
+}
+
+export function updateExportLink() {
+  const address = $("export-scope").value;
+  $("export-go").href = address ? `/api/export/mbox?address=${encodeURIComponent(address)}` : "/api/export/mbox";
 }
 
 export function setSound(on) {

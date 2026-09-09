@@ -267,20 +267,112 @@ describe("editable limits", () => {
 });
 
 describe("export", () => {
-  it("returns a readable text file with the headers and body", async () => {
-    await deliver(buildMail({ subject: "Receipt 42", text: "Thanks for your order." }), "x@mail.example.test");
+  it("returns one message as a .eml anything can open", async () => {
+    await deliver(buildMail({ subject: "Receipt 42", text: "Thanks for your order.", html: "<p>Thanks for your <b>order</b>.</p>" }), "x@mail.example.test");
     const { messages } = await listAll();
     const res = await call(`/api/messages/${messages[0].id}/export`, { cookie });
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-disposition")).toContain("Receipt 42.txt");
+    expect(res.headers.get("content-type")).toContain("message/rfc822");
+    expect(res.headers.get("content-disposition")).toContain("Receipt 42.eml");
     const body = await res.text();
     expect(body).toContain("Subject: Receipt 42");
+    expect(body).toContain("To: x@mail.example.test");
+    // Both bodies, which the old plain-text transcript threw away.
+    expect(body).toContain("multipart/alternative");
     expect(body).toContain("Thanks for your order.");
-    expect(body).toContain("to: x@mail.example.test".replace("to:", "To:"));
+    expect(body).toContain("<b>order</b>");
   });
 
   it("404s for a message that isn't there", async () => {
     expect((await call("/api/messages/nope/export", { cookie })).status).toBe(404);
+  });
+
+  it("writes every message into one mbox archive", async () => {
+    await deliver(buildMail({ subject: "First", text: "one" }), "a@mail.example.test");
+    await deliver(buildMail({ subject: "Second", text: "two" }), "b@mail.example.test");
+    const res = await call("/api/export/mbox", { cookie });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/mbox");
+    expect(res.headers.get("content-disposition")).toContain(".mbox");
+
+    const body = await res.text();
+    const separators = body.split(/^From /m).length - 1;
+    expect(separators).toBe(2);
+    expect(body).toContain("Subject: First");
+    expect(body).toContain("Subject: Second");
+    // Every entry starts with a separator naming the sender and a date.
+    expect(/^From \S+@\S+ \w{3} \w{3} \d{2}/m.test(body)).toBe(true);
+  });
+
+  it("scopes the archive to one address when asked", async () => {
+    await deliver(buildMail({ subject: "Mine", text: "one" }), "mine@mail.example.test");
+    await deliver(buildMail({ subject: "Theirs", text: "two" }), "theirs@mail.example.test");
+    const body = await (await call("/api/export/mbox?address=mine@mail.example.test", { cookie })).text();
+    expect(body).toContain("Subject: Mine");
+    expect(body).not.toContain("Subject: Theirs");
+  });
+
+  it("quotes a body line that would look like a separator", async () => {
+    // "From " at the start of a line is what divides one message from the next,
+    // so a sender who writes it must not be able to forge a boundary.
+    await deliver(buildMail({ subject: "Sneaky", text: "hello\nFrom nobody@evil.example Mon Jan 01 00:00:00 2020\nSubject: forged" }), "s@mail.example.test");
+    const body = await (await call("/api/export/mbox", { cookie })).text();
+    expect(body).toContain(">From nobody@evil.example");
+    expect(body.split(/^From /m).length - 1).toBe(1);
+  });
+
+  it("takes the newlines out of a sender address before it becomes a separator", async () => {
+    await deliver(buildMail({ subject: "Odd" }), "o@mail.example.test");
+    await env.DB.prepare("UPDATE messages SET from_address = ?1 WHERE subject = 'Odd'")
+      .bind("a@b.example\nFrom evil@evil.example Mon Jan 01 00:00:00 2020")
+      .run();
+    const body = await (await call("/api/export/mbox", { cookie })).text();
+    expect(body.split(/^From /m).length - 1).toBe(1);
+    expect(body).not.toContain("From evil@evil.example Mon");
+  });
+
+  it("carries an attachment through as base64", async () => {
+    await deliver(
+      buildMail({ subject: "Attached", attachments: [{ name: "note.txt", type: "text/plain", bytes: new TextEncoder().encode("hidden treasure") }] }),
+      "att@mail.example.test"
+    );
+    const body = await (await call("/api/export/mbox", { cookie })).text();
+    expect(body).toContain("multipart/mixed");
+    expect(body).toContain('filename="note.txt"');
+    expect(body).toContain(btoa("hidden treasure"));
+  });
+
+  it("encodes a subject that is not plain ASCII", async () => {
+    await deliver(buildMail({ subject: "Grüße aus München 🎉", text: "hallo" }), "u@mail.example.test");
+    const body = await (await call("/api/export/mbox", { cookie })).text();
+    expect(body).toContain("=?UTF-8?B?");
+    expect(body).not.toContain("Grüße aus München");
+    // And no header line runs past what the standard allows.
+    for (const line of body.split("\r\n")) expect(line.length).toBeLessThanOrEqual(998);
+  });
+
+  it("says so in the archive when it cannot finish", async () => {
+    // Enough for a second page, so there is a second query to fail on.
+    await seed(51, { address: "t@mail.example.test" });
+    // Stands in for the binding-call ceiling a very large inbox reaches.
+    // Handed in as a binding rather than by patching the real one, because
+    // prepare() lives on D1Database's prototype and assigning over it does
+    // nothing at all.
+    let pages = 0;
+    const failing = {
+      ...env.DB,
+      prepare(sql: string) {
+        if (sql.includes("ORDER BY received_at, id LIMIT") && ++pages > 1) throw new Error("Too many API requests");
+        return env.DB.prepare(sql);
+      },
+    } as unknown as D1Database;
+
+    const body = await (await call("/api/export/mbox", { cookie, env: { DB: failing } })).text();
+    expect(body).toContain("Subject: This export stopped early");
+    expect(body).toContain("export one address at a time");
+    // And what it did manage is still in there.
+    expect(body).toContain("Subject: Seed 0");
+    expect(body).toContain("up to");
   });
 });
 

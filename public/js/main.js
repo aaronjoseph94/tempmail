@@ -16,7 +16,7 @@ import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manu
 import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
 import { closeSubs, onSubClick, openSubs, runSubs } from "./subs.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
-import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
+import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, updateExportLink, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
@@ -246,6 +246,7 @@ $("set-images").addEventListener("change", (e) => setAlwaysImages(e.target.check
 $("set-clean-links").addEventListener("change", (e) => setCleanLinks(e.target.checked));
 $("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
 $("junk-forget").addEventListener("click", forgetJunk);
+$("export-scope").addEventListener("change", updateExportLink);
 
 /* Rules */
 fillRuleForm();

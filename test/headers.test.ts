@@ -62,7 +62,9 @@ describe("headers kept at ingest", () => {
     expect(msg).toMatchObject({ messageId: "<abc@example.org>", inReplyTo: "<parent@example.org>", replyTo: "replies@example.org", sentAt: Date.parse("Tue, 01 Sep 2026 10:00:00 +0000") });
     const exported = await (await call(`/api/messages/${msg.id}/export`, { cookie })).text();
     expect(exported).toContain("Message-ID: <abc@example.org>");
-    expect(exported).toContain("Date: Tue, 01 Sep 2026 10:00:00 GMT");
+    // "+0000" rather than "GMT": RFC 5322 spells the zone numerically and
+    // treats the alphabetic form as obsolete.
+    expect(exported).toContain("Date: Tue, 01 Sep 2026 10:00:00 +0000");
   });
 
   it("keeps Cloudflare's verdicts and ignores a forged second header", async () => {
