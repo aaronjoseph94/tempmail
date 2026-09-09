@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS messages (
   auth_summary TEXT,                       -- JSON {"spf","dkim","dmarc"} parsed from it
   -- Which mailbox the message landed in and why (see src/classify.ts).
   box          TEXT NOT NULL DEFAULT 'inbox', -- inbox | screener | junk
-  box_reason   TEXT                        -- one line for the reader: why it is here
+  box_reason   TEXT,                       -- one line for the reader: why it is here
+  trained      TEXT                        -- what this taught the junk filter: NULL | junk | ham
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_address ON messages (address, received_at DESC);
@@ -52,7 +53,27 @@ CREATE TABLE IF NOT EXISTS addresses (
   expires_at    INTEGER,                           -- for mode = expires
   owner_domain  TEXT,                              -- the service the address was given to
   created_at    INTEGER NOT NULL,
-  first_seen_at INTEGER                            -- when the first accepted message arrived
+  first_seen_at INTEGER,                           -- when the first accepted message arrived
+  origin        TEXT                               -- 'owner' when made in the app; NULL when mail made it
+);
+
+-- What the owner has decided about each sender, for the Screener. No row means
+-- nobody has vouched for them yet. "binned" is weaker than addresses.mode =
+-- 'blocked': that refuses mail at SMTP time, this accepts it and trashes it.
+CREATE TABLE IF NOT EXISTS senders (
+  from_address  TEXT PRIMARY KEY,
+  verdict       TEXT NOT NULL DEFAULT 'unknown',   -- allowed | binned | unknown
+  decided_at    INTEGER,
+  first_seen_at INTEGER
+);
+
+-- What the junk filter has learned, one row per word or fact, counted per
+-- message rather than per occurrence. Trimmed nightly (see src/junk.ts).
+CREATE TABLE IF NOT EXISTS junk_tokens (
+  token   TEXT PRIMARY KEY,
+  junk    INTEGER NOT NULL DEFAULT 0,
+  ham     INTEGER NOT NULL DEFAULT 0,
+  seen_at INTEGER NOT NULL
 );
 
 -- One row per attachment (everything except the bytes), and the bytes as

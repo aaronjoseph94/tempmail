@@ -156,6 +156,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     plain,
     code,
     hasAttachment: attachments.length > 0,
+    auth: authSummary,
+    listUnsubscribe: headerValue(parsed.headers, "list-unsubscribe"),
     addressRow: lifecycle.row,
   });
 

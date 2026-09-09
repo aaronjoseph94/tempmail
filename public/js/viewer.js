@@ -66,6 +66,7 @@ function renderViewer() {
   $("msg-from-name").textContent = msg.fromName || msg.fromAddress;
   renderLeakStrip(msg);
   renderScreenStrip(msg);
+  renderJunkStrip(msg);
   renderAuthBadge(msg);
   renderUnsubChip(msg);
   renderWarnStrip(msg);
@@ -636,6 +637,58 @@ function renderWarnStrip(msg) {
   if (!flags.length) return;
   $("msg-warn-text").textContent = `Links in this message look suspicious. ${flags.join(". ")}.`;
   $("msg-warn-plain").hidden = !msg.textBody;
+}
+
+/**
+ * Why a message is in the junk box, and the way out of it.
+ *
+ * The reason the filter gives is its own text, not the sender's, so it is safe
+ * to show -- but it is set as textContent regardless, because everything on
+ * this screen that came anywhere near a message goes through escaping.
+ */
+export function renderJunkStrip(msg) {
+  const strip = $("msg-junk");
+  strip.hidden = msg.box !== "junk";
+  const junkButton = $("btn-junk");
+  junkButton.querySelector("span").textContent = msg.box === "junk" ? "Not junk" : "Junk";
+  junkButton.setAttribute("aria-label", msg.box === "junk" ? "Not junk" : "Mark as junk");
+  junkButton.title = msg.box === "junk"
+    ? "Put this back in the inbox and teach the filter it was wrong"
+    : "Mark as junk and teach the filter";
+  if (strip.hidden) return;
+  $("msg-junk-text").textContent = msg.boxReason || "Filed as junk.";
+  $("msg-junk-not").onclick = () => markJunk([msg.id], false);
+}
+
+/**
+ * Teaches the filter, and moves the mail.
+ *
+ * Sliced, because each message costs a body read and a pile of word counts on
+ * the server -- twenty-five at a time is plenty for a hand-driven action and
+ * keeps one request's work bounded.
+ */
+export async function markJunk(ids, junk) {
+  if (!ids.length) return;
+  try {
+    let last;
+    for (let i = 0; i < ids.length; i += 25) {
+      last = await send("POST", "/api/junk", { ids: ids.slice(i, i + 25), junk });
+    }
+    if (last?.junk) state.config = { ...state.config, junk: last.junk };
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  closeMessage();
+  if (state.selecting) setSelecting(false);
+  await refresh().catch(() => {});
+  const count = plural(ids.length, "message");
+  toast(junk ? `${count} marked junk` : `${count} put back`, junk ? "i-ban" : "i-tick", {
+    action: "Undo",
+    onAction: async () => {
+      await markJunk(ids, !junk);
+    },
+  });
 }
 
 /**

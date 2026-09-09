@@ -1,7 +1,7 @@
 /* The settings drawer, sheet gestures, web push, theme and accent. */
 
 import { CACHE_KEY, PREFS, SCHEMES, state } from "./state.js";
-import { $, copyText, escapeHtml, hideToast, isDesktop, reducedMotion, store, toast } from "./util.js";
+import { $, copyText, escapeHtml, hideToast, isDesktop, plural, reducedMotion, store, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { poll, refresh } from "./data.js";
 import { brandName, moveSegHighlight, renderBrand, renderDomain, renderFeed, renderRail, renderStorage, renderTitle, visibleMessages } from "./render.js";
@@ -40,6 +40,7 @@ export function openSettings() {
 
   renderLimits();
   $("set-screener").checked = !!cfg.screener;
+  renderJunkState();
   $("set-autorefresh").checked = state.autoRefresh;
   $("set-images").checked = state.alwaysImages;
   $("set-sound").checked = state.sound;
@@ -244,6 +245,37 @@ export async function setScreener(on) {
   renderRail();
   toast(on ? "New senders will wait in the Screener" : "Everything lands in the inbox again", "i-shield");
   await refresh().catch(() => {});
+}
+
+/**
+ * What the junk filter has been taught, said plainly.
+ *
+ * A count of messages, not a percentage or a confidence: those are numbers
+ * nobody can act on, and the only thing the owner can actually do about this
+ * filter is teach it more or make it forget.
+ */
+function renderJunkState() {
+  const junk = state.config?.junk;
+  const line = $("junk-state");
+  if (!junk) { line.textContent = ""; $("junk-forget").hidden = true; return; }
+  line.textContent = junk.ready
+    ? `Junk filter: trained on ${plural(junk.junk, "junk message")} and ${plural(junk.ham, "good one")}.`
+    : `Junk filter: off until you mark ${junk.needed} junk and ${junk.needed} good messages. ${junk.junk} and ${junk.ham} so far.`;
+  $("junk-forget").hidden = junk.junk === 0 && junk.ham === 0;
+}
+
+export async function forgetJunk() {
+  try {
+    const result = await send("DELETE", "/api/junk", {});
+    state.config = { ...state.config, junk: result.junk };
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  renderJunkState();
+  state.railSig = "";
+  renderRail();
+  toast("The junk filter has forgotten everything", "i-refresh");
 }
 
 export function setSound(on) {

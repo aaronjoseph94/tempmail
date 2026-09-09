@@ -12,9 +12,9 @@ import { PREFS, state } from "./state.js";
 import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
 import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
-import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
+import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
-import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
+import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
@@ -191,6 +191,7 @@ $("link-domain").addEventListener("click", openSettings);
 $("btn-back").addEventListener("click", () => closeMessage());
 $("btn-close").addEventListener("click", () => closeMessage());
 $("btn-delete").addEventListener("click", deleteOpen);
+$("btn-junk").addEventListener("click", () => state.open && markJunk([state.open.id], state.open.box !== "junk"));
 $("btn-unread").addEventListener("click", markUnread);
 $("btn-code").addEventListener("click", copyCode);
 $("btn-html").addEventListener("click", () => { state.showHtml = true; renderBody(); });
@@ -207,6 +208,7 @@ $("sel-cancel").addEventListener("click", () => setSelecting(false));
 $("sel-read").addEventListener("click", () => bulk("read"));
 $("sel-star").addEventListener("click", () => bulk("star"));
 $("sel-delete").addEventListener("click", () => bulk("delete"));
+$("sel-junk").addEventListener("click", () => markJunk([...state.picked], state.box !== "junk"));
 $("sel-all").addEventListener("click", pickAll);
 $("sel-unread").addEventListener("click", () => bulk("unread"));
 $("sel-unstar").addEventListener("click", () => bulk("unstar"));
@@ -240,6 +242,7 @@ $("limits-form").addEventListener("submit", saveLimits);
 $("set-autorefresh").addEventListener("change", (e) => setAutoRefresh(e.target.checked));
 $("set-images").addEventListener("change", (e) => setAlwaysImages(e.target.checked));
 $("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
+$("junk-forget").addEventListener("click", forgetJunk);
 
 $("btn-sound").addEventListener("click", () => {
   setSound(!state.sound);

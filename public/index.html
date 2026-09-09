@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=65" />
+  <link rel="stylesheet" href="/style.css?v=66" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -213,6 +213,7 @@
           <button id="sel-unread" class="btn sm ghost" title="Mark unread"><svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span></button>
           <button id="sel-star" class="btn sm ghost" title="Star"><svg class="icon sm"><use href="#i-star"/></svg><span>Star</span></button>
           <button id="sel-unstar" class="btn sm ghost" title="Remove star"><svg class="icon sm"><use href="#i-star-off"/></svg><span>Unstar</span></button>
+          <button id="sel-junk" class="btn sm ghost" title="Mark as junk"><svg class="icon sm"><use href="#i-ban"/></svg><span>Junk</span></button>
           <button id="sel-delete" class="btn sm ghost danger" title="Move to trash"><svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span></button>
           <button id="sel-cancel" class="icon-btn plain" aria-label="Leave selection mode"><svg class="icon sm"><use href="#i-close"/></svg></button>
         </div>
@@ -292,6 +293,12 @@
           <button type="button" class="btn sm" id="msg-warn-plain">Show plain text</button>
         </div>
 
+        <div id="msg-junk" class="leak-strip screen" hidden>
+          <svg class="icon sm" aria-hidden="true"><use href="#i-ban"/></svg>
+          <span id="msg-junk-text"></span>
+          <button type="button" class="btn sm" id="msg-junk-not">Not junk</button>
+        </div>
+
         <div id="msg-screen" class="leak-strip screen" hidden>
           <svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>
           <span id="msg-screen-text"></span>
@@ -315,6 +322,9 @@
           </button>
           <button id="btn-unsub" class="chip" hidden title="Unsubscribe from this sender">
             <svg class="icon sm"><use href="#i-unsub"/></svg><span>Unsubscribe</span>
+          </button>
+          <button id="btn-junk" class="chip" aria-label="Mark as junk" title="Mark as junk and teach the filter">
+            <svg class="icon sm"><use href="#i-ban"/></svg><span>Junk</span>
           </button>
           <button id="btn-delete" class="chip danger" title="Delete (#)">
             <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
@@ -400,6 +410,10 @@
             <span class="label">Screen new senders<small>The first message from someone new waits for you instead of landing in the inbox</small></span>
           </label>
           <p class="hint">Your address works as a catch-all, so anyone who guesses one reaches you. Switching this on vouches for everyone already in your inbox, so only genuinely new senders wait.</p>
+          <p class="hint" id="junk-state"></p>
+          <button type="button" class="btn sm ghost" id="junk-forget" hidden>
+            <svg class="icon sm"><use href="#i-refresh"/></svg><span>Forget what it has learned</span>
+          </button>
         </section>
 
         <section class="drawer-sec">
@@ -671,6 +685,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=65"></script>
+  <script type="module" src="/js/main.js?v=66"></script>
 </body>
 </html>

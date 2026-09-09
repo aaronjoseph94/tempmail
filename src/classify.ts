@@ -27,7 +27,9 @@
  */
 
 import { relatedDomain, senderDomain, type AddressRow } from "./addresses";
-import { SETTING_SCREENER } from "./db";
+import { SETTING_JUNK_TRAINED_HAM, SETTING_JUNK_TRAINED_JUNK, SETTING_SCREENER } from "./db";
+import type { AuthSummary } from "./headers";
+import { JUNK_THRESHOLD, junkScore, junkTokens } from "./junk";
 
 /** Where a message lives. The trash is `deleted_at`, not a box. */
 export const BOXES = ["inbox", "screener", "junk"] as const;
@@ -58,6 +60,10 @@ export interface Candidate {
   /** The verification code the message carries, if any. */
   code: string | null;
   hasAttachment: boolean;
+  /** Cloudflare's SPF/DKIM/DMARC verdicts, when it said.  */
+  auth: AuthSummary | null;
+  /** The List-Unsubscribe header, verbatim, when there was one. */
+  listUnsubscribe: string | null;
   /** The address's row, when the inbox already knew about it. */
   addressRow: AddressRow | null;
 }
@@ -101,10 +107,11 @@ export async function classify(db: D1Database, candidate: Candidate): Promise<Ve
 async function decide(db: D1Database, candidate: Candidate): Promise<Verdict> {
   const verdict = deliver();
 
-  // One round trip for every stage's inputs. Rules and the junk filter join
-  // this batch rather than adding round trips of their own.
+  // One round trip for every stage's inputs. Rules join this batch too rather
+  // than adding a round trip of their own.
+  const keys = [SETTING_SCREENER, SETTING_JUNK_TRAINED_JUNK, SETTING_JUNK_TRAINED_HAM];
   const [flags, senders] = await db.batch<Record<string, string> | SenderRow>([
-    db.prepare("SELECT key, value FROM settings WHERE key IN (?1)").bind(SETTING_SCREENER),
+    db.prepare(`SELECT key, value FROM settings WHERE key IN (${keys.map((_, n) => `?${n + 1}`).join(",")})`).bind(...keys),
     db.prepare("SELECT * FROM senders WHERE from_address = ?1").bind(candidate.from),
   ]);
   const setting = new Map(
@@ -113,7 +120,47 @@ async function decide(db: D1Database, candidate: Candidate): Promise<Verdict> {
   const sender = (senders.results as SenderRow[])[0] ?? null;
 
   if (setting.get(SETTING_SCREENER) === "1") screen(verdict, candidate, sender);
+
+  // Only mail that is otherwise on its way to the inbox. There is nothing to
+  // be gained by scoring a message that is already being held or binned.
+  if (verdict.box === "inbox" && !verdict.trash) {
+    await sift(db, verdict, candidate, {
+      junk: Number(setting.get(SETTING_JUNK_TRAINED_JUNK) ?? 0) || 0,
+      ham: Number(setting.get(SETTING_JUNK_TRAINED_HAM) ?? 0) || 0,
+    });
+  }
   return verdict;
+}
+
+/**
+ * The junk filter, which only ever speaks when it is sure.
+ *
+ * Reads nothing at all until the owner has taught it both kinds of message, so
+ * an instance whose owner has never pressed Junk pays nothing for this on the
+ * ingest path.
+ */
+async function sift(db: D1Database, verdict: Verdict, candidate: Candidate, trained: { junk: number; ham: number }): Promise<void> {
+  const address = candidate.addressRow;
+  // Never the service an address was made for. The owner asked to hear from
+  // them, so a false positive there is the most expensive mistake available --
+  // it is the order confirmation and the password reset.
+  if (address && relatedDomain(senderDomain(candidate.from), address.owner_domain)) return;
+
+  const score = await junkScore(
+    db,
+    junkTokens({
+      from: candidate.from,
+      subject: candidate.subject,
+      plain: candidate.plain,
+      hasAttachment: candidate.hasAttachment,
+      listUnsubscribe: candidate.listUnsubscribe,
+      auth: candidate.auth,
+    }),
+    trained
+  );
+  if (score == null || score < JUNK_THRESHOLD) return;
+  verdict.box = "junk";
+  verdict.reason = `Looks like junk you have marked before (${Math.round(score * 100)}% sure)`;
 }
 
 /**

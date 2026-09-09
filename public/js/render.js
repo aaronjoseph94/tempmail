@@ -71,7 +71,7 @@ export function renderStorage() {
 
 export function renderRail() {
   const all = totals();
-  const sig = JSON.stringify([state.filter, state.box, state.boxCounts, state.addressesTruncated, !!state.config?.screener, all, state.mailDomains.length, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
+  const sig = JSON.stringify([state.filter, state.box, state.boxCounts, state.addressesTruncated, !!state.config?.screener, !!state.config?.junk?.ready, all, state.mailDomains.length, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
   if (sig !== state.railSig) {
     const hadRows = state.railSig !== "";
     state.railSig = sig;
@@ -124,6 +124,15 @@ const BOX_ROWS = [
     icon: "i-shield",
     title: "Mail from senders you have not heard from before",
     always: () => !!state.config?.screener,
+  },
+  {
+    box: "junk",
+    label: "Junk",
+    icon: "i-ban",
+    title: "Mail the filter recognised from what you have marked junk before",
+    // Only once it has actually been taught something. A box that can never
+    // fill is a row that only ever says nothing.
+    always: () => !!state.config?.junk?.ready,
   },
 ];
 
@@ -574,7 +583,12 @@ function renderEmpty(visibleCount) {
   const firstRun = state.addresses.length === 0 && !state.query && !state.filter && state.view === "all" && state.box === "inbox";
   $("empty-steps").hidden = !firstRun;
   $("empty-hint").hidden = !firstRun;
-  if (state.box === "screener" && !state.query) {
+  if (state.box === "junk" && !state.query) {
+    $("empty-title").textContent = "No junk";
+    $("empty-text").textContent = state.config?.junk?.ready
+      ? "Mail that looks like what you have marked junk before ends up here."
+      : `Mark ${state.config?.junk?.needed ?? 5} junk and ${state.config?.junk?.needed ?? 5} good messages and the filter starts doing this for you.`;
+  } else if (state.box === "screener" && !state.query) {
     $("empty-title").textContent = "Nobody is waiting";
     $("empty-text").textContent = state.config?.screener
       ? "Mail from a sender you have not heard from before waits here until you say yes."

@@ -68,6 +68,9 @@ export async function runOnce(db: D1Database, key: string, work: () => Promise<v
 export const SETTING_SCHEMA_VERSION = "schema_v";
 /** "1" while the Screener is holding mail from senders nobody has vouched for. */
 export const SETTING_SCREENER = "screener_on";
+/** How many messages of each kind the junk filter has been taught. */
+export const SETTING_JUNK_TRAINED_JUNK = "junk_trained_junk";
+export const SETTING_JUNK_TRAINED_HAM = "junk_trained_ham";
 const SCHEMA_VERSION = "3";
 
 const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
@@ -131,6 +134,19 @@ const CREATE_SENDERS = `CREATE TABLE IF NOT EXISTS senders (
   verdict      TEXT NOT NULL DEFAULT 'unknown',
   decided_at   INTEGER,
   first_seen_at INTEGER
+)`;
+
+/**
+ * What the junk filter has learned, one row per word or fact.
+ *
+ * Counted per message rather than per occurrence: a word repeated forty times
+ * in one mail is one message's worth of evidence, not forty.
+ */
+const CREATE_JUNK_TOKENS = `CREATE TABLE IF NOT EXISTS junk_tokens (
+  token   TEXT PRIMARY KEY,
+  junk    INTEGER NOT NULL DEFAULT 0,
+  ham     INTEGER NOT NULL DEFAULT 0,
+  seen_at INTEGER NOT NULL
 )`;
 
 /** Browsers that asked to be pushed to when mail arrives. */
@@ -205,6 +221,10 @@ const ADDED_COLUMNS = [
   // Everything that already existed was ordinary mail, which is the default.
   { name: "box", ddl: "ALTER TABLE messages ADD COLUMN box TEXT NOT NULL DEFAULT 'inbox'" },
   { name: "box_reason", ddl: "ALTER TABLE messages ADD COLUMN box_reason TEXT" },
+  // What this message has already taught the junk filter: NULL, 'junk' or
+  // 'ham'. Without it a message could be marked junk twice and count twice,
+  // and flipping a verdict would add without ever taking back.
+  { name: "trained", ddl: "ALTER TABLE messages ADD COLUMN trained TEXT" },
 ];
 
 /** Columns `addresses` gained after its first release. */
@@ -247,6 +267,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_ADDRESSES),
     db.prepare(CREATE_PUSH),
     db.prepare(CREATE_SENDERS),
+    db.prepare(CREATE_JUNK_TOKENS),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),

@@ -15,6 +15,7 @@ import {
   deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_BRAND_NAME, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
   SETTING_RAW_MB, SETTING_RETENTION_DAYS, SETTING_MAIL_DOMAINS, SETTING_SCREENER,
+  SETTING_JUNK_TRAINED_HAM, SETTING_JUNK_TRAINED_JUNK, getSettings,
 } from "./db";
 import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
 import { hubStub } from "./live";
@@ -27,6 +28,8 @@ import {
 import { normalizeDomain, SNIPPET_LENGTH } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
 import { BOXES, isBox, isVerdict, type Box } from "./classify";
+import { JUNK_MIN_TRAINED, junkTokens, trainTokens } from "./junk";
+import { htmlToText } from "./text";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
@@ -150,6 +153,8 @@ const ROUTES = [
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
+  route("POST", "/api/junk", markJunk),
+  route("DELETE", "/api/junk", forgetJunk),
   route("GET", "/api/senders", listSenders),
   route("POST", "/api/senders/:address", decideSender),
 ];
@@ -252,6 +257,7 @@ async function buildConfig(env: Env) {
     observedDomains: observed,
     passwordSource: await passwordSource(env),
     screener: (await getSetting(env.DB, SETTING_SCREENER)) === "1",
+    junk: await junkTraining(env.DB),
     retentionDays: limits.retentionDays,
     limits: {
       perAddress: limits.perAddress,
@@ -792,6 +798,127 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     box: row.box,
     boxReason: row.box_reason,
   });
+}
+
+/* ----------------------------------------------------------------- junk */
+
+/** How many messages one call retrains on. The client sends them in slices. */
+const JUNK_BATCH = 25;
+/** How much of a body is read back to work out its words again. */
+const JUNK_READ_CHARS = 4000;
+
+/** What the filter has been taught, and whether that is enough to act on. */
+async function junkTraining(db: D1Database): Promise<{ junk: number; ham: number; ready: boolean; needed: number }> {
+  const rows = await getSettings(db, [SETTING_JUNK_TRAINED_JUNK, SETTING_JUNK_TRAINED_HAM]);
+  const junk = Number(rows.get(SETTING_JUNK_TRAINED_JUNK) ?? 0) || 0;
+  const ham = Number(rows.get(SETTING_JUNK_TRAINED_HAM) ?? 0) || 0;
+  return { junk, ham, ready: junk >= JUNK_MIN_TRAINED && ham >= JUNK_MIN_TRAINED, needed: JUNK_MIN_TRAINED };
+}
+
+interface JunkRow {
+  id: string;
+  subject: string | null;
+  from_address: string;
+  text_body: string | null;
+  html_body: string | null;
+  attachments: string | null;
+  list_unsubscribe: string | null;
+  auth_summary: string | null;
+  trained: string | null;
+}
+
+/**
+ * POST /api/junk  { ids, junk }
+ *
+ * Marks messages junk, or takes it back. Both directions teach the filter, and
+ * a message counts exactly once however many times the button is pressed --
+ * `messages.trained` remembers what it already contributed, so a change of mind
+ * takes the old evidence back before adding the new.
+ *
+ * The words are worked out again from the stored body rather than kept
+ * anywhere, which is why junkTokens() has to be deterministic.
+ */
+async function markJunk({ request, env }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  const ids = idsFrom(body).slice(0, JUNK_BATCH);
+  if (!ids.length) return json({ error: "No messages given" }, 400);
+  const junk = body.junk !== false;
+  const want = junk ? "junk" : "ham";
+  const now = Date.now();
+
+  const holes = ids.map((_, n) => `?${n + 1}`).join(",");
+  const { results } = await env.DB
+    .prepare(
+      `SELECT id, subject, from_address, attachments, list_unsubscribe, auth_summary, trained,
+              substr(text_body, 1, ${JUNK_READ_CHARS}) AS text_body,
+              substr(html_body, 1, ${JUNK_READ_CHARS * 5}) AS html_body
+         FROM messages WHERE id IN (${holes})`
+    )
+    .bind(...ids)
+    .all<JunkRow>();
+  if (!results.length) return json({ error: "Message not found" }, 404);
+
+  // Aggregated across the whole batch, so twenty-five messages cost two
+  // statements rather than a statement per word per message.
+  const add = new Map<string, number>();
+  const take = new Map<string, number>();
+  let addedJunk = 0, addedHam = 0, tookJunk = 0, tookHam = 0;
+
+  for (const row of results) {
+    if (row.trained === want) continue;               // already counted
+    const tokens = junkTokens({
+      from: row.from_address,
+      subject: row.subject ?? "",
+      plain: row.text_body ?? (row.html_body ? htmlToText(row.html_body) : null),
+      hasAttachment: !!row.attachments && row.attachments !== "[]",
+      listUnsubscribe: row.list_unsubscribe,
+      auth: row.auth_summary ? (JSON.parse(row.auth_summary) as AuthSummary) : null,
+    });
+    for (const token of tokens) {
+      add.set(token, (add.get(token) ?? 0) + 1);
+      if (row.trained) take.set(token, (take.get(token) ?? 0) - 1);
+    }
+    if (want === "junk") addedJunk++; else addedHam++;
+    if (row.trained === "junk") tookJunk++;
+    if (row.trained === "ham") tookHam++;
+  }
+
+  await trainTokens(env.DB, add, want);
+  if (take.size) await trainTokens(env.DB, take, want === "junk" ? "ham" : "junk");
+
+  for (const chunk of idChunks(ids, 3)) {
+    const spots = chunk.map((_, n) => `?${n + 4}`).join(",");
+    await env.DB
+      .prepare(`UPDATE messages SET box = ?1, box_reason = ?2, trained = ?3 WHERE id IN (${spots})`)
+      .bind(junk ? "junk" : "inbox", junk ? "You marked this junk" : null, want, ...chunk)
+      .run();
+  }
+
+  const counts = await junkTraining(env.DB);
+  const nextJunk = Math.max(0, counts.junk + addedJunk - tookJunk);
+  const nextHam = Math.max(0, counts.ham + addedHam - tookHam);
+  await setSetting(env.DB, SETTING_JUNK_TRAINED_JUNK, String(nextJunk));
+  await setSetting(env.DB, SETTING_JUNK_TRAINED_HAM, String(nextHam));
+
+  return json({ ok: true, moved: results.length, junk: await junkTraining(env.DB), at: now });
+}
+
+/**
+ * DELETE /api/junk — forget everything the filter has learned.
+ *
+ * Every message keeps its box; only the training goes. Teaching it the wrong
+ * thing should be recoverable without also undoing the filing the owner did by
+ * hand, and starting over is the honest fix for a filter that has learned
+ * something silly.
+ */
+async function forgetJunk({ env }: Ctx): Promise<Response> {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM junk_tokens"),
+    env.DB.prepare("UPDATE messages SET trained = NULL WHERE trained IS NOT NULL"),
+  ]);
+  await deleteSetting(env.DB, SETTING_JUNK_TRAINED_JUNK);
+  await deleteSetting(env.DB, SETTING_JUNK_TRAINED_HAM);
+  return json({ ok: true, junk: await junkTraining(env.DB) });
 }
 
 /**

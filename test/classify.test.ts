@@ -263,3 +263,102 @@ describe("the Screener and address ownership", () => {
     expect(row?.owner_domain).toBe("shop.example");
   });
 });
+
+describe("the junk filter", () => {
+  const trainWith = async (junk: boolean, ids: string[]) =>
+    json(await call("/api/junk", { cookie, json: { ids, junk } }));
+  const idsOf = async (like: string) =>
+    (await env.DB.prepare("SELECT id FROM messages WHERE subject LIKE ?1").bind(like).all<{ id: string }>()).results.map((r) => r.id);
+
+  /** Enough of both kinds for the filter to have an opinion at all. */
+  async function teach(n = 6) {
+    for (let i = 0; i < n; i++) {
+      await deliver(buildMail({ from: `sender${i}@spam.example`, subject: `Junky ${i}`,
+        text: "WINNER!! Claim your free prize money now, click here for your $$$ payout offer" }), `j${i}@mail.example.test`);
+      await deliver(buildMail({ from: `friend${i}@good.example`, subject: `Real ${i}`,
+        text: "Here are the notes from the meeting yesterday about the quarterly planning review" }), `h${i}@mail.example.test`);
+    }
+    await trainWith(true, await idsOf("Junky %"));
+    await trainWith(false, await idsOf("Real %"));
+  }
+
+  it("says nothing until it has seen both kinds", async () => {
+    const config = await json(await call("/api/config", { cookie }));
+    expect(config.junk).toMatchObject({ junk: 0, ham: 0, ready: false });
+    await deliver(buildMail({ subject: "Untrained", text: "WINNER!! free prize money $$$ click here" }), "a@mail.example.test");
+    const row = await env.DB.prepare("SELECT box FROM messages WHERE subject = 'Untrained'").first<{ box: string }>();
+    expect(row?.box).toBe("inbox");
+  });
+
+  it("moves a message and counts it once, however many times it is marked", async () => {
+    await deliver(buildMail({ subject: "Nuisance", text: "buy now cheap offer" }), "a@mail.example.test");
+    const [id] = await idsOf("Nuisance");
+    const first = await trainWith(true, [id]);
+    expect(first.junk.junk).toBe(1);
+    const again = await trainWith(true, [id]);
+    expect(again.junk.junk).toBe(1);
+    const row = await env.DB.prepare("SELECT box, trained FROM messages WHERE id = ?1").bind(id).first<{ box: string; trained: string }>();
+    expect(row).toMatchObject({ box: "junk", trained: "junk" });
+  });
+
+  it("takes the old evidence back when the verdict flips", async () => {
+    await deliver(buildMail({ subject: "Wrongly", text: "quarterly planning notes" }), "a@mail.example.test");
+    const [id] = await idsOf("Wrongly");
+    await trainWith(true, [id]);
+    const before = await env.DB.prepare("SELECT junk, ham FROM junk_tokens WHERE token = 'quarterly'").first<{ junk: number; ham: number }>();
+    expect(before).toMatchObject({ junk: 1, ham: 0 });
+
+    const after = await trainWith(false, [id]);
+    expect(after.junk).toMatchObject({ junk: 0, ham: 1 });
+    const token = await env.DB.prepare("SELECT junk, ham FROM junk_tokens WHERE token = 'quarterly'").first<{ junk: number; ham: number }>();
+    expect(token).toMatchObject({ junk: 0, ham: 1 });
+    const row = await env.DB.prepare("SELECT box FROM messages WHERE id = ?1").bind(id).first<{ box: string }>();
+    expect(row?.box).toBe("inbox");
+  });
+
+  it("files new mail that looks like what it was taught", async () => {
+    await teach();
+    expect((await json(await call("/api/config", { cookie }))).junk.ready).toBe(true);
+    await deliver(buildMail({ from: "new@spam.example", subject: "Fresh",
+      text: "WINNER!! Claim your free prize money now, click here for your $$$ payout offer" }), "z@mail.example.test");
+    const row = await env.DB.prepare("SELECT box, box_reason FROM messages WHERE subject = 'Fresh'").first<{ box: string; box_reason: string }>();
+    expect(row?.box).toBe("junk");
+    expect(row?.box_reason).toMatch(/junk/i);
+  }, 30_000);
+
+  it("leaves ordinary mail alone", async () => {
+    await teach();
+    await deliver(buildMail({ from: "colleague@good.example", subject: "Ordinary",
+      text: "Here are the notes from the meeting yesterday about the quarterly planning review" }), "z@mail.example.test");
+    const row = await env.DB.prepare("SELECT box FROM messages WHERE subject = 'Ordinary'").first<{ box: string }>();
+    expect(row?.box).toBe("inbox");
+  }, 30_000);
+
+  it("never junks the service an address was made for", async () => {
+    await teach();
+    await call("/api/addresses/shop-x@mail.example.test", { cookie, method: "PUT", json: { mode: "permanent", ownerDomain: "spam.example" } });
+    // Word for word the message it was taught to hate, but from the company
+    // this address was handed to: the order confirmation must still arrive.
+    await deliver(buildMail({ from: "orders@spam.example", subject: "Exempt",
+      text: "WINNER!! Claim your free prize money now, click here for your $$$ payout offer" }), "shop-x@mail.example.test");
+    const row = await env.DB.prepare("SELECT box FROM messages WHERE subject = 'Exempt'").first<{ box: string }>();
+    expect(row?.box).toBe("inbox");
+  }, 30_000);
+
+  it("forgets everything on request without unfiling anything", async () => {
+    await teach(5);
+    await deliver(buildMail({ subject: "Filed", text: "WINNER!! free prize money $$$ click here offer payout" }), "z@mail.example.test");
+    await trainWith(true, await idsOf("Filed"));
+
+    const res = await json(await call("/api/junk", { method: "DELETE", cookie }));
+    expect(res.junk).toMatchObject({ junk: 0, ham: 0, ready: false });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM junk_tokens").first<{ n: number }>())!.n).toBe(0);
+    // The filing it did stays; only the learning goes.
+    const row = await env.DB.prepare("SELECT box, trained FROM messages WHERE subject = 'Filed'").first<{ box: string; trained: string | null }>();
+    expect(row).toMatchObject({ box: "junk", trained: null });
+  }, 30_000);
+
+  it("refuses a call with nothing to mark", async () => {
+    expect((await call("/api/junk", { cookie, json: { ids: [] } })).status).toBe(400);
+  });
+});

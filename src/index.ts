@@ -11,6 +11,7 @@ import { handleApi, handlePublicApi } from "./api";
 import { hasValidSession } from "./auth";
 import { deleteMessagesByIds, ensureSchema, sweepOrphanAttachments } from "./db";
 import { handleEmail } from "./email";
+import { sweepJunkTokens } from "./junk";
 import type { InboxHub } from "./live";
 
 export { InboxHub } from "./live";
@@ -116,6 +117,8 @@ export default {
 
     // Catches anything a failed delete left behind earlier.
     await sweepOrphanAttachments(env.DB);
+    // And trims the junk filter's vocabulary, which otherwise only grows.
+    await sweepJunkTokens(env.DB);
   },
 } satisfies ExportedHandler<Env>;
 
