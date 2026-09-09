@@ -71,11 +71,19 @@ export function renderStorage() {
 
 export function renderRail() {
   const all = totals();
-  const sig = JSON.stringify([state.filter, all, state.mailDomains.length, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
+  const sig = JSON.stringify([state.filter, state.box, state.boxCounts, state.addressesTruncated, !!state.config?.screener, all, state.mailDomains.length, state.addresses.map((a) => [a.address, a.count, a.unread, a.label, a.mode, a.expiresAt, a.used, a.leaks?.length])]);
   if (sig !== state.railSig) {
     const hadRows = state.railSig !== "";
     state.railSig = sig;
     const rows = [railRow({ address: "", label: "All mail", count: all.count, unread: all.unread, all: true })];
+    // The boxes that are not the inbox sit under All mail: a mailbox, not a
+    // filter, so it belongs here rather than among the All / Unread chips --
+    // which stay filters *within* whichever box is open.
+    for (const box of BOX_ROWS) {
+      const tally = state.boxCounts?.[box.box];
+      if (!tally?.count && !box.always()) continue;
+      rows.push(boxRow(box, tally));
+    }
     for (const a of state.addresses) {
       rows.push(railRow({ address: a.address, label: shortAddress(a.address), name: a.label, count: a.count, unread: a.unread, entry: a }));
     }
@@ -84,6 +92,11 @@ export function renderRail() {
       rows.push(railRow({ address: state.filter, label: shortAddress(state.filter), count: 0, unread: 0 }));
     }
     if (!state.addresses.length) rows.push('<div class="rail-empty">No mail received yet</div>');
+    // The list is capped, because a catch-all can be handed thousands of
+    // guessed addresses. Say so rather than letting older ones just vanish.
+    if (state.addressesTruncated) {
+      rows.push('<div class="rail-empty">Showing the most recent addresses. Search to find an older one.</div>');
+    }
     // The rows live in exactly one place: the rail on desktop, the phone's
     // picker below 900px. Rendering into both would leave two elements for
     // every data-address, which makes every selector -- ours and the tests' --
@@ -100,8 +113,34 @@ export function renderRail() {
   renderListHead();
 }
 
+/**
+ * The mailboxes that are not the inbox. Each is shown when it holds something,
+ * or when its feature is switched on and it is therefore a place mail can go.
+ */
+const BOX_ROWS = [
+  {
+    box: "screener",
+    label: "Screener",
+    icon: "i-shield",
+    title: "Mail from senders you have not heard from before",
+    always: () => !!state.config?.screener,
+  },
+];
+
+function boxRow({ box, label, icon, title }, tally) {
+  const active = state.box === box;
+  const count = tally?.count ?? 0;
+  const unread = tally?.unread ?? 0;
+  const marker = unread > 0 ? `<span class="badge">${unread}</span>` : `<span class="count">${count}</span>`;
+  return `<div class="rail-row">
+    <button class="rail-item all${active ? " active" : ""}" data-box="${escapeHtml(box)}"${active ? ' aria-current="true"' : ""} title="${escapeHtml(title)}">
+      <svg class="icon sm" aria-hidden="true"><use href="#${escapeHtml(icon)}"/></svg><span class="name">${escapeHtml(label)}</span>${marker}
+    </button></div>`;
+}
+
 function railRow({ address, label, name, count, unread, all = false, entry = null }) {
-  const active = state.filter === address;
+  // Nothing in the rail is the current address while a different box is open.
+  const active = state.box === "inbox" && state.filter === address;
   const tally = unread > 0 ? `<span class="badge">${unread}</span>` : `<span class="count">${count}</span>`;
   const local = escapeHtml(label);
   const life = lifeChip(entry);
@@ -118,7 +157,7 @@ function railRow({ address, label, name, count, unread, all = false, entry = nul
   const icon = all ? '<svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>' : "";
   const dead = entry?.dead ? " dead" : "";
   return `<div class="rail-row">
-    <button class="rail-item${all ? " all" : ""}${active ? " active" : ""}${dead}" data-address="${escapeHtml(address)}"${active ? ' aria-current="true"' : ""} title="${escapeHtml(address || "Every address")}">
+    <button class="rail-item${all ? " all" : ""}${active ? " active" : ""}${dead}" data-address="${escapeHtml(address)}"${all ? ' data-box="inbox"' : ""}${active ? ' aria-current="true"' : ""} title="${escapeHtml(address || "Every address")}">
       ${icon}${body}${tally}
     </button>${tools}</div>`;
 }
@@ -316,20 +355,28 @@ function renderViewChips() {
 }
 
 export function renderListHead() {
+  const box = state.box !== "inbox" ? BOX_ROWS.find((b) => b.box === state.box) : null;
+  const tally = box ? state.boxCounts?.[box.box] : null;
   const entry = state.filter ? state.addresses.find((a) => a.address === state.filter) : null;
-  const count = state.filter ? entry?.count ?? 0 : totals().count;
-  const unread = state.filter ? entry?.unread ?? 0 : totals().unread;
-  $("list-title").textContent = state.filter || "All mail";
-  $("list-sub").textContent = count ? `${plural(count, "message")}${unread ? ` · ${unread} unread` : ""}` : "";
-  $("btn-wipe").hidden = !state.filter;
-  $("btn-rename").hidden = !state.filter;
+  const count = box ? tally?.count ?? 0 : state.filter ? entry?.count ?? 0 : totals().count;
+  const unread = box ? tally?.unread ?? 0 : state.filter ? entry?.unread ?? 0 : totals().unread;
+  $("list-title").textContent = box ? box.label : state.filter || "All mail";
+  $("list-sub").textContent = box
+    ? (count ? `${plural(count, "message")} waiting` : "")
+    : count ? `${plural(count, "message")}${unread ? ` · ${unread} unread` : ""}` : "";
+  $("btn-wipe").hidden = !state.filter || !!box;
+  $("btn-rename").hidden = !state.filter || !!box;
   const blocked = entry?.mode === "blocked";
-  $("btn-burn").hidden = !state.filter;
+  $("btn-burn").hidden = !state.filter || !!box;
   $("btn-burn").setAttribute("aria-pressed", String(blocked));
   $("btn-burn").classList.toggle("on", blocked);
   $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
   $("btn-burn").setAttribute("aria-label", $("btn-burn").title);
-  $("btn-read-all").hidden = unread === 0;
+  $("btn-read-all").hidden = unread === 0 || !!box;
+  // Stays live inside a box. A phone has no rail, so this button is the only
+  // way to the list the boxes live in -- disabling it here left no way back
+  // out of the Screener at all.
+  $("btn-inboxes").disabled = isDesktop();
 }
 
 /* ------------------------------------------------------ list overflow menu */
@@ -524,10 +571,15 @@ function renderEmpty(visibleCount) {
   const empty = $("feed-empty");
   empty.hidden = visibleCount > 0;
   if (visibleCount > 0) return;
-  const firstRun = state.addresses.length === 0 && !state.query && !state.filter && state.view === "all";
+  const firstRun = state.addresses.length === 0 && !state.query && !state.filter && state.view === "all" && state.box === "inbox";
   $("empty-steps").hidden = !firstRun;
   $("empty-hint").hidden = !firstRun;
-  if (state.query) {
+  if (state.box === "screener" && !state.query) {
+    $("empty-title").textContent = "Nobody is waiting";
+    $("empty-text").textContent = state.config?.screener
+      ? "Mail from a sender you have not heard from before waits here until you say yes."
+      : "The Screener is off. Turn it on in Settings and strangers wait here instead of landing in your inbox.";
+  } else if (state.query) {
     $("empty-title").textContent = "No matches";
     $("empty-text").textContent = `Nothing matches “${state.query}”.`;
   } else if (state.view === "unread") {
@@ -550,6 +602,33 @@ function renderEmpty(visibleCount) {
 }
 
 /* ----------------------------------------------------- filtering + search */
+
+/**
+ * Switches mailbox.
+ *
+ * A box is not a filter: the address rail and the All / Unread / Starred /
+ * Leaks chips are both about the inbox, so leaving it clears the address and
+ * puts the chips away rather than offering combinations nobody asked for
+ * ("starred leaks in the Screener" is not a view).
+ */
+export function setBox(box) {
+  if (state.box === box) return;
+  state.box = box;
+  state.filter = "";
+  state.view = "all";
+  state.query = "";
+  $("search").value = "";
+  if (state.selecting) setSelecting(false);
+  closeMessage();
+  state.windowSize = PAGE_SIZE;
+  state.railSig = "";
+  state.feedSig = "";
+  document.body.classList.toggle("in-box", box !== "inbox");
+  renderRail();
+  renderListHead();
+  skeletonRows();
+  refresh().catch(() => {});
+}
 
 export function setFilter(address) {
   if (state.filter === address) return;
@@ -643,5 +722,5 @@ function refreshRailSoon() {
 
 export async function loadAddresses() {
   const data = await api("/api/addresses");
-  applyRail(data.addresses, data.boxes);
+  applyRail(data.addresses, data.boxes, data.truncated);
 }

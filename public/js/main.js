@@ -11,10 +11,10 @@
 import { PREFS, state } from "./state.js";
 import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
-import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
+import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
-import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
+import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
@@ -98,6 +98,15 @@ $("feed").addEventListener("keydown", (e) => {
 });
 
 function onRailClick(e) {
+  // Before the address branch: All mail carries both, and picking a box is
+  // the more specific of the two intents.
+  const box = e.target.closest("[data-box]");
+  if (box) {
+    setBox(box.dataset.box);
+    if (box.dataset.box === "inbox") setFilter("");
+    if (e.currentTarget.id === "picker-list") closeInboxPicker();
+    return;
+  }
   const rename = e.target.closest("[data-rename]");
   if (rename) { openLabelDialog(rename.dataset.rename); return; }
   const kill = e.target.closest("[data-kill]");
@@ -230,6 +239,7 @@ $("label-form").addEventListener("submit", (e) => {
 $("limits-form").addEventListener("submit", saveLimits);
 $("set-autorefresh").addEventListener("change", (e) => setAutoRefresh(e.target.checked));
 $("set-images").addEventListener("change", (e) => setAlwaysImages(e.target.checked));
+$("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
 
 $("btn-sound").addEventListener("click", () => {
   setSound(!state.sound);

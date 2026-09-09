@@ -37,7 +37,7 @@ export async function refresh({ announce = false } = {}) {
 
   const previousNewest = state.newestSeen;
   applyList(list);
-  applyRail(rail.addresses, rail.boxes);
+  applyRail(rail.addresses, rail.boxes, rail.truncated);
   if (announce && state.polledOnce && state.newestSeen > previousNewest) announceNewMail(previousNewest);
   state.polledOnce = true;
   saveCache();
@@ -77,8 +77,9 @@ async function checkWaiting(messages) {
   } catch { /* the next poll tries again */ }
 }
 
-export function applyRail(addresses, boxes) {
+export function applyRail(addresses, boxes, truncated = false) {
   state.addresses = addresses;
+  state.addressesTruncated = !!truncated;
   if (boxes) state.boxCounts = boxes;
   state.newestSeen = Math.max(state.newestSeen, ...addresses.map((a) => a.lastReceivedAt || 0));
   renderRail();

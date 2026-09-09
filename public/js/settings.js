@@ -39,6 +39,7 @@ export function openSettings() {
     : "Changing it signs out every other device.";
 
   renderLimits();
+  $("set-screener").checked = !!cfg.screener;
   $("set-autorefresh").checked = state.autoRefresh;
   $("set-images").checked = state.alwaysImages;
   $("set-sound").checked = state.sound;
@@ -224,6 +225,25 @@ export async function toggleNotifications(on) {
   }
   state.notify = on && "Notification" in window;
   store.set("notify", state.notify ? "on" : "off");
+}
+
+/**
+ * Switching the Screener on vouches for everyone already in the inbox, which
+ * the server does in the same call -- so the only thing to report here is
+ * whether it is now on.
+ */
+export async function setScreener(on) {
+  try {
+    state.config = await send("PUT", "/api/settings", { screener: on });
+  } catch (err) {
+    $("set-screener").checked = !on;
+    toast(err.message, "i-warn");
+    return;
+  }
+  state.railSig = "";
+  renderRail();
+  toast(on ? "New senders will wait in the Screener" : "Everything lands in the inbox again", "i-shield");
+  await refresh().catch(() => {});
 }
 
 export function setSound(on) {

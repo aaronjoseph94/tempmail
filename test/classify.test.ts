@@ -3,8 +3,7 @@
  * ever shows the box it asked for.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { KEEP_ORDER } from "../src/index";
-import { LIMIT_RANGES } from "../src/limits";
+import { KEEP_ORDER, LIMIT_RANGES } from "../src/limits";
 import { buildMail, call, deliver, env, freshDatabase, json, signIn } from "./helpers";
 
 let cookie: string;
@@ -127,5 +126,140 @@ describe("boxes and the caps", () => {
 
     const { results } = await env.DB.prepare(`SELECT id FROM messages ORDER BY ${KEEP_ORDER}`).all<{ id: string }>();
     expect(results.map((r) => r.id)).toEqual(["starred-oldest", "inbox-older", "junk-newest"]);
+  });
+});
+
+describe("the Screener", () => {
+  const on = () => call("/api/settings", { method: "PUT", cookie, json: { screener: true } });
+  const boxOf = async (subject: string) =>
+    await env.DB.prepare("SELECT box, deleted_at FROM messages WHERE subject = ?1").bind(subject)
+      .first<{ box: string; deleted_at: number | null }>();
+  const make = (address: string, body: Record<string, unknown> = {}) =>
+    call(`/api/addresses/${encodeURIComponent(address)}`, { cookie, method: "PUT", json: { mode: "permanent", ...body } });
+
+  it("is off until it is switched on", async () => {
+    expect((await json(await call("/api/config", { cookie }))).screener).toBe(false);
+    await deliver(buildMail({ subject: "Stranger" }), "guessed@mail.example.test");
+    expect((await boxOf("Stranger"))?.box).toBe("inbox");
+  });
+
+  it("holds the first message from a sender nobody has vouched for", async () => {
+    await on();
+    await deliver(buildMail({ subject: "Held" }), "guessed@mail.example.test");
+    const row = await boxOf("Held");
+    expect(row?.box).toBe("screener");
+    // And it stays out of the inbox list and the unread count.
+    const inbox = await json(await call("/api/messages", { cookie }));
+    expect(inbox.messages).toHaveLength(0);
+    const rail = await json(await call("/api/addresses", { cookie }));
+    expect(rail.boxes.screener.count).toBe(1);
+  });
+
+  it("lets through the service an address was made for", async () => {
+    await on();
+    await make("shop-a1@mail.example.test", { ownerDomain: "shop.example" });
+    await deliver(buildMail({ from: "hello@mail.shop.example", subject: "Your order" }), "shop-a1@mail.example.test");
+    expect((await boxOf("Your order"))?.box).toBe("inbox");
+  });
+
+  it("lets through the first message to a burner the owner just made", async () => {
+    await on();
+    await make("fresh-b2@mail.example.test");
+    await deliver(buildMail({ from: "noreply@unknown.example", subject: "Welcome" }), "fresh-b2@mail.example.test");
+    expect((await boxOf("Welcome"))?.box).toBe("inbox");
+    // The second stranger, once mail has arrived, is a stranger again.
+    await deliver(buildMail({ from: "someone@elsewhere.example", subject: "Later" }), "fresh-b2@mail.example.test");
+    expect((await boxOf("Later"))?.box).toBe("screener");
+  });
+
+  it("never swallows a code sent to an address the owner made", async () => {
+    await on();
+    await make("codes-c3@mail.example.test");
+    await deliver(buildMail({ subject: "Hello" }), "codes-c3@mail.example.test");   // uses up the fresh-burner pass
+    await deliver(buildMail({ from: "auth@other.example", subject: "Sign in", text: "Your code is 448213" }), "codes-c3@mail.example.test");
+    expect((await boxOf("Sign in"))?.box).toBe("inbox");
+  });
+
+  it("but a code to a guessed address is still held", async () => {
+    await on();
+    // Otherwise "your code is 123456" in a spam template is a way past the
+    // Screener for every address anyone cares to guess.
+    await deliver(buildMail({ from: "spam@nowhere.example", subject: "Code", text: "Your code is 991122" }), "guessed-d4@mail.example.test");
+    expect((await boxOf("Code"))?.box).toBe("screener");
+  });
+
+  it("approves a sender, moves what it was holding, and lets the next one through", async () => {
+    await on();
+    await deliver(buildMail({ from: "news@paper.example", subject: "One" }), "reader@mail.example.test");
+    await deliver(buildMail({ from: "news@paper.example", subject: "Two" }), "reader@mail.example.test");
+
+    const waiting = await json(await call("/api/senders", { cookie }));
+    expect(waiting.senders).toHaveLength(1);
+    expect(waiting.senders[0]).toMatchObject({ address: "news@paper.example", held: 2 });
+
+    const res = await json(await call("/api/senders/news@paper.example", { cookie, json: { verdict: "allowed" } }));
+    expect(res.ids).toHaveLength(2);
+    expect((await boxOf("One"))?.box).toBe("inbox");
+    await deliver(buildMail({ from: "news@paper.example", subject: "Three" }), "reader@mail.example.test");
+    expect((await boxOf("Three"))?.box).toBe("inbox");
+  });
+
+  it("bins a sender into the trash, where the undo window applies", async () => {
+    await on();
+    await deliver(buildMail({ from: "spam@bad.example", subject: "Junk one" }), "reader@mail.example.test");
+    const res = await json(await call("/api/senders/spam@bad.example", { cookie, json: { verdict: "binned" } }));
+    const binned = await boxOf("Junk one");
+    expect(binned?.deleted_at).toBeGreaterThan(0);
+    // Later mail from a binned sender goes straight to the trash too.
+    await deliver(buildMail({ from: "spam@bad.example", subject: "Junk two" }), "reader@mail.example.test");
+    expect((await boxOf("Junk two"))?.deleted_at).toBeGreaterThan(0);
+
+    // Undo puts back exactly what the decision moved.
+    await call("/api/senders/spam@bad.example", { cookie, json: { verdict: "unknown", ids: res.ids } });
+    expect((await boxOf("Junk one"))).toMatchObject({ box: "screener", deleted_at: null });
+    expect((await boxOf("Junk two"))?.deleted_at).toBeGreaterThan(0);   // not this one
+  });
+
+  it("vouches for everyone already in the inbox when it is switched on", async () => {
+    await deliver(buildMail({ from: "known@friend.example", subject: "Before" }), "reader@mail.example.test");
+    await on();
+    await deliver(buildMail({ from: "known@friend.example", subject: "After" }), "reader@mail.example.test");
+    expect((await boxOf("After"))?.box).toBe("inbox");
+  });
+
+  it("refuses a verdict it does not have", async () => {
+    expect((await call("/api/senders/x@y.example", { cookie, json: { verdict: "banished" } })).status).toBe(400);
+  });
+});
+
+describe("the Screener and address ownership", () => {
+  it("does not let a held sender become the address's owner", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { screener: true } });
+    // Guessing an address must not cost an attacker one held message and then
+    // nothing: without this, recordArrival would make their domain the
+    // address's owner and every later message would be exempt.
+    for (const subject of ["First", "Second", "Third"]) {
+      await deliver(buildMail({ from: "bot@guesser.example", subject }), "victim@mail.example.test");
+    }
+    const { results } = await env.DB.prepare("SELECT subject, box FROM messages ORDER BY received_at").all<{ subject: string; box: string }>();
+    expect(results.map((r) => r.box)).toEqual(["screener", "screener", "screener"]);
+    // Nor may it create the address: otherwise an afternoon of guessing puts
+    // one rail row on screen per guess.
+    const row = await env.DB.prepare("SELECT * FROM addresses WHERE address = 'victim@mail.example.test'").first();
+    expect(row).toBeNull();
+    const rail = await json(await call("/api/addresses", { cookie }));
+    expect(rail.addresses).toHaveLength(0);
+    expect(rail.boxes.screener.count).toBe(3);
+
+    // Approving the sender puts the address back on the map.
+    await call("/api/senders/bot@guesser.example", { cookie, json: { verdict: "allowed" } });
+    const after = await json(await call("/api/addresses", { cookie }));
+    expect(after.addresses.map((a: any) => a.address)).toEqual(["victim@mail.example.test"]);
+  });
+
+  it("still lets the first sender own the address when the Screener is off", async () => {
+    await deliver(buildMail({ from: "hello@shop.example" }), "normal@mail.example.test");
+    const row = await env.DB.prepare("SELECT owner_domain FROM addresses WHERE address = 'normal@mail.example.test'").first<{ owner_domain: string | null }>();
+    expect(row?.owner_domain).toBe("shop.example");
   });
 });

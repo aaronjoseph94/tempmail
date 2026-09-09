@@ -196,8 +196,17 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     .run();
 
   await writeAttachments(env.DB, id, parsed, attachments);
+
   // The first sender becomes the address's owner; later ones may be leaks.
-  await recordArrival(env.DB, to, senderDomain(sender.address), now);
+  //
+  // Only mail that actually reached the inbox counts. A message the Screener is
+  // holding has been vouched for by nobody, so it may neither claim the address
+  // -- which would make every later message from that sender exempt, costing an
+  // attacker exactly one held message -- nor create the address at all, which
+  // is what would otherwise put one rail row on screen per guessed address.
+  if (verdict.box === "inbox" && !verdict.trash) {
+    await recordArrival(env.DB, to, senderDomain(sender.address), now);
+  }
 
   // Keep only the newest N per address, so a flood to one address cannot fill
   // the database. Starred mail is never pruned.

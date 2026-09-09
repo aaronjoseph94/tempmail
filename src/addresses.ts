@@ -22,6 +22,8 @@ export interface AddressRow {
   owner_domain: string | null;
   created_at: number;
   first_seen_at: number | null;
+  /** 'owner' when the address was made in the app; null when mail made it. */
+  origin: string | null;
 }
 
 export type Verdict = { accept: true; row: AddressRow | null } | { accept: false; reason: string };

@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=64" />
+  <link rel="stylesheet" href="/style.css?v=65" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -292,6 +292,13 @@
           <button type="button" class="btn sm" id="msg-warn-plain">Show plain text</button>
         </div>
 
+        <div id="msg-screen" class="leak-strip screen" hidden>
+          <svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>
+          <span id="msg-screen-text"></span>
+          <button type="button" class="btn sm primary" id="msg-screen-allow">Let in</button>
+          <button type="button" class="btn sm" id="msg-screen-bin">Bin</button>
+        </div>
+
         <div class="msg-actions">
           <!-- The code alone, shaped like the one on the list row it came from.
                "Copy code 719034" spelled out was the widest control in the row
@@ -384,6 +391,15 @@
             <button class="btn sm" type="submit">Change password</button>
           </form>
           <p class="hint" id="pw-note"></p>
+        </section>
+
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Screening</h3>
+          <label class="switch">
+            <input type="checkbox" id="set-screener" /><span class="track"></span>
+            <span class="label">Screen new senders<small>The first message from someone new waits for you instead of landing in the inbox</small></span>
+          </label>
+          <p class="hint">Your address works as a catch-all, so anyone who guesses one reaches you. Switching this on vouches for everyone already in your inbox, so only genuinely new senders wait.</p>
         </section>
 
         <section class="drawer-sec">
@@ -655,6 +671,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=64"></script>
+  <script type="module" src="/js/main.js?v=65"></script>
 </body>
 </html>

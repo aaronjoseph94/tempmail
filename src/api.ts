@@ -14,7 +14,7 @@ import {
 import {
   deleteAttachmentsFor, deleteSetting, getSetting, idChunks, setLabel, setSetting,
   SETTING_ATTACHMENT_MB, SETTING_GLOBAL_CAP, SETTING_BRAND_NAME, SETTING_MAIL_DOMAIN, SETTING_PER_ADDRESS,
-  SETTING_RAW_MB, SETTING_RETENTION_DAYS, SETTING_MAIL_DOMAINS,
+  SETTING_RAW_MB, SETTING_RETENTION_DAYS, SETTING_MAIL_DOMAINS, SETTING_SCREENER,
 } from "./db";
 import { afterIngest, allowedDomains, storeInboundEmail, type StoredAttachment } from "./email";
 import { hubStub } from "./live";
@@ -26,7 +26,7 @@ import {
 } from "./limits";
 import { normalizeDomain, SNIPPET_LENGTH } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
-import { BOXES, isBox, type Box } from "./classify";
+import { BOXES, isBox, isVerdict, type Box } from "./classify";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
 interface Ctx {
@@ -150,6 +150,8 @@ const ROUTES = [
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
+  route("GET", "/api/senders", listSenders),
+  route("POST", "/api/senders/:address", decideSender),
 ];
 
 function route(method: string, path: string, handler: Handler) {
@@ -249,6 +251,7 @@ async function buildConfig(env: Env) {
     allowedDomains: allowed,
     observedDomains: observed,
     passwordSource: await passwordSource(env),
+    screener: (await getSetting(env.DB, SETTING_SCREENER)) === "1",
     retentionDays: limits.retentionDays,
     limits: {
       perAddress: limits.perAddress,
@@ -328,6 +331,23 @@ async function updateSettings({ request, env }: Ctx): Promise<Response> {
     }
     writes.push({ key: SETTING_MAIL_DOMAINS, value: list.length ? JSON.stringify(list) : null });
     writes.push({ key: SETTING_MAIL_DOMAIN, value: list[0] ?? null });
+  }
+
+  /*
+   * Turning the Screener on for the first time vouches for every sender the
+   * owner has already been living with. Without that, the morning it is
+   * switched on the entire inbox is held and the feature reads as broken.
+   */
+  if ("screener" in body) {
+    const on = body.screener === true || body.screener === "1";
+    if (on) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO senders (from_address, verdict, decided_at, first_seen_at)
+           SELECT lower(from_address), 'allowed', ?1, MIN(received_at) FROM messages
+            WHERE deleted_at IS NULL AND box = 'inbox' GROUP BY lower(from_address)`
+      ).bind(Date.now()).run();
+    }
+    writes.push({ key: SETTING_SCREENER, value: on ? "1" : null });
   }
 
   for (const [field, key, range] of [
@@ -544,7 +564,9 @@ async function putAddress({ request, env, params }: Ctx): Promise<Response> {
   }
   if (!sets.length) return json({ error: "Nothing to change" }, 400);
 
-  await env.DB.prepare("INSERT OR IGNORE INTO addresses (address, mode, created_at) VALUES (?1, 'permanent', ?2)").bind(address, now).run();
+  // Made here, so the Screener knows it is an address the owner is using
+  // rather than one the catch-all invented when mail turned up for it.
+  await env.DB.prepare("INSERT OR IGNORE INTO addresses (address, mode, created_at, origin) VALUES (?1, 'permanent', ?2, 'owner')").bind(address, now).run();
   await env.DB.prepare(`UPDATE addresses SET ${sets.join(", ")} WHERE address = ?${binds.push(address)}`).bind(...binds).run();
 
   const row = await env.DB.prepare("SELECT * FROM addresses WHERE address = ?1").bind(address).first<AddressRow>();
@@ -770,6 +792,93 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     box: row.box,
     boxReason: row.box_reason,
   });
+}
+
+/**
+ * GET /api/senders — who is waiting in the Screener, newest first.
+ *
+ * Grouped by sender rather than listed per message: the decision the owner is
+ * being asked for is about the sender, and four messages from one stranger is
+ * one question, not four.
+ */
+async function listSenders({ env }: Ctx): Promise<Response> {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT from_address, MAX(from_name) AS from_name, COUNT(*) AS held,
+              MAX(received_at) AS last_at, MIN(received_at) AS first_at,
+              SUM(read = 0) AS unread
+         FROM messages WHERE box = 'screener' AND deleted_at IS NULL
+         GROUP BY from_address ORDER BY last_at DESC LIMIT 200`
+    )
+    .all<{ from_address: string; from_name: string | null; held: number; last_at: number; first_at: number; unread: number }>();
+  return json({
+    senders: results.map((row) => ({
+      address: row.from_address,
+      name: row.from_name,
+      held: row.held,
+      unread: row.unread ?? 0,
+      lastAt: row.last_at,
+      firstAt: row.first_at,
+    })),
+  });
+}
+
+/**
+ * POST /api/senders/:address  { verdict, ids? }
+ *
+ * "allowed" lets every message this sender has waiting into the inbox and every
+ * later one straight through; "binned" trashes them, where the usual undo
+ * window applies. "unknown" is the undo for either, and takes the ids the
+ * decision returned so it puts back exactly what that decision moved rather
+ * than everything this sender has ever sent.
+ */
+async function decideSender({ request, env, params }: Ctx): Promise<Response> {
+  const sender = params.address.trim().toLowerCase();
+  if (!sender || sender.length > MAX_ADDRESS_LENGTH) return json({ error: "That is not an address" }, 400);
+  const body = await readJson(request);
+  if (!isVerdict(body.verdict)) return json({ error: "Unknown verdict" }, 400);
+  const now = Date.now();
+
+  if (body.verdict === "unknown") {
+    const ids = idsFrom(body);
+    await env.DB.prepare("DELETE FROM senders WHERE from_address = ?1").bind(sender).run();
+    for (const chunk of idChunks(ids, 1)) {
+      const holes = chunk.map((_, n) => `?${n + 2}`).join(",");
+      await env.DB
+        .prepare(`UPDATE messages SET box = 'screener', deleted_at = NULL, box_reason = ?1 WHERE id IN (${holes})`)
+        .bind("First message from this sender", ...chunk)
+        .run();
+    }
+    return json({ ok: true, verdict: "unknown", ids });
+  }
+
+  // The ids are read before the write so the undo can be exact.
+  const { results } = await env.DB
+    .prepare("SELECT id FROM messages WHERE from_address = ?1 AND box = 'screener' AND deleted_at IS NULL")
+    .bind(sender)
+    .all<{ id: string }>();
+  const ids = results.map((row) => row.id);
+
+  await env.DB
+    .prepare(
+      `INSERT INTO senders (from_address, verdict, decided_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(from_address) DO UPDATE SET verdict = excluded.verdict, decided_at = excluded.decided_at`
+    )
+    .bind(sender, body.verdict, now)
+    .run();
+
+  if (body.verdict === "allowed") {
+    await env.DB
+      .prepare("UPDATE messages SET box = 'inbox', box_reason = NULL WHERE from_address = ?1 AND box = 'screener'")
+      .bind(sender)
+      .run();
+  } else {
+    await env.DB
+      .prepare("UPDATE messages SET deleted_at = ?2, box_reason = ?3 WHERE from_address = ?1 AND box = 'screener' AND deleted_at IS NULL")
+      .bind(sender, now, "You binned this sender")
+      .run();
+  }
+  return json({ ok: true, verdict: body.verdict, ids });
 }
 
 /**

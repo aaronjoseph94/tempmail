@@ -66,6 +66,8 @@ export async function runOnce(db: D1Database, key: string, work: () => Promise<v
 
 /** Bumped when a one-off data migration has run, so it never runs twice. */
 export const SETTING_SCHEMA_VERSION = "schema_v";
+/** "1" while the Screener is holding mail from senders nobody has vouched for. */
+export const SETTING_SCREENER = "screener_on";
 const SCHEMA_VERSION = "3";
 
 const CREATE_MESSAGES = `CREATE TABLE IF NOT EXISTS messages (
@@ -113,6 +115,21 @@ const CREATE_ADDRESSES = `CREATE TABLE IF NOT EXISTS addresses (
   expires_at    INTEGER,
   owner_domain  TEXT,
   created_at    INTEGER NOT NULL,
+  first_seen_at INTEGER
+)`;
+
+/**
+ * What the owner has decided about each sender, for the Screener.
+ *
+ * A sender with no row here is one nobody has vouched for yet. "binned" is
+ * deliberately not called "blocked": addresses.mode = 'blocked' means something
+ * else and stronger -- mail to that address is refused at SMTP time -- while a
+ * binned sender's mail is still accepted and simply goes straight to the trash.
+ */
+const CREATE_SENDERS = `CREATE TABLE IF NOT EXISTS senders (
+  from_address TEXT PRIMARY KEY,
+  verdict      TEXT NOT NULL DEFAULT 'unknown',
+  decided_at   INTEGER,
   first_seen_at INTEGER
 )`;
 
@@ -190,6 +207,14 @@ const ADDED_COLUMNS = [
   { name: "box_reason", ddl: "ALTER TABLE messages ADD COLUMN box_reason TEXT" },
 ];
 
+/** Columns `addresses` gained after its first release. */
+const ADDED_ADDRESS_COLUMNS = [
+  // Who made this address: 'owner' when it was generated in the app, NULL when
+  // the catch-all created it because mail turned up. The Screener needs the
+  // difference -- an address the owner made is one they are actively using.
+  { name: "origin", ddl: "ALTER TABLE addresses ADD COLUMN origin TEXT" },
+];
+
 /** Indexes on columns that older databases only gain from ADDED_COLUMNS. */
 const LATE_INDEXES = [
   "CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages (deleted_at)",
@@ -221,6 +246,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_SETTINGS),
     db.prepare(CREATE_ADDRESSES),
     db.prepare(CREATE_PUSH),
+    db.prepare(CREATE_SENDERS),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),
@@ -230,8 +256,15 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
   ]);
 
   await addColumns(db, "messages", ADDED_COLUMNS);
+  await addColumns(db, "addresses", ADDED_ADDRESS_COLUMNS);
   for (const sql of LATE_INDEXES) await db.prepare(sql).run();
   await migrateAddresses(db);
+  // Everything that already exists when the Screener arrives is mail the owner
+  // has been living with, so it is theirs and its senders are vouched for.
+  // Without this the Screener's first morning holds the entire inbox.
+  await runOnce(db, "migrated_address_origin", async () => {
+    await db.prepare("UPDATE addresses SET origin = 'owner' WHERE origin IS NULL").run();
+  });
 }
 
 /**

@@ -729,6 +729,11 @@ select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--r
 .domain-drop:hover { color: var(--danger); background: var(--c3); }
 .domain-drop[disabled] { opacity: 0.35; cursor: not-allowed; }
 
+/* ---- boxes ----
+   A box is a mailbox, not a filter, so opening one puts the All / Unread /
+   Starred / Leaks chips away rather than offering combinations of the two. */
+body.in-box .view-filters { display: none; }
+
 .switch {
   display: flex;
   align-items: center;
@@ -1383,6 +1388,12 @@ body.waiting { overflow: hidden; }
 .leak-strip .icon { flex: none; color: var(--danger); }
 .leak-strip span { flex: 1; min-width: 0; }
 .leak-strip .btn { flex: none; }
+
+/* The Screener's question, in the same shell as the leak and phishing notices
+   but asking for a decision rather than warning about one -- so it is quiet,
+   and the affirmative answer is the only thing with any weight. */
+.leak-strip.screen { background: var(--c3); color: var(--ink2); box-shadow: inset 0 0 0 1px var(--c7); }
+.leak-strip.screen .icon { color: var(--ink3); }
 
 /* Leak cards in the list column. */
 .leak {

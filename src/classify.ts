@@ -2,10 +2,10 @@
  * What happens to a message between the parse and the insert.
  *
  * Three features want a say in where new mail lands — the rules the owner
- * wrote, the junk filter that learns from their taps, and the Screener that
- * holds strangers. Running them as three separate passes over the same message
- * invites exactly the bug where two of them disagree and the last one to write
- * wins, so they are one ordered pipeline instead, with a single verdict.
+ * wrote, the Screener that holds strangers, and the junk filter that learns
+ * from their taps. Running them as three passes over the same message invites
+ * exactly the bug where two of them disagree and the last one to write wins, so
+ * they are one ordered pipeline instead, with a single verdict.
  *
  * Precedence, most authoritative first:
  *
@@ -21,9 +21,13 @@
  * that was otherwise perfectly deliverable. So the whole thing is wrapped: any
  * failure here delivers to the inbox and logs. A message in the wrong place is
  * a nuisance; a message that never arrived is data loss.
+ *
+ * Everything it needs is read in one batch, so the pipeline costs the ingest
+ * path a single round trip however many stages end up hanging off it.
  */
 
-import type { AddressRow } from "./addresses";
+import { relatedDomain, senderDomain, type AddressRow } from "./addresses";
+import { SETTING_SCREENER } from "./db";
 
 /** Where a message lives. The trash is `deleted_at`, not a box. */
 export const BOXES = ["inbox", "screener", "junk"] as const;
@@ -31,6 +35,14 @@ export type Box = (typeof BOXES)[number];
 
 export function isBox(value: unknown): value is Box {
   return typeof value === "string" && (BOXES as readonly string[]).includes(value);
+}
+
+/** What the owner has decided about a sender. */
+export const VERDICTS = ["allowed", "binned", "unknown"] as const;
+export type SenderVerdict = (typeof VERDICTS)[number];
+
+export function isVerdict(value: unknown): value is SenderVerdict {
+  return typeof value === "string" && (VERDICTS as readonly string[]).includes(value);
 }
 
 /** Everything the pipeline is allowed to look at. */
@@ -65,6 +77,13 @@ export function deliver(): Verdict {
   return { box: "inbox", trash: false, star: false, read: false, reason: null };
 }
 
+interface SenderRow {
+  from_address: string;
+  verdict: string;
+  decided_at: number | null;
+  first_seen_at: number | null;
+}
+
 /**
  * Decides where one message goes. Never throws and never rejects: the caller
  * has already accepted the mail at SMTP time, so the only question left is
@@ -79,8 +98,61 @@ export async function classify(db: D1Database, candidate: Candidate): Promise<Ve
   }
 }
 
-async function decide(_db: D1Database, _candidate: Candidate): Promise<Verdict> {
-  // Rules, the junk filter and the Screener each attach here, in that order.
-  // Until they do, every message is ordinary mail.
-  return deliver();
+async function decide(db: D1Database, candidate: Candidate): Promise<Verdict> {
+  const verdict = deliver();
+
+  // One round trip for every stage's inputs. Rules and the junk filter join
+  // this batch rather than adding round trips of their own.
+  const [flags, senders] = await db.batch<Record<string, string> | SenderRow>([
+    db.prepare("SELECT key, value FROM settings WHERE key IN (?1)").bind(SETTING_SCREENER),
+    db.prepare("SELECT * FROM senders WHERE from_address = ?1").bind(candidate.from),
+  ]);
+  const setting = new Map(
+    (flags.results as { key: string; value: string }[]).map((row) => [row.key, row.value])
+  );
+  const sender = (senders.results as SenderRow[])[0] ?? null;
+
+  if (setting.get(SETTING_SCREENER) === "1") screen(verdict, candidate, sender);
+  return verdict;
+}
+
+/**
+ * The Screener: mail from a sender nobody has vouched for waits to be let in.
+ *
+ * This is the answer to the one thing the README warns about — the mail side is
+ * a true catch-all, so anyone who guesses an address at the domain reaches the
+ * inbox. Holding the first message from an unknown sender turns that from a
+ * problem into a question.
+ *
+ * The exemptions are what stop it being infuriating, and each one is a case
+ * where holding the message would be actively wrong.
+ */
+function screen(verdict: Verdict, candidate: Candidate, sender: SenderRow | null): void {
+  if (sender?.verdict === "allowed") return;
+  if (sender?.verdict === "binned") {
+    verdict.trash = true;
+    verdict.reason = "You binned this sender";
+    return;
+  }
+
+  const address = candidate.addressRow;
+
+  // The service the address was made for. This is the same test the Leaks view
+  // uses, from the other side: a sender that matches owner_domain is the one
+  // company that is supposed to be writing here.
+  if (address && relatedDomain(senderDomain(candidate.from), address.owner_domain)) return;
+
+  // A burner the owner made and no mail has reached yet — they are standing
+  // over it with the sign-up form open in the next tab.
+  if (address && address.origin === "owner" && address.first_seen_at == null) return;
+
+  // A verification code, to an address the owner made themselves. Swallowing a
+  // sign-in code is the worst thing this app could do, and an address they
+  // generated is one they are actively using. Deliberately not extended to
+  // addresses the catch-all invented: otherwise "your code is 123456" in a spam
+  // template would be a way past the Screener for every guessed address.
+  if (candidate.code && address?.origin === "owner") return;
+
+  verdict.box = "screener";
+  verdict.reason = "First message from this sender";
 }

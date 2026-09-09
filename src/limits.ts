@@ -64,6 +64,20 @@ export interface RuntimeLimits {
   attachmentBytes: number;
 }
 
+/**
+ * What survives the global cap, most worth keeping first.
+ *
+ * Starred mail first, because that is the owner saying so. Then junk last of
+ * all, because it is the one box whose contents they have already been told
+ * are worth nothing -- without that, a run of junk evicts real mail on age
+ * alone. Everything else falls back to newest-first.
+ *
+ * Lives here rather than beside the query that uses it because src/index.ts is
+ * the Worker's entrypoint module, and the runtime refuses to start if a named
+ * export there is not a handler or a class.
+ */
+export const KEEP_ORDER = "starred DESC, (box = 'junk') ASC, received_at DESC, id DESC";
+
 /** Bounds for the settings the owner can edit, shared with the UI. */
 export const LIMIT_RANGES = {
   retentionDays: { min: 1, max: 365 },

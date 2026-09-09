@@ -96,3 +96,18 @@ describe("after signing in", () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe("the Worker entrypoint", () => {
+  it("exports only handlers and classes", async () => {
+    // The runtime refuses to start when a named export from the entrypoint is
+    // anything else -- "Incorrect type for map entry: the provided value is not
+    // of type 'function or ExportedHandler'" -- and the test pool imports this
+    // module directly, so nothing else here would notice. A shared constant
+    // parked in src/index.ts is a boot failure, not a lint nit.
+    const module_ = await import("../src/index");
+    for (const [name, value] of Object.entries(module_)) {
+      if (name === "default") continue;
+      expect(typeof value, `export "${name}"`).toBe("function");
+    }
+  });
+});

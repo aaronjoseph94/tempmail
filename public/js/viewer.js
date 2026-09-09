@@ -65,6 +65,7 @@ function renderViewer() {
   avatar.textContent = initialsFor(from);
   $("msg-from-name").textContent = msg.fromName || msg.fromAddress;
   renderLeakStrip(msg);
+  renderScreenStrip(msg);
   renderAuthBadge(msg);
   renderUnsubChip(msg);
   renderWarnStrip(msg);
@@ -635,6 +636,56 @@ function renderWarnStrip(msg) {
   if (!flags.length) return;
   $("msg-warn-text").textContent = `Links in this message look suspicious. ${flags.join(". ")}.`;
   $("msg-warn-plain").hidden = !msg.textBody;
+}
+
+/**
+ * The Screener's question: this sender is new, do you want to hear from them?
+ *
+ * Asked once per sender rather than once per message, and answering it moves
+ * everything they have waiting, because "four messages from one stranger" is
+ * one decision and not four.
+ */
+export function renderScreenStrip(msg) {
+  const strip = $("msg-screen");
+  strip.hidden = msg.box !== "screener";
+  if (strip.hidden) return;
+  const who = msg.fromName ? `${msg.fromName} (${msg.fromAddress})` : msg.fromAddress;
+  $("msg-screen-text").textContent = `You have not heard from ${who} before. Nothing from them reaches your inbox until you say so.`;
+  $("msg-screen-allow").onclick = () => decideSender(msg.fromAddress, "allowed");
+  $("msg-screen-bin").onclick = () => decideSender(msg.fromAddress, "binned");
+}
+
+/**
+ * Answers the Screener for one sender, with an undo that puts back exactly
+ * what this decision moved rather than everything they have ever sent.
+ */
+export async function decideSender(sender, verdict) {
+  let result;
+  try {
+    result = await send("POST", `/api/senders/${encodeURIComponent(sender)}`, { verdict });
+  } catch (err) {
+    toast(err.message, "i-warn");
+    return;
+  }
+  closeMessage();
+  await refresh().catch(() => {});
+  const n = result.ids.length;
+  const what = verdict === "allowed"
+    ? `${sender} can write to you${n ? ` — ${plural(n, "message")} moved` : ""}`
+    : `${sender} binned${n ? ` — ${plural(n, "message")} trashed` : ""}`;
+  toast(what, verdict === "allowed" ? "i-tick" : "i-trash", {
+    action: "Undo",
+    onAction: async () => {
+      try {
+        await send("POST", `/api/senders/${encodeURIComponent(sender)}`, { verdict: "unknown", ids: result.ids });
+      } catch (err) {
+        toast(err.message, "i-warn");
+        return;
+      }
+      await refresh().catch(() => {});
+      toast(`${sender} is waiting again`, "i-shield");
+    },
+  });
 }
 
 /** Under the sender: a warning when this message is from someone other than the address's owner. */

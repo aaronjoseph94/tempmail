@@ -18,6 +18,7 @@ export const state = {
   addresses: [],
   box: "inbox",          // which mailbox: inbox | screener | junk
   boxCounts: {},         // how much is waiting in the boxes that are not the inbox
+  addressesTruncated: false, // the address list hit its ceiling; older ones are not shown
   filter: "",            // address being viewed; "" is all mail
   candidate: "",         // the local part the new-inbox sheet is offering
   query: "",             // search text
