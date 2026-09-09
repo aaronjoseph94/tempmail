@@ -1,0 +1,11 @@
+{
+  "name": "tempmail",
+  "install": "npm ci && { cp -n .dev.vars.example .dev.vars || true; }",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [8787]
+}
