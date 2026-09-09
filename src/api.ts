@@ -29,6 +29,7 @@ import { normalizeDomain, SNIPPET_LENGTH } from "./text";
 import { isAddressMode, isDead, relatedDomain, type AddressRow } from "./addresses";
 import { BOXES, isBox, isVerdict, type Box } from "./classify";
 import { JUNK_MIN_TRAINED, junkTokens, trainTokens } from "./junk";
+import { MAX_RULES, MAX_RULE_VALUE, RULE_ACTIONS, RULE_FIELDS, isRuleAction, isRuleField, needsValue } from "./rules";
 import { htmlToText } from "./text";
 import { isOneClick, parseListUnsubscribe, publicHttpsUrl, type AuthSummary } from "./headers";
 
@@ -153,6 +154,8 @@ const ROUTES = [
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
+  route("GET", "/api/rules", listRules),
+  route("PUT", "/api/rules", putRules),
   route("POST", "/api/junk", markJunk),
   route("DELETE", "/api/junk", forgetJunk),
   route("GET", "/api/senders", listSenders),
@@ -798,6 +801,66 @@ async function getMessage({ env, params }: Ctx): Promise<Response> {
     box: row.box,
     boxReason: row.box_reason,
   });
+}
+
+/* ---------------------------------------------------------------- rules */
+
+/**
+ * GET /api/rules — the rules in the order they run, with the vocabulary the
+ * editor needs so the client never has to hardcode a list the server checks.
+ */
+async function listRules({ env }: Ctx): Promise<Response> {
+  const { results } = await env.DB
+    .prepare("SELECT id, position, enabled, field, value, action FROM rules ORDER BY position")
+    .all<{ id: string; position: number; enabled: number; field: string; value: string; action: string }>();
+  return json({
+    rules: results.map((row) => ({ ...row, enabled: !!row.enabled })),
+    fields: RULE_FIELDS,
+    actions: RULE_ACTIONS,
+    max: MAX_RULES,
+  });
+}
+
+/**
+ * PUT /api/rules  { rules: [...] }
+ *
+ * Replaces the whole ordered list rather than offering create, update, delete
+ * and reorder. Order is part of a rule's meaning here, so every edit is really
+ * an edit of the list; sending it whole means the client cannot half-apply a
+ * reorder and there is no id to keep in step.
+ */
+async function putRules({ request, env }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  if (!Array.isArray(body.rules)) return json({ error: "rules must be a list" }, 400);
+  if (body.rules.length > MAX_RULES) return json({ error: `At most ${MAX_RULES} rules.` }, 400);
+
+  const now = Date.now();
+  const rows: { id: string; field: string; value: string; action: string; enabled: number }[] = [];
+  for (const raw of body.rules) {
+    const rule = (raw ?? {}) as Record<string, unknown>;
+    if (!isRuleField(rule.field)) return json({ error: "Unknown rule field" }, 400);
+    if (!isRuleAction(rule.action)) return json({ error: "Unknown rule action" }, 400);
+    const value = String(rule.value ?? "").trim().slice(0, MAX_RULE_VALUE);
+    if (needsValue(rule.field) && !value) return json({ error: "That rule needs something to match on." }, 400);
+    rows.push({
+      id: typeof rule.id === "string" && rule.id ? rule.id.slice(0, 64) : crypto.randomUUID(),
+      field: rule.field,
+      value,
+      action: rule.action,
+      enabled: rule.enabled === false ? 0 : 1,
+    });
+  }
+
+  // Written as one batch, so a half-saved list is not a state anything sees.
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM rules"),
+    ...rows.map((row, position) =>
+      env.DB
+        .prepare("INSERT INTO rules (id, position, enabled, field, value, action, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)")
+        .bind(row.id, position, row.enabled, row.field, row.value, row.action, now)
+    ),
+  ]);
+  return listRules({ env } as Ctx);
 }
 
 /* ----------------------------------------------------------------- junk */

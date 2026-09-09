@@ -30,6 +30,7 @@ import { relatedDomain, senderDomain, type AddressRow } from "./addresses";
 import { SETTING_JUNK_TRAINED_HAM, SETTING_JUNK_TRAINED_JUNK, SETTING_SCREENER } from "./db";
 import type { AuthSummary } from "./headers";
 import { JUNK_THRESHOLD, junkScore, junkTokens } from "./junk";
+import { describeRule, ruleMatches, type Rule } from "./rules";
 
 /** Where a message lives. The trash is `deleted_at`, not a box. */
 export const BOXES = ["inbox", "screener", "junk"] as const;
@@ -110,16 +111,21 @@ async function decide(db: D1Database, candidate: Candidate): Promise<Verdict> {
   // One round trip for every stage's inputs. Rules join this batch too rather
   // than adding a round trip of their own.
   const keys = [SETTING_SCREENER, SETTING_JUNK_TRAINED_JUNK, SETTING_JUNK_TRAINED_HAM];
-  const [flags, senders] = await db.batch<Record<string, string> | SenderRow>([
+  const [flags, senders, rules] = await db.batch<Record<string, string> | SenderRow | Rule>([
     db.prepare(`SELECT key, value FROM settings WHERE key IN (${keys.map((_, n) => `?${n + 1}`).join(",")})`).bind(...keys),
     db.prepare("SELECT * FROM senders WHERE from_address = ?1").bind(candidate.from),
+    db.prepare("SELECT * FROM rules WHERE enabled = 1 ORDER BY position"),
   ]);
   const setting = new Map(
     (flags.results as { key: string; value: string }[]).map((row) => [row.key, row.value])
   );
   const sender = (senders.results as SenderRow[])[0] ?? null;
 
-  if (setting.get(SETTING_SCREENER) === "1") screen(verdict, candidate, sender);
+  // The owner's own instructions come first. Nothing below overrules them.
+  const ruled = applyRules(verdict, candidate, rules.results as Rule[]);
+  if (ruled.filed) return verdict;
+
+  if (setting.get(SETTING_SCREENER) === "1" && !ruled.allow) screen(verdict, candidate, sender);
 
   // Only mail that is otherwise on its way to the inbox. There is nothing to
   // be gained by scoring a message that is already being held or binned.
@@ -130,6 +136,35 @@ async function decide(db: D1Database, candidate: Candidate): Promise<Verdict> {
     });
   }
   return verdict;
+}
+
+/**
+ * Runs the owner's rules in order.
+ *
+ * Every match applies its action, so starring and marking-read can combine on
+ * one message. An action that files the message -- bin or junk -- ends the
+ * pass and the rest of the pipeline with it, because there is nothing left for
+ * the Screener or the filter to decide.
+ */
+function applyRules(verdict: Verdict, candidate: Candidate, rules: Rule[]): { filed: boolean; allow: boolean } {
+  let allow = false;
+  for (const rule of rules) {
+    if (!ruleMatches(rule, candidate)) continue;
+    switch (rule.action) {
+      case "star": verdict.star = true; break;
+      case "read": verdict.read = true; break;
+      case "allow": allow = true; break;
+      case "junk":
+        verdict.box = "junk";
+        verdict.reason = describeRule(rule);
+        return { filed: true, allow };
+      case "bin":
+        verdict.trash = true;
+        verdict.reason = describeRule(rule);
+        return { filed: true, allow };
+    }
+  }
+  return { filed: false, allow };
 }
 
 /**

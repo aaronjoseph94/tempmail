@@ -149,6 +149,20 @@ const CREATE_JUNK_TOKENS = `CREATE TABLE IF NOT EXISTS junk_tokens (
   seen_at INTEGER NOT NULL
 )`;
 
+/**
+ * The rules the owner wrote, in the order they run. One condition and one
+ * action each; see src/rules.ts for why it stays that simple.
+ */
+const CREATE_RULES = `CREATE TABLE IF NOT EXISTS rules (
+  id         TEXT PRIMARY KEY,
+  position   INTEGER NOT NULL,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  field      TEXT NOT NULL,
+  value      TEXT NOT NULL DEFAULT '',
+  action     TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`;
+
 /** Browsers that asked to be pushed to when mail arrives. */
 const CREATE_PUSH = `CREATE TABLE IF NOT EXISTS push_subscriptions (
   endpoint   TEXT PRIMARY KEY,
@@ -268,6 +282,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_PUSH),
     db.prepare(CREATE_SENDERS),
     db.prepare(CREATE_JUNK_TOKENS),
+    db.prepare(CREATE_RULES),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),

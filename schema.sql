@@ -67,6 +67,18 @@ CREATE TABLE IF NOT EXISTS senders (
   first_seen_at INTEGER
 );
 
+-- The rules the owner wrote, in the order they run. One condition and one
+-- action each; see src/rules.ts for why it stays that simple.
+CREATE TABLE IF NOT EXISTS rules (
+  id         TEXT PRIMARY KEY,
+  position   INTEGER NOT NULL,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  field      TEXT NOT NULL,                        -- from_address | from_domain | subject | to_address | has_attachment
+  value      TEXT NOT NULL DEFAULT '',
+  action     TEXT NOT NULL,                        -- star | read | allow | junk | bin
+  created_at INTEGER NOT NULL
+);
+
 -- What the junk filter has learned, one row per word or fact, counted per
 -- message rather than per occurrence. Trimmed nightly (see src/junk.ts).
 CREATE TABLE IF NOT EXISTS junk_tokens (

@@ -705,7 +705,7 @@ select {
   background-position: right 15px top 55%, right 10px top 55%;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  min-height: var(--tap-min);
+  min-height: max(var(--btn-h, 36px), var(--tap-min));
 }
 select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--ring); }
 
@@ -715,7 +715,7 @@ select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--r
 .domain-row { display: flex; align-items: center; gap: 4px; }
 .domain-pick {
   flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0;
-  padding: 8px 10px; min-height: var(--tap-min);
+  padding: 8px 10px; min-height: max(36px, var(--tap-min));
   font: inherit; font-size: var(--t-md); color: var(--ink2); text-align: left;
   background: none; border: 0; border-radius: var(--r-md); cursor: pointer;
 }
@@ -723,11 +723,46 @@ select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--r
 .domain-pick[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
 .domain-pick .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .domain-drop {
-  display: grid; place-items: center; width: var(--tap-min); height: var(--tap-min);
+  display: grid; place-items: center;
+  width: max(36px, var(--tap-min)); height: max(36px, var(--tap-min));
   color: var(--ink3); background: none; border: 0; border-radius: var(--r-md); cursor: pointer;
 }
 .domain-drop:hover { color: var(--danger); background: var(--c3); }
 .domain-drop[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+/* ---- rules ----
+   One row per rule: what it does, then the controls that move and remove it.
+   The order is the meaning, so the arrows are as prominent as the delete. */
+.rule-list { display: flex; flex-direction: column; gap: 6px; }
+.rule-list:empty::after {
+  content: "No rules yet. Everything arrives as it always did.";
+  color: var(--ink3); font-size: var(--t-md); padding: 8px 2px;
+}
+.rule-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px 6px 10px;
+  background: var(--c3); border-radius: var(--r-md);
+}
+.rule-row.off { opacity: 0.5; }
+.rule-text { flex: 1; min-width: 0; font-size: var(--t-md); line-height: 1.4; color: var(--ink2); }
+.rule-text b { color: var(--ink); font-weight: 500; }
+.rule-tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.rule-tools button {
+  display: grid; place-items: center;
+  width: max(32px, var(--tap-min)); height: max(32px, var(--tap-min));
+  color: var(--ink3); background: none; border: 0; border-radius: var(--r-sm); cursor: pointer;
+}
+.rule-tools button:hover:not([disabled]) { color: var(--ink); background: var(--c5); }
+.rule-tools button[disabled] { opacity: 0.3; cursor: not-allowed; }
+.rule-tools .drop:hover { color: var(--danger); }
+/* One chevron, pointed the two ways the list can move. */
+.rule-tools [data-up] .icon { rotate: 180deg; }
+.rule-tools .toggle[aria-pressed="true"] { color: var(--accent); }
+.rule-form { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 560px) {
+  .rule-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end; }
+  .rule-form .btn { grid-column: 1 / -1; }
+}
 
 /* ---- boxes ----
    A box is a mailbox, not a filter, so opening one puts the All / Unread /

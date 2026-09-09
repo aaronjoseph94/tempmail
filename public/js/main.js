@@ -13,6 +13,7 @@ import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
 import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
+import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
@@ -243,6 +244,16 @@ $("set-autorefresh").addEventListener("change", (e) => setAutoRefresh(e.target.c
 $("set-images").addEventListener("change", (e) => setAlwaysImages(e.target.checked));
 $("set-screener").addEventListener("change", (e) => setScreener(e.target.checked));
 $("junk-forget").addEventListener("click", forgetJunk);
+
+/* Rules */
+fillRuleForm();
+$("open-rules").addEventListener("click", openRules);
+$("rules-close").addEventListener("click", closeRules);
+$("rules").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeRules(); });
+$("rule-list").addEventListener("click", onRuleClick);
+$("rule-form").addEventListener("submit", addRule);
+$("rule-field").addEventListener("change", renderRuleForm);
+wireDrawerDrag("rules-panel", "rules-grip", closeRules);
 
 $("btn-sound").addEventListener("click", () => {
   setSound(!state.sound);

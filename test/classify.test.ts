@@ -362,3 +362,94 @@ describe("the junk filter", () => {
     expect((await call("/api/junk", { cookie, json: { ids: [] } })).status).toBe(400);
   });
 });
+
+describe("rules", () => {
+  const setRules = (rules: unknown[]) => call("/api/rules", { method: "PUT", cookie, json: { rules } });
+  const boxOf = (subject: string) =>
+    env.DB.prepare("SELECT box, starred, read, deleted_at, box_reason FROM messages WHERE subject = ?1").bind(subject)
+      .first<{ box: string; starred: number; read: number; deleted_at: number | null; box_reason: string | null }>();
+
+  it("stars mail from a domain, matching subdomains too", async () => {
+    await setRules([{ field: "from_domain", value: "bank.example", action: "star" }]);
+    await deliver(buildMail({ from: "alerts@mail.bank.example", subject: "Statement" }), "a@mail.example.test");
+    const row = await boxOf("Statement");
+    expect(row?.starred).toBe(1);
+    expect(row?.box).toBe("inbox");
+  });
+
+  it("applies every rule that matches, not just the first", async () => {
+    await setRules([
+      { field: "from_domain", value: "news.example", action: "star" },
+      { field: "subject", value: "weekly", action: "read" },
+    ]);
+    await deliver(buildMail({ from: "hi@news.example", subject: "The weekly roundup" }), "a@mail.example.test");
+    const row = await boxOf("The weekly roundup");
+    expect(row).toMatchObject({ starred: 1, read: 1 });
+  });
+
+  it("stops at a rule that files the message", async () => {
+    await setRules([
+      { field: "subject", value: "offer", action: "bin" },
+      { field: "from_domain", value: "shop.example", action: "star" },
+    ]);
+    await deliver(buildMail({ from: "deals@shop.example", subject: "An offer for you" }), "a@mail.example.test");
+    const row = await boxOf("An offer for you");
+    expect(row?.deleted_at).toBeGreaterThan(0);
+    expect(row?.starred).toBe(0);
+    expect(row?.box_reason).toMatch(/Your rule/);
+  });
+
+  it("junks on request and says which rule did it", async () => {
+    await setRules([{ field: "from_address", value: "spam@bad.example", action: "junk" }]);
+    await deliver(buildMail({ from: "spam@bad.example", subject: "Ruled junk" }), "a@mail.example.test");
+    const row = await boxOf("Ruled junk");
+    expect(row?.box).toBe("junk");
+    expect(row?.box_reason).toMatch(/from spam@bad.example/);
+  });
+
+  it("lets a rule wave a sender past the Screener", async () => {
+    await call("/api/settings", { method: "PUT", cookie, json: { screener: true } });
+    await setRules([{ field: "from_domain", value: "trusted.example", action: "allow" }]);
+    await deliver(buildMail({ from: "hello@trusted.example", subject: "Allowed" }), "guessed@mail.example.test");
+    expect((await boxOf("Allowed"))?.box).toBe("inbox");
+    // And a sender no rule mentions is still held.
+    await deliver(buildMail({ from: "hello@other.example", subject: "Still held" }), "guessed@mail.example.test");
+    expect((await boxOf("Still held"))?.box).toBe("screener");
+  });
+
+  it("ignores a rule that is switched off", async () => {
+    await setRules([{ field: "subject", value: "quiet", action: "bin", enabled: false }]);
+    await deliver(buildMail({ subject: "quiet please" }), "a@mail.example.test");
+    expect((await boxOf("quiet please"))?.deleted_at).toBeNull();
+  });
+
+  it("matches an attachment without needing a value", async () => {
+    await setRules([{ field: "has_attachment", value: "", action: "star" }]);
+    await deliver(
+      buildMail({ subject: "With a file", attachments: [{ name: "a.txt", type: "text/plain", bytes: new TextEncoder().encode("hi") }] }),
+      "a@mail.example.test"
+    );
+    expect((await boxOf("With a file"))?.starred).toBe(1);
+  });
+
+  it("keeps the order it was given and refuses nonsense", async () => {
+    const saved = await json(await setRules([
+      { field: "subject", value: "one", action: "star" },
+      { field: "subject", value: "two", action: "read" },
+    ]));
+    expect(saved.rules.map((r: any) => [r.position, r.value])).toEqual([[0, "one"], [1, "two"]]);
+
+    expect((await setRules([{ field: "nope", value: "x", action: "star" }])).status).toBe(400);
+    expect((await setRules([{ field: "subject", value: "x", action: "explode" }])).status).toBe(400);
+    expect((await setRules([{ field: "subject", value: "  ", action: "star" }])).status).toBe(400);
+    expect((await setRules(Array.from({ length: 21 }, () => ({ field: "subject", value: "x", action: "star" })))).status).toBe(400);
+    // A rejected save changed nothing.
+    expect((await json(await call("/api/rules", { cookie }))).rules).toHaveLength(2);
+  });
+
+  it("never lets a broken rules table lose mail", async () => {
+    await env.DB.prepare("DROP TABLE rules").run();
+    expect(await deliver(buildMail({ subject: "Survives" }), "a@mail.example.test")).toEqual([]);
+    expect((await boxOf("Survives"))?.box).toBe("inbox");
+  });
+});
