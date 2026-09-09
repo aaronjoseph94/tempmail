@@ -165,8 +165,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
     `INSERT INTO messages
        (id, address, from_name, from_address, subject, snippet, code, text_body, html_body, attachments, received_at, read, starred,
         message_id, in_reply_to, references_hdr, reply_to, sent_at, list_unsubscribe, list_unsubscribe_post, auth_results, auth_summary,
-        box, box_reason, deleted_at, search_text)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?21, ?22, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?23, ?24, ?25, ?26)`
+        box, box_reason, deleted_at, search_text, list_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?21, ?22, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?23, ?24, ?25, ?26, ?27)`
   )
     .bind(
       id,
@@ -194,7 +194,8 @@ export async function storeInboundEmail(env: Env, mail: InboundMail): Promise<In
       verdict.box,
       verdict.reason,
       verdict.trash ? now : null,
-      searchText(plain)
+      searchText(plain),
+      clipHeader(headerValue(parsed.headers, "list-id"))
     )
     .run();
 

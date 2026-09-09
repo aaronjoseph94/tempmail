@@ -150,6 +150,20 @@ const CREATE_JUNK_TOKENS = `CREATE TABLE IF NOT EXISTS junk_tokens (
 )`;
 
 /**
+ * What has been unsubscribed from, and how it went.
+ *
+ * Keyed by list rather than by sender: one company runs several lists, and
+ * leaving one of them is not leaving the others.
+ */
+const CREATE_UNSUBSCRIBES = `CREATE TABLE IF NOT EXISTS unsubscribes (
+  list_key   TEXT PRIMARY KEY,
+  address    TEXT,
+  status     TEXT NOT NULL,
+  detail     TEXT,
+  at         INTEGER NOT NULL
+)`;
+
+/**
  * The rules the owner wrote, in the order they run. One condition and one
  * action each; see src/rules.ts for why it stays that simple.
  */
@@ -242,6 +256,10 @@ const ADDED_COLUMNS = [
   // The readable text of the message, clipped, so search can look inside it
   // without dragging a quarter-megabyte body through every comparison.
   { name: "search_text", ddl: "ALTER TABLE messages ADD COLUMN search_text TEXT" },
+  // The List-ID header, which is how a mailing list names itself. One sender
+  // often runs several, so the sender alone is the wrong grain for "what am I
+  // actually subscribed to".
+  { name: "list_id", ddl: "ALTER TABLE messages ADD COLUMN list_id TEXT" },
 ];
 
 /** Columns `addresses` gained after its first release. */
@@ -286,6 +304,7 @@ export async function bootstrapSchema(db: D1Database): Promise<void> {
     db.prepare(CREATE_SENDERS),
     db.prepare(CREATE_JUNK_TOKENS),
     db.prepare(CREATE_RULES),
+    db.prepare(CREATE_UNSUBSCRIBES),
     db.prepare(CREATE_LABELS),
     db.prepare(CREATE_ATTACHMENTS),
     db.prepare(CREATE_CHUNKS),

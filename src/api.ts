@@ -154,6 +154,8 @@ const ROUTES = [
   route("GET", "/api/messages/:id/attachments/:idx", downloadAttachment),
   route("GET", "/api/messages/:id/export", exportMessage),
   route("POST", "/api/messages/:id/unsubscribe", unsubscribe),
+  route("GET", "/api/addresses/:address/subscriptions", listSubscriptions),
+  route("POST", "/api/unsubscribe", unsubscribeMany),
   route("GET", "/api/rules", listRules),
   route("PUT", "/api/rules", putRules),
   route("POST", "/api/junk", markJunk),
@@ -1095,13 +1097,44 @@ async function decideSender({ request, env, params }: Ctx): Promise<Response> {
 async function unsubscribe({ env, params }: Ctx): Promise<Response> {
   const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?1 AND deleted_at IS NULL").bind(params.id).first<MessageRow>();
   if (!row) return json({ error: "Message not found" }, 404);
+  const result = await runUnsubscribe(row);
+  if (result.method === "none") return json({ error: result.detail }, result.status ?? 400);
+  if (result.method === "post") {
+    return json({ ok: result.done, method: "post", status: result.status, url: result.url }, result.done ? 200 : 502);
+  }
+  return json({ ok: true, method: result.method, url: result.url });
+}
+
+/** What one unsubscribe attempt came to. */
+interface UnsubscribeResult {
+  /** post: we asked. open/mailto: the reader has to. none: there is no way. */
+  method: "post" | "open" | "mailto" | "none";
+  /** Only ever true for "post": the other two have not unsubscribed anybody. */
+  done: boolean;
+  url?: string;
+  detail?: string;
+  status?: number;
+}
+
+/**
+ * Unsubscribes from one message's list, as far as it can be done from here.
+ *
+ * Shared by the single-message action and the bulk one so the two cannot drift
+ * apart on what counts as having unsubscribed. That distinction matters more
+ * than it looks: only the RFC 8058 one-click POST actually tells anyone
+ * anything. "open" and "mailto" hand the job back to the reader, and recording
+ * either as done would be the app claiming credit for work nobody did.
+ */
+async function runUnsubscribe(row: MessageRow): Promise<UnsubscribeResult> {
   const links = parseListUnsubscribe(row.list_unsubscribe);
-  if (!links) return json({ error: "This message has no unsubscribe link" }, 404);
+  if (!links) return { method: "none", done: false, detail: "This message has no unsubscribe link", status: 404 };
 
   const url = publicHttpsUrl(links.https);
   if (links.https && !url) {
-    if (links.mailto) return json({ ok: true, method: "mailto", url: links.mailto });
-    return json({ error: "The unsubscribe link points somewhere this inbox will not call" }, 400);
+    // A link this inbox will not call: private address, plain http, something
+    // odd. The mailto is a real alternative; nothing else is.
+    if (links.mailto) return { method: "mailto", done: false, url: links.mailto };
+    return { method: "none", done: false, detail: "The unsubscribe link points somewhere this inbox will not call", status: 400 };
   }
   if (url && isOneClick(row.list_unsubscribe_post)) {
     try {
@@ -1113,14 +1146,130 @@ async function unsubscribe({ env, params }: Ctx): Promise<Response> {
         signal: AbortSignal.timeout(8000),
       });
       const done = res.status >= 200 && res.status < 400;
-      return json({ ok: done, method: "post", status: res.status, url: url.toString() }, done ? 200 : 502);
+      return { method: "post", done, status: res.status, url: url.toString(), detail: done ? undefined : `The list answered ${res.status}` };
     } catch (err) {
       console.warn("unsubscribe request failed", err);
-      return json({ ok: false, method: "post", error: "The sender's unsubscribe service did not answer", url: url.toString() }, 502);
+      return { method: "post", done: false, status: 502, url: url.toString(), detail: "The sender's unsubscribe service did not answer" };
     }
   }
-  if (url) return json({ ok: true, method: "open", url: url.toString() });
-  return json({ ok: true, method: "mailto", url: links.mailto });
+  if (url) return { method: "open", done: false, url: url.toString() };
+  return { method: "mailto", done: false, url: links.mailto ?? undefined };
+}
+
+/** How many lists one bulk request handles. The client drives the rest. */
+const UNSUBSCRIBE_BATCH = 5;
+
+/**
+ * A list's name, as something a person would recognise.
+ *
+ * A List-ID is written "<offers.shop.example>" or 'The Offers List
+ * <offers.shop.example>', so only the delimiters come off -- taking the whole
+ * bracketed part leaves nothing at all and every list ends up named after
+ * whichever address happened to send it.
+ */
+function listName(row: { list_id: string | null; from_name: string | null; from_address: string }): string {
+  const id = (row.list_id ?? "").replace(/[<>"']/g, "").trim();
+  return id || row.from_name || row.from_address;
+}
+
+/**
+ * GET /api/addresses/:address/subscriptions
+ *
+ * What this address is actually signed up to, grouped by list. One company
+ * often runs several, so the sender alone is the wrong grain: leaving the
+ * offers list is not leaving the receipts one.
+ */
+async function listSubscriptions({ env, params }: Ctx): Promise<Response> {
+  const address = params.address.trim().toLowerCase();
+  const { results } = await env.DB
+    .prepare(
+      // SQLite gives the bare columns from the same row as the MAX(), so these
+      // are the newest message's unsubscribe details rather than a mixture.
+      `SELECT COALESCE(trim(list_id, '<>'), from_address) AS list_key, list_id, from_name, from_address,
+              id, list_unsubscribe, list_unsubscribe_post, COUNT(*) AS held, MAX(received_at) AS last_at
+         FROM messages
+        WHERE address = ?1 AND deleted_at IS NULL AND list_unsubscribe IS NOT NULL
+        GROUP BY list_key
+        ORDER BY last_at DESC LIMIT 50`
+    )
+    .bind(address)
+    .all<{ list_key: string; list_id: string | null; from_name: string | null; from_address: string; id: string;
+           list_unsubscribe: string | null; list_unsubscribe_post: string | null; held: number; last_at: number }>();
+
+  const done = new Map<string, { status: string; detail: string | null; at: number }>();
+  if (results.length) {
+    for (const chunk of idChunks(results.map((row) => row.list_key))) {
+      const holes = chunk.map((_, n) => `?${n + 1}`).join(",");
+      const { results: rows } = await env.DB
+        .prepare(`SELECT list_key, status, detail, at FROM unsubscribes WHERE list_key IN (${holes})`)
+        .bind(...chunk)
+        .all<{ list_key: string; status: string; detail: string | null; at: number }>();
+      for (const row of rows) done.set(row.list_key, { status: row.status, detail: row.detail, at: row.at });
+    }
+  }
+
+  return json({
+    address,
+    batch: UNSUBSCRIBE_BATCH,
+    subscriptions: results.map((row) => ({
+      key: row.list_key,
+      name: listName(row),
+      from: row.from_address,
+      count: row.held,
+      lastAt: row.last_at,
+      oneClick: isOneClick(row.list_unsubscribe_post) && !!parseListUnsubscribe(row.list_unsubscribe)?.https,
+      already: done.get(row.list_key) ?? null,
+    })),
+  });
+}
+
+/**
+ * POST /api/unsubscribe  { address, keys }
+ *
+ * Works through a handful of lists per call and reports each one. Small on
+ * purpose: every one is an outbound request with its own eight-second timeout,
+ * and a request that tries forty of them is one that hangs and then tells the
+ * reader nothing about which of the forty worked.
+ */
+async function unsubscribeMany({ request, env }: Ctx): Promise<Response> {
+  const body = await readJson(request);
+  const address = String(body.address ?? "").trim().toLowerCase();
+  const keys = Array.isArray(body.keys) ? body.keys.filter((k): k is string => typeof k === "string").slice(0, UNSUBSCRIBE_BATCH) : [];
+  if (!address || !keys.length) return json({ error: "Say which address and which lists" }, 400);
+
+  const now = Date.now();
+  const done: { key: string; method: string; ok: boolean; url?: string; detail?: string }[] = [];
+  for (const key of keys) {
+    const row = await env.DB
+      .prepare(
+        `SELECT * FROM messages
+          WHERE address = ?1 AND deleted_at IS NULL AND list_unsubscribe IS NOT NULL
+            AND COALESCE(trim(list_id, '<>'), from_address) = ?2
+          ORDER BY received_at DESC LIMIT 1`
+      )
+      .bind(address, key)
+      .first<MessageRow>();
+    if (!row) {
+      done.push({ key, method: "none", ok: false, detail: "Nothing from this list is here any more" });
+      continue;
+    }
+    const result = await runUnsubscribe(row);
+    done.push({ key, method: result.method, ok: result.done, url: result.url, detail: result.detail });
+
+    // Only a request that actually went out is recorded. "open" and "mailto"
+    // are still the reader's job, and writing them down as done would make the
+    // list say it had left something it had not.
+    if (result.done) {
+      await env.DB
+        .prepare(
+          `INSERT INTO unsubscribes (list_key, address, status, detail, at) VALUES (?1, ?2, 'done', NULL, ?3)
+             ON CONFLICT(list_key) DO UPDATE SET status = 'done', detail = NULL, at = excluded.at, address = excluded.address`
+        )
+        .bind(key, address, now)
+        .run();
+    }
+  }
+  return json({ ok: true, results: done });
 }
 
 /**

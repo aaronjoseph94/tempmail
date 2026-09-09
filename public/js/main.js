@@ -14,6 +14,7 @@ import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loa
 import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
+import { closeSubs, onSubClick, openSubs, runSubs } from "./subs.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
 import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
 import { step } from "./keys.js";
@@ -255,6 +256,14 @@ $("rule-list").addEventListener("click", onRuleClick);
 $("rule-form").addEventListener("submit", addRule);
 $("rule-field").addEventListener("change", renderRuleForm);
 wireDrawerDrag("rules-panel", "rules-grip", closeRules);
+
+/* Newsletters */
+$("btn-subs").addEventListener("click", openSubs);
+$("subs-close").addEventListener("click", closeSubs);
+$("subs").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeSubs(); });
+$("sub-list").addEventListener("change", onSubClick);
+$("subs-go").addEventListener("click", runSubs);
+wireDrawerDrag("subs-panel", "subs-grip", closeSubs);
 
 $("btn-sound").addEventListener("click", () => {
   setSound(!state.sound);

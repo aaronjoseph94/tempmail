@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=69" />
+  <link rel="stylesheet" href="/style.css?v=70" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -198,6 +198,9 @@
           </button>
           <button id="btn-burn" class="icon-btn" aria-label="Block this address" title="Block this address" aria-pressed="false" hidden data-menu="Block this inbox">
             <svg class="icon sm"><use href="#i-ban"/></svg>
+          </button>
+          <button id="btn-subs" class="icon-btn" aria-label="Unsubscribe from newsletters sent to this address" title="Newsletters sent here" hidden data-menu="Unsubscribe from newsletters">
+            <svg class="icon sm"><use href="#i-unsub"/></svg>
           </button>
           <button id="btn-wipe" class="icon-btn danger" aria-label="Delete this inbox and all its mail" title="Delete this inbox" hidden data-menu="Delete this inbox">
             <svg class="icon sm"><use href="#i-trash"/></svg>
@@ -639,6 +642,35 @@
     not a builder with brackets and ANDs -- that is a programming language, and
     nobody wants to debug one inside a mail app.
   -->
+  <!--
+    Everything one address is signed up to, grouped by mailing list rather than
+    by sender: one company runs several, and leaving the offers list is not
+    leaving the receipts one.
+  -->
+  <dialog id="subs" class="drawer sheet" aria-labelledby="subs-title">
+    <div class="drawer-panel" id="subs-panel">
+      <div class="drawer-grip" id="subs-grip" aria-hidden="true"></div>
+      <header class="drawer-head">
+        <h2 id="subs-title">Newsletters</h2>
+        <button type="button" class="icon-btn plain" id="subs-close" aria-label="Close">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+      <div class="drawer-scroll">
+        <section class="drawer-sec">
+          <p class="hint" id="subs-hint"></p>
+          <div class="sub-list" id="sub-list"></div>
+        </section>
+      </div>
+      <footer class="sheet-foot">
+        <p class="hint" id="subs-progress" hidden></p>
+        <button type="button" class="btn primary block" id="subs-go">
+          <svg class="icon sm"><use href="#i-unsub"/></svg><span id="subs-go-label">Unsubscribe</span>
+        </button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="rules" class="drawer sheet" aria-labelledby="rules-title">
     <div class="drawer-panel" id="rules-panel">
       <div class="drawer-grip" id="rules-grip" aria-hidden="true"></div>
@@ -739,6 +771,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=69"></script>
+  <script type="module" src="/js/main.js?v=70"></script>
 </body>
 </html>

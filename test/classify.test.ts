@@ -510,3 +510,93 @@ describe("searching inside messages", () => {
     expect((await find("haystack")).messages.map((m: any) => m.subject)).toEqual(["Older"]);
   });
 });
+
+describe("unsubscribing from everything at once", () => {
+  const listMail = (options: { to: string; from: string; subject: string; listId?: string; oneClick?: boolean; https?: string }) =>
+    buildMail({
+      to: options.to, from: options.from, subject: options.subject,
+      headers: [
+        `List-Unsubscribe: <${options.https ?? "https://lists.example/unsub?u=1"}>`,
+        ...(options.oneClick === false ? [] : ["List-Unsubscribe-Post: List-Unsubscribe=One-Click"]),
+        ...(options.listId ? [`List-ID: ${options.listId}`] : []),
+      ],
+    });
+  const subs = async (address: string) =>
+    json(await call(`/api/addresses/${encodeURIComponent(address)}/subscriptions`, { cookie }));
+
+  it("groups an address's mail by list, not by sender", async () => {
+    const to = "reader@mail.example.test";
+    await deliver(listMail({ to, from: "news@shop.example", subject: "Offers 1", listId: "<offers.shop.example>" }), to);
+    await deliver(listMail({ to, from: "news@shop.example", subject: "Offers 2", listId: "<offers.shop.example>" }), to);
+    await deliver(listMail({ to, from: "news@shop.example", subject: "Receipts", listId: "<receipts.shop.example>" }), to);
+    await deliver(buildMail({ to, from: "a-friend@example.org", subject: "Just a note" }), to);
+
+    const found = await subs(to);
+    expect(found.subscriptions).toHaveLength(2);
+    expect(found.subscriptions.map((s: any) => [s.name, s.count]).sort()).toEqual([
+      ["offers.shop.example", 2], ["receipts.shop.example", 1],
+    ]);
+    // A message with no unsubscribe header is not a subscription.
+    expect(found.subscriptions.some((s: any) => s.from === "a-friend@example.org")).toBe(false);
+  });
+
+  it("unsubscribes and remembers only what actually went out", async () => {
+    const to = "reader2@mail.example.test";
+    await deliver(listMail({ to, from: "one@lists.example", subject: "One", listId: "<one.lists.example>" }), to);
+    // No List-Unsubscribe-Post, so there is nobody to tell -- only a page for
+    // the reader to open themselves.
+    await deliver(listMail({ to, from: "two@lists.example", subject: "Two", listId: "<two.lists.example>", oneClick: false }), to);
+
+    const calls: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: any, init: any) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("lists.example")) { calls.push(url); return new Response("", { status: 200 }); }
+      return original(input, init);
+    }) as typeof fetch;
+    try {
+      const res = await json(await call("/api/unsubscribe", { cookie, json: { address: to, keys: ["one.lists.example", "two.lists.example"] } }));
+      expect(res.results.find((r: any) => r.key === "one.lists.example")).toMatchObject({ method: "post", ok: true });
+      expect(res.results.find((r: any) => r.key === "two.lists.example")).toMatchObject({ method: "open", ok: false });
+      expect(calls).toHaveLength(1);
+    } finally {
+      globalThis.fetch = original;
+    }
+
+    const after = await subs(to);
+    const one = after.subscriptions.find((s: any) => s.key === "one.lists.example");
+    const two = after.subscriptions.find((s: any) => s.key === "two.lists.example");
+    expect(one.already).toMatchObject({ status: "done" });
+    // The one the reader still has to do themselves is not marked done.
+    expect(two.already).toBeNull();
+  });
+
+  it("will not call a link that points somewhere private", async () => {
+    const to = "reader3@mail.example.test";
+    await deliver(listMail({ to, from: "evil@lists.example", subject: "SSRF", listId: "<evil.lists.example>", https: "http://127.0.0.1/admin" }), to);
+    const original = globalThis.fetch;
+    let called = false;
+    globalThis.fetch = (async (input: any, init: any) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("127.0.0.1")) { called = true; return new Response("", { status: 200 }); }
+      return original(input, init);
+    }) as typeof fetch;
+    try {
+      const res = await json(await call("/api/unsubscribe", { cookie, json: { address: to, keys: ["evil.lists.example"] } }));
+      expect(res.results[0].ok).toBe(false);
+      expect(called).toBe(false);
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect((await subs(to)).subscriptions[0].already).toBeNull();
+  });
+
+  it("takes at most a handful of lists per call, and needs an address", async () => {
+    expect((await call("/api/unsubscribe", { cookie, json: { keys: ["a"] } })).status).toBe(400);
+    expect((await call("/api/unsubscribe", { cookie, json: { address: "x@y.example", keys: [] } })).status).toBe(400);
+    const res = await json(await call("/api/unsubscribe", {
+      cookie, json: { address: "nobody@mail.example.test", keys: ["a", "b", "c", "d", "e", "f", "g"] },
+    }));
+    expect(res.results).toHaveLength(5);
+  });
+});

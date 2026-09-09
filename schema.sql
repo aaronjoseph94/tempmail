@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS messages (
   box          TEXT NOT NULL DEFAULT 'inbox', -- inbox | screener | junk
   box_reason   TEXT,                       -- one line for the reader: why it is here
   trained      TEXT,                       -- what this taught the junk filter: NULL | junk | ham
-  search_text  TEXT                        -- the message as flat text, clipped, so search can look inside it
+  search_text  TEXT,                       -- the message as flat text, clipped, so search can look inside it
+  list_id      TEXT                        -- the List-ID header: which mailing list this came from
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_address ON messages (address, received_at DESC);
@@ -66,6 +67,16 @@ CREATE TABLE IF NOT EXISTS senders (
   verdict       TEXT NOT NULL DEFAULT 'unknown',   -- allowed | binned | unknown
   decided_at    INTEGER,
   first_seen_at INTEGER
+);
+
+-- What has been unsubscribed from, and how it went. Keyed by list rather than
+-- by sender: one company runs several, and leaving one is not leaving the rest.
+CREATE TABLE IF NOT EXISTS unsubscribes (
+  list_key TEXT PRIMARY KEY,
+  address  TEXT,
+  status   TEXT NOT NULL,
+  detail   TEXT,
+  at       INTEGER NOT NULL
 );
 
 -- The rules the owner wrote, in the order they run. One condition and one

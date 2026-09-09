@@ -377,6 +377,7 @@ export function renderListHead() {
   $("btn-rename").hidden = !state.filter || !!box;
   const blocked = entry?.mode === "blocked";
   $("btn-burn").hidden = !state.filter || !!box;
+  $("btn-subs").hidden = !state.filter || !!box;
   $("btn-burn").setAttribute("aria-pressed", String(blocked));
   $("btn-burn").classList.toggle("on", blocked);
   $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
