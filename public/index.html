@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=72" />
+  <link rel="stylesheet" href="/style.css?v=73" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -367,37 +367,43 @@
     <div class="drawer-panel" id="drawer-panel">
       <div class="drawer-grip" id="drawer-grip" aria-hidden="true"></div>
       <header class="drawer-head">
-        <h2 id="settings-title">Settings</h2>
+        <div class="drawer-heading">
+          <h2 id="settings-title">Settings</h2>
+          <p class="drawer-kicker">How this inbox looks, who can sign in, and how mail is kept.</p>
+        </div>
         <button id="btn-settings-close" class="icon-btn plain" aria-label="Close settings">
           <svg class="icon"><use href="#i-close"/></svg>
         </button>
       </header>
 
       <div class="drawer-scroll">
+        <p class="drawer-lead only-desktop">These choices apply to this inbox on this Worker. Appearance and alerts stay on this device; domains, screening, the password and storage limits are saved on the server and follow you everywhere you sign in.</p>
+
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site</h3>
+          <p class="sec-lead">The name in the top bar, and the domains new addresses are made at. Cloudflare Email Routing still decides which mail this Worker actually receives &mdash; this list only controls what the app shows and generates.</p>
           <form class="row fields" id="brand-form">
             <label class="field">
-              <span>Name <em>shown in the top bar and the browser tab</em></span>
+              <span>Site name <em>top bar, tab title, notifications &mdash; 40 characters</em></span>
               <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" />
             </label>
-            <button class="btn sm primary" type="submit">Save</button>
+            <button class="btn sm primary" type="submit">Save name</button>
           </form>
           <div class="domain-list" id="domain-list"></div>
           <form class="row fields" id="domain-form">
             <label class="field">
-              <span>Mail domain <em>the part after the @</em></span>
+              <span>Add a mail domain <em>the part after the @, e.g. yourdomain.com</em></span>
               <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" />
             </label>
             <button class="btn sm primary" type="submit" id="domain-add">Add</button>
           </form>
-          <p class="hint">Mail is accepted for every domain routed to this Worker; this only sets what is shown and generated. The first one is the default.</p>
+          <p class="hint">You can keep several domains in one inbox (work and personal throwaways, a spare subdomain). Tap a domain to make it the default for <strong>New inbox</strong>. Remove one with the trash. An empty Add does not clear the list &mdash; remove domains one at a time.</p>
           <p class="hint" id="domain-note" hidden></p>
         </section>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-key"/></svg>Passkeys</h3>
-          <p class="hint">Sign in with your face, your fingerprint or a security key instead of typing the password. The password still works, and is how you get back in if you lose the device.</p>
+          <p class="sec-lead">Sign in with Face ID, a fingerprint or a hardware key instead of typing the password. Add one per device you trust. The password still works, and is the way back in if the device is lost, reset or stolen.</p>
           <div class="passkey-list" id="passkey-list"></div>
           <button type="button" class="btn sm primary" id="passkey-add">
             <svg class="icon sm"><use href="#i-plus"/></svg><span>Add a passkey</span>
@@ -407,14 +413,19 @@
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Password</h3>
+          <p class="sec-lead">This is the site password, not an email password. Changing it signs every other browser and device out immediately, so a shared or stolen session cannot linger.</p>
           <form class="stack" id="password-form">
             <label class="field">
               <span>Current password</span>
               <input id="pw-current" type="password" autocomplete="current-password" required />
             </label>
             <label class="field">
-              <span>New password <em>8 characters or more</em></span>
-              <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required />
+              <span>New password <em>8–200 characters</em></span>
+              <input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="200" required />
+            </label>
+            <label class="field">
+              <span>Confirm new password <em>must match, so a typo cannot lock you out</em></span>
+              <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="200" required />
             </label>
             <button class="btn sm" type="submit">Change password</button>
           </form>
@@ -423,14 +434,15 @@
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Screening</h3>
+          <p class="sec-lead">A catch-all means anyone who guesses an address can write to you. The Screener holds the first message from an unknown sender until you let them in. Rules run as mail arrives. The junk filter only speaks once you have taught it with your own Junk / Not junk taps &mdash; nothing is sent off this Worker.</p>
           <label class="switch">
             <input type="checkbox" id="set-screener" /><span class="track"></span>
-            <span class="label">Screen new senders<small>The first message from someone new waits for you instead of landing in the inbox</small></span>
+            <span class="label">Screen new senders<small>Unknown senders wait in the Screener. Turning this on vouches for everyone already in the inbox, so only genuinely new people wait.</small></span>
           </label>
-          <p class="hint">Your address works as a catch-all, so anyone who guesses one reaches you. Switching this on vouches for everyone already in your inbox, so only genuinely new senders wait.</p>
           <button type="button" class="btn sm ghost" id="open-rules">
             <svg class="icon sm"><use href="#i-sliders"/></svg><span>Rules</span>
           </button>
+          <p class="hint">Rules are one condition and one action each, top to bottom. Binning or junking a message is the last word &mdash; nothing below that rule runs on it.</p>
           <p class="hint" id="junk-state"></p>
           <button type="button" class="btn sm ghost" id="junk-forget" hidden>
             <svg class="icon sm"><use href="#i-refresh"/></svg><span>Forget what it has learned</span>
@@ -439,28 +451,30 @@
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
+          <p class="sec-lead">Three ways to hear that mail landed, plus a live connection that already updates the list. These switches are per device: turning sound off here does not mute your phone&rsquo;s other apps.</p>
           <label class="switch">
             <input type="checkbox" id="set-sound" /><span class="track"></span>
-            <span class="label">Sound on arrival<small>A short chime when mail lands</small></span>
+            <span class="label">Sound on arrival<small>A short chime in this tab when a message appears. The toolbar speaker does the same thing.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-notify" /><span class="track"></span>
-            <span class="label">Desktop notifications<small>Only while this tab is in the background</small></span>
+            <span class="label">Desktop notifications<small>Only while this tab is in the background, so they do not stack on top of the inbox you are already looking at.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-push" /><span class="track"></span>
-            <span class="label">Push notifications<small id="push-hint">Codes on the lock screen, even with the app closed</small></span>
+            <span class="label">Push notifications<small id="push-hint">Codes on the lock screen, even with the app closed. On iPhone, add this site to the Home Screen first, then open it from there to turn this on.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
-            <span class="label">Check for new mail automatically<small>Mail still arrives live when this is off</small></span>
+            <span class="label">Check for new mail automatically<small>A quiet backstop if the live connection drops. Mail still arrives live when this is off; the list just will not poll in the background.</small></span>
           </label>
         </section>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
+          <p class="sec-lead">Theme and accent stay on this browser. Remote images and link cleanup change how messages are shown, not what was stored.</p>
           <div class="setting-row">
-            <span class="label">Theme<small>System follows your device</small></span>
+            <span class="label">Theme<small>System follows the device. The sun/moon button in the top bar flips Light and Dark without leaving System remembered.</small></span>
             <div class="seg" id="theme-seg" data-ready="false" role="group" aria-label="Theme">
               <button type="button" class="seg-btn" data-theme="system" aria-pressed="true">System</button>
               <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
@@ -468,65 +482,85 @@
             </div>
           </div>
           <div class="setting-row">
-            <span class="label" id="scheme-label">Accent<small>Contrast-checked in both themes</small></span>
+            <span class="label" id="scheme-label">Accent<small>Used for switches, selection and the live dot. Each colour is checked for contrast in both themes.</small></span>
             <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
-              <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
-              <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
-              <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
-              <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
-              <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
-              <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
+                <span>Mono</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
+                <span>Indigo</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
+                <span>Emerald</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
+                <span>Amber</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
+                <span>Rose</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
+                <span>Cyan</span>
+              </div>
             </div>
           </div>
           <label class="switch">
             <input type="checkbox" id="set-images" /><span class="track"></span>
-            <span class="label">Always load remote images<small>Off keeps tracking pixels blocked until you ask</small></span>
+            <span class="label">Always load remote images<small>Off blocks tracking pixels until you tap Load images on a message. Inline images that arrived with the mail still show.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-clean-links" checked /><span class="track"></span>
-            <span class="label">Clean up links<small>Removes the codes that follow you between sites, and shows where a redirect really goes</small></span>
+            <span class="label">Clean up links<small>Strips tracking codes, unwraps redirects so you see the real destination, and puts that destination on hover. Turn it off if a sender&rsquo;s link breaks after cleanup.</small></span>
           </label>
         </section>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Your mail</h3>
+          <p class="sec-lead">Take a copy you can open in Apple Mail, Thunderbird or another app. Export one address at a time if the inbox is large &mdash; Cloudflare caps how much a single request may do, and a huge archive can stop mid-file.</p>
           <div class="row fields">
             <label class="field">
-              <span>Download <em>one archive any mail app can open</em></span>
+              <span>Download <em>.mbox archive &mdash; whole inbox or one address</em></span>
               <select id="export-scope"></select>
             </label>
             <a class="btn sm primary" id="export-go" href="/api/export/mbox" download>
               <svg class="icon sm"><use href="#i-download"/></svg><span>Download</span>
             </a>
           </div>
-          <p class="hint">An <code>.mbox</code> file, rebuilt from what was kept &mdash; senders, dates, both versions of the body and every attachment. The original bytes are not stored, so the sender&rsquo;s exact formatting is not part of it.</p>
+          <p class="hint">Rebuilt from what was kept: senders, dates, both versions of the body and every attachment. The original raw bytes are not stored, so the sender&rsquo;s exact MIME formatting is not part of it.</p>
         </section>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-database"/></svg>Storage &amp; limits</h3>
+          <p class="sec-lead">The nightly job deletes old mail and keeps the database inside these caps. Starred messages skip the age cleanup, but they still count toward the totals. Values outside the ranges below are rejected and nothing is saved.</p>
           <div class="meter">
             <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
             <div class="meter-row"><span id="storage-used">—</span><span id="storage-cap"></span></div>
           </div>
           <form class="limits" id="limits-form">
             <label class="field">
-              <span>Keep mail for <em>days</em></span>
+              <span>Keep mail for <em id="lim-retention-hint">days</em></span>
               <input id="lim-retention" type="number" inputmode="numeric" step="1" />
             </label>
             <label class="field">
-              <span>Per address <em>messages</em></span>
+              <span>Per address <em id="lim-per-address-hint">messages</em></span>
               <input id="lim-per-address" type="number" inputmode="numeric" step="1" />
             </label>
             <label class="field">
-              <span>In total <em>messages</em></span>
+              <span>In total <em id="lim-total-hint">messages</em></span>
               <input id="lim-total" type="number" inputmode="numeric" step="1" />
             </label>
             <label class="field">
-              <span>Max message <em>MB</em></span>
+              <span>Max message <em id="lim-raw-hint">MB</em></span>
               <input id="lim-raw" type="number" inputmode="decimal" step="1" />
             </label>
             <label class="field">
-              <span>Attachments <em>MB each</em></span>
+              <span>Attachments <em id="lim-attachment-hint">MB each</em></span>
               <input id="lim-attachment" type="number" inputmode="decimal" step="1" />
             </label>
             <button class="btn sm primary" type="submit">Save limits</button>
@@ -536,6 +570,7 @@
 
         <section class="drawer-sec only-desktop">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard</h3>
+          <p class="sec-lead">Shortcuts apply while the inbox is focused, not while you are typing in a field. A dialog (Settings, a sheet, a prompt) owns the keys until you close it.</p>
           <dl class="keys">
             <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous (or ↓ ↑)</dd></div>
             <div><dt><kbd>Enter</kbd></dt><dd>open message</dd></div>
@@ -555,16 +590,19 @@
         </section>
 
         <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-exit"/></svg>This device</h3>
+          <p class="sec-lead">Signs this browser out and stops push notifications here. Mail, domains and passkeys on the server are untouched. Other devices stay signed in until you change the password.</p>
+          <button id="btn-logout" class="btn sm ghost" type="button">
+            <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
+          </button>
+        </section>
+
+        <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
-          <p class="hint">Starred mail survives the nightly cleanup, but not this.</p>
-          <div class="row">
-            <button id="btn-delete-all" class="btn sm danger" type="button">
-              <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
-            </button>
-            <button id="btn-logout" class="btn sm ghost" type="button">
-              <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
-            </button>
-          </div>
+          <p class="sec-lead">Deletes every message in every inbox, including starred mail. Addresses, rules, passkeys and the password stay. This cannot be undone from the app.</p>
+          <button id="btn-delete-all" class="btn sm danger" type="button">
+            <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
+          </button>
         </section>
       </div>
     </div>
@@ -795,6 +833,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=72"></script>
+  <script type="module" src="/js/main.js?v=73"></script>
 </body>
 </html>

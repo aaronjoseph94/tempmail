@@ -345,6 +345,19 @@
 /* The accent picker: each swatch shows the colour it applies, in whichever
    theme is on, so the choice is made by looking rather than by reading a name. */
 .swatches { display: flex; gap: var(--s-4); flex-wrap: wrap; }
+.swatch-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.swatch-opt span {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
 .swatch {
   width: 28px;
   height: 28px;
@@ -2258,13 +2271,13 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 /* A label beside a control that is not a switch (the theme picker). */
 .setting-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   padding: 8px 0;
 }
-.setting-row .label { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-base); }
+.setting-row .label { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-base); flex: 1 1 160px; }
 .setting-row .label small { color: var(--ink3); font-size: var(--t-sm); }
 
 /* ================================================================ 5. drawer */
@@ -2312,7 +2325,7 @@ dialog.drawer[open]::backdrop { opacity: 1; }
 @media (min-width: 900px) {
   dialog.drawer { inset: 0 0 0 auto; height: 100dvh; }
   .drawer-panel {
-    width: min(440px, 100vw);
+    width: min(480px, 100vw);
     height: 100%;
     box-shadow: inset 1px 0 0 0 var(--c6), var(--shadow-3);
     translate: 0 0;
@@ -2328,15 +2341,35 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   top: 0;
   z-index: 2;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 16px 16px 14px;
   background: var(--c2);
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
+.drawer-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .drawer-head h2 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
+.drawer-kicker {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: 1.45;
+  color: var(--ink3);
+}
 .drawer-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.drawer-lead {
+  margin: 0;
+  padding: 14px 16px 2px;
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--ink2);
+}
+.sec-lead {
+  margin: -2px 0 0;
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--ink3);
+}
 
 /* Each section fades up a beat after the panel, the stagger SmoothUI uses
    on drawer content. */

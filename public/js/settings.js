@@ -22,6 +22,7 @@ export function retireActionToast() {
 
 export function openSettings() {
   const cfg = state.config || {};
+  renderBrand();
   const domainFromEnv = cfg.domainSource === "env";
   // The add field starts empty: the list below it is where the domains live,
   // so pre-filling it with the default only invites saving a duplicate.
@@ -88,6 +89,17 @@ function renderLimits() {
   bind("lim-total", ranges.total);
   bind("lim-raw", ranges.rawMb);
   bind("lim-attachment", ranges.attachmentMb);
+
+  const hint = (id, unit, range) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = range ? `${unit} · ${range.min}–${range.max}` : unit;
+  };
+  hint("lim-retention-hint", "days", ranges.retentionDays);
+  hint("lim-per-address-hint", "messages", ranges.perAddress);
+  hint("lim-total-hint", "messages", ranges.total);
+  hint("lim-raw-hint", "MB", ranges.rawMb);
+  hint("lim-attachment-hint", "MB each", ranges.attachmentMb);
 }
 
 export async function saveLimits(event) {
@@ -125,6 +137,7 @@ export function setAlwaysImages(on) {
   state.alwaysImages = on;
   store.set(PREFS.images, on ? "on" : "off");
   $("set-images").checked = on;
+  if (state.open) { prepareOpen(); renderBody(); }
 }
 
 /**
@@ -187,13 +200,17 @@ export async function saveDomain(event) {
   event.preventDefault();
   const typed = $("set-domain").value.trim();
   if (!typed) {
-    // An empty submit is the old "clear the domain", and still is.
-    await putDomains({ mailDomain: "" }, () => "Domains cleared");
-    renderDomains();
+    // Empty used to wipe every domain. That is not what Add should mean.
+    toast("Type a domain to add. Remove one with the trash beside it.", "i-globe");
+    return;
+  }
+  const already = (state.mailDomains || []).some((d) => d.toLowerCase() === typed.toLowerCase());
+  if (already) {
+    toast(`${typed} is already in the list`, "i-globe");
     return;
   }
   const next = [...(state.mailDomains || []), typed];
-  await putDomains({ mailDomains: next }, () => `${state.mailDomain} is the domain`);
+  await putDomains({ mailDomains: next }, () => `${typed} added`);
   $("set-domain").value = "";
 }
 
@@ -203,6 +220,7 @@ export async function makeDomainDefault(domain) {
 
 export async function dropDomain(domain) {
   const next = (state.mailDomains || []).filter((d) => d !== domain);
+  if (!next.length && !confirm(`Remove ${domain}? It is the last domain, so New inbox will not know where to make addresses until you add one.`)) return;
   await putDomains(next.length ? { mailDomains: next } : { mailDomain: "" }, () => `${domain} removed`);
 }
 
@@ -220,12 +238,19 @@ export async function saveBrand(event) {
 export async function changePassword(event) {
   event.preventDefault();
   const form = $("password-form");
+  const next = $("pw-new").value;
+  const confirmEl = $("pw-confirm");
+  if (confirmEl && next !== confirmEl.value) {
+    toast("The new passwords do not match", "i-warn");
+    confirmEl.focus();
+    return;
+  }
   const button = form.querySelector("button");
   button.disabled = true;
   try {
-    await send("POST", "/api/password", { currentPassword: $("pw-current").value, newPassword: $("pw-new").value });
+    await send("POST", "/api/password", { currentPassword: $("pw-current").value, newPassword: next });
     form.reset();
-    toast("Password changed", "i-shield");
+    toast("Password changed. Other devices are signed out.", "i-shield");
   } catch (err) {
     toast(err.message, "i-warn");
   } finally {
@@ -493,7 +518,7 @@ async function syncPushSwitch() {
     return;
   }
   box.disabled = false;
-  hint.textContent = "Codes on the lock screen, even with the app closed";
+  hint.textContent = "Codes on the lock screen, even with the app closed. On iPhone, add this site to the Home Screen first, then open it from there to turn this on.";
   const reg = swRegistration ?? (await registerServiceWorker());
   const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
   state.push = !!sub && store.get(PREFS.push) === "on";

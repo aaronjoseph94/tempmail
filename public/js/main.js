@@ -286,7 +286,8 @@ $("password-form").addEventListener("submit", changePassword);
 $("set-sound").addEventListener("change", (e) => setSound(e.target.checked));
 $("set-notify").addEventListener("change", (e) => toggleNotifications(e.target.checked));
 $("scheme-swatches").addEventListener("click", (e) => {
-  const button = e.target.closest("[data-scheme]");
+  const button = e.target.closest("[data-scheme]")
+    || e.target.closest(".swatch-opt")?.querySelector("[data-scheme]");
   if (button) applyScheme(button.dataset.scheme);
 });
 $("scheme-swatches").addEventListener("keydown", (e) => {
