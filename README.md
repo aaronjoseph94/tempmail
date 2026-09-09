@@ -19,23 +19,31 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
 ## What you get
 
 - **Catch-all**: every address at your domain lands in one inbox. Filter by address, name one, or wipe it in a click.
-- **Instant inboxes**: **New Inbox** in the sidebar makes a fresh, memorable address (`quiet-otter-42@…`) and copies it for you.
+- **Instant inboxes**: **New Inbox** in the sidebar makes a fresh, memorable address (`quiet-otter-42@…`) and copies it for you. Say where you are using it and it is named after the site instead (`netflix-k3m9p@…`), which also tells the leak detector who it belongs to before the first message arrives.
+- **Screener**: the first message from a sender nobody has vouched for waits for you instead of landing in the inbox &mdash; the answer to a catch-all that anyone can guess an address at. Approve or bin the sender once and every message they have waiting follows. Off until you switch it on, and switching it on vouches for everyone already in your inbox.
+- **A Junk button that learns**: mark a message junk and the filter picks up what junk looks like to you, then files the next one and says how sure it was. Trained only by your own taps, nothing leaves the Worker, and it says nothing at all until you have marked five of each.
+- **Rules**: "mail from a company: star it", "with these words in the subject: bin it". They run in order as mail arrives, and every one that matches applies.
+- **Several domains**: keep work and personal throwaways apart in the same inbox, and pick which one a new address is made at.
 - **Burner addresses**: a new inbox can last forever, a day or a week. Once it expires, mail to it bounces at the door, and you can block any address the same way.
 - **Leak detector**: each address remembers the service it was given to. Hear from anyone else and the **Leaks** view names them, one tap from blocking the address.
 - **Sender check**: a badge next to the sender says whether Cloudflare's SPF, DKIM and DMARC checks passed, and a strip warns when a link's text, characters or domain are pretending to be something else.
-- **One-tap unsubscribe**: when a sender supports one-click unsubscribe, the inbox sends the request for you; otherwise it opens their link.
+- **One-tap unsubscribe**: when a sender supports one-click unsubscribe, the inbox sends the request for you; otherwise it opens their link. **Newsletters** on any address lists everything writing to it, grouped by mailing list, and leaves the ones you choose in one go.
 - **Codes, spotted**: verification codes are detected and shown as a one-click copy chip in the list and the message.
 - **Star anything**: starred mail is exempt from the nightly cleanup, so a receipt can sit here indefinitely.
 - **Bulk actions**: select several messages to mark read, star or delete them together.
 - **Big attachments**: messages up to 25 MB are accepted, and attachments stream back on demand rather than loading with the message.
 - **Safe rendering**: HTML mail opens sandboxed with scripts blocked and remote images off until you ask. Inline images work; click one to zoom.
-- **Search** across sender, subject, address and preview, plus **unread** and **starred** views and **load older** for long histories.
+- **Names the trackers**: the tracking pixels it blocks are counted and named &mdash; "Blocked 3 trackers &mdash; Mailchimp, Meta, Segment" &mdash; rather than blocked in silence.
+- **Cleans up links**: the codes that follow you between sites are stripped, a wrapped redirect is replaced by where it really goes, and every link carries its true destination on hover. Switchable, since it rewrites what the sender wrote.
+- **Search inside messages**, not just sender, subject and preview &mdash; a result found in the body says so. Plus **unread** and **starred** views and **load older** for long histories.
+- **Download everything**: one `.mbox` file, for the whole inbox or one address, that Thunderbird and Apple Mail open. Rebuilt from what was kept, and the archive says so.
 - **Instant delivery**: open tabs hold a live connection to the Worker and show new mail the moment it lands; polling stays as a backstop.
 - **Codes on the lock screen**: turn on push notifications and a verification code arrives as a notification, with the code in the title and a Copy action, even with the app closed. On iPhone, add the site to your Home Screen first.
 - **Wait for a code**: tap it before you sign up somewhere, and the next code sent to your address appears full-screen and lands on your clipboard.
 - **New-mail alerts**: a quiet chime, desktop notifications, and an unread count in the tab title.
 - **Tune the limits**: retention, per-address and total caps, max message size and attachment budget are all editable in Settings.
 - **Phone-friendly**: a proper mobile layout, installable as a home-screen app (PWA).
+- **Passkeys**: sign in with your face, your fingerprint or a security key. The password stays, and stays the way back in if the device is lost.
 - **Zero-config deploy**: click the button, open the site, pick a password. That's the setup.
 
 ## How it works
@@ -49,8 +57,20 @@ Runs entirely on Cloudflare (Workers + Email Routing + D1). Free plan is plenty.
  │ Cloudflare     │  ─────▶ │ Worker         │ ─────▶ │ D1 database  │
  │ Email Routing  │         │ site + API +   │        │ (your mail)  │
  │ (catch-all)    │         │ mail handler   │        └──────────────┘
- └────────────────┘         └────────────────┘
+ └────────────────┘         └───────┬────────┘
+                                    │ every message, on the way in
+                                    ▼
+                        ┌───────────────────────┐
+                        │ your rules            │  you said so
+                        │ then the Screener     │  is this sender vouched for?
+                        │ then the junk filter  │  does it look like junk?
+                        └───────────────────────┘
 ```
+
+The three of them are one pass in [`src/classify.ts`](src/classify.ts), in that
+order, reading everything they need in a single round trip. It cannot throw: a
+message it fails on goes to the inbox, because a misfiled message is a nuisance
+and a lost one is not.
 
 One Worker does everything: serves the site, checks the password, receives
 mail and stores it. A nightly job deletes mail older than 100 days and keeps
@@ -122,15 +142,19 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
 | **Codes** | A key chip shows the detected verification code; click to copy. Code-shaped text in the message body is tappable too, for the ones no chip names. |
 | **Images** | Remote images are blocked. **Load images** shows them for that message, or turn them on for good in Settings. |
 | **Attachments** | Click to download. They stream from the Worker, so a 25 MB file costs nothing until you ask for it. |
-| **Export** | Saves the open message as a plain `.txt` file. |
+| **Export** | Saves the open message as an `.eml` file, with both bodies and its attachments. Settings has **Download** for the whole inbox, or one address, as a single `.mbox` archive. |
 | **Sender check** | A badge beside the sender: **Verified sender**, **Failed authentication** or **Unverified**. A strip warns when a link's text, characters or domain are pretending to be something else. |
-| **Unsubscribe** | The chip appears when a message carries an unsubscribe header. One-click senders are handled for you; others open in a new tab. |
-| **Search** | The box in the top bar, or press `/`. **All / Unread / Starred / Leaks** switch the view. |
+| **Unsubscribe** | The chip appears when a message carries an unsubscribe header. One-click senders are handled for you; others open in a new tab. **Newsletters**, on an open address, lists everything writing to it grouped by mailing list and leaves the ones you pick in one go — marking only the ones it really left. |
+| **Screener** | With it on, the first message from a new sender waits in the **Screener** row in the sidebar. **Let in** moves everything that sender has waiting into the inbox and lets their later mail straight through; **Bin** trashes it. Held mail never chimes, never pushes and never counts as unread. |
+| **Junk** | The Junk chip in the reading pane, or in the select bar for several at once. It teaches the filter; once you have marked five junk and five good messages it starts filing new mail into the **Junk** row and says how sure it was. **Not junk** puts one back and takes the lesson with it. |
+| **Rules** | Settings → Screening → **Rules**: one condition and one action each, in the order they run. Star the bank, mark newsletters read, bin anything with a word in the subject, or wave a sender past the Screener. |
+| **Trackers and links** | A line under the sender names the tracking pixels that were blocked and who they belong to, and says how many links were cleaned. Hovering a link shows where it really goes. |
+| **Search** | The box in the top bar, or press `/`. It looks inside messages as well as at the sender, subject and preview; a result found only in the body is tagged. **All / Unread / Starred / Leaks** switch the view. |
 | **Leaks** | Every address remembers the first company that wrote to it. If anyone else turns up, that company shared or sold your address — they are listed here, and **Block address** bounces everything to it from then on. |
 | **Block** | The ⃠ icon on an address row, in the list header, or under a leaked message. Blocked addresses bounce at the door; the toast offers Undo. |
 | **Inboxes** | The sidebar lists every address that has received mail or been made as a burner, with its message count and a tag for its lifetime (`<1h`, `23h`, `6d`, `blocked`). Name one with the tag icon, or delete it and its mail with the trash icon. On phones there is no sidebar: tap the list title to open the picker, one inbox per line with its count. |
 | **Refresh** | New mail arrives live while the tab is open (the green dot by the domain). The refresh icon, or `R`, checks by hand. |
-| **Settings** | Gear icon (or `,`): the site's name, mail domain, password, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), accent colour, remote images, storage limits. |
+| **Settings** | Gear icon (or `,`): the site's name, mail domains, password, passkeys, the Screener and the junk filter, rules, sound, desktop and push notifications, auto-refresh, theme (System / Light / Dark), accent colour, remote images, link cleaning, downloading your mail, storage limits. |
 
 ## Privacy and protection
 
@@ -144,8 +168,14 @@ domain**. Cloudflare sets up DNS and HTTPS for you.
   Messages render in a sandboxed frame with scripts, forms and remote images
   blocked (images load only on request).
 - **The mail side is a true catch-all**: anyone who knows or guesses an address
-  at your domain can send to it, and it lands in your inbox. Don't use it for
-  password resets on accounts you care about.
+  at your domain can send to it. Turn the **Screener** on in Settings and the
+  first message from a sender nobody has vouched for waits for you instead of
+  landing in the inbox; it exempts the service an address was made for, a
+  burner you have just created, and verification codes sent to an address you
+  made yourself, so it does not get in the way of what the inbox is for.
+- **Passkeys** can be registered in Settings and are checked in full: origin,
+  challenge, relying-party hash, user presence and the signature counter. The
+  password remains, and is the recovery path.
 - Storage stays bounded: 200 messages per address, 5,000 in total, 25 MB per
   message, 25 MB of attachments per message, and everything older than 100
   days is deleted nightly (starred mail is kept indefinitely).
@@ -163,7 +193,8 @@ Every limit lives in [`src/limits.ts`](src/limits.ts). Change a number and redep
 
 Two things a fork usually wants are in **Settings**, not in the source: the
 name the site goes by (top bar and browser tab), and the accent colour — six
-presets, each checked for contrast against every surface in both themes.
+presets, each checked for contrast against every surface in both themes. The
+mail domains live there too, and more than one can be offered at once.
 
 Everything else is CSS variables at the top of
 [`public/style.css`](public/style.css): the grey ramp, the spacing scale, the
