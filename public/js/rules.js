@@ -2,7 +2,7 @@
 
 import { $, escapeHtml, toast } from "./util.js";
 import { api, send } from "./api.js";
-import { retireActionToast } from "./settings.js";
+import { renderRulesSummary, retireActionToast } from "./settings.js";
 
 /* The words the owner reads, against the values the server checks. Kept here
    rather than generated from the API's list because a select full of
@@ -63,6 +63,7 @@ async function save(next) {
     toast(err.message, "i-warn");
   }
   render();
+  renderRulesSummary(rules.length);
 }
 
 function sentence(rule) {

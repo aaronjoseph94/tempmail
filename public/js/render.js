@@ -1,7 +1,7 @@
 /* Painting the rail, the list and the header; search and the view filters. */
 
 import { PAGE_SIZE, PREFS, state } from "./state.js";
-import { $, dayLabel, escapeHtml, formatBytes, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, shortAddress, store, timeAgo, toast } from "./util.js";
+import { $, dayLabel, escapeHtml, formatWhen, hideToast, initialsFor, isDesktop, playRowMoves, plural, readRowTops, reducedMotion, renderRoll, senderLabel, shortAddress, store, timeAgo, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { applyRail, refresh } from "./data.js";
 import { closeMessage, paintStar, renderLeakStrip, setSelecting } from "./viewer.js";
@@ -62,11 +62,7 @@ export function renderStorage() {
   const used = totals().count;
   $("storage-fill").style.width = `${Math.min(100, (used / cap) * 100).toFixed(1)}%`;
   renderRoll($("storage-used"), used);
-  $("storage-cap").textContent = `of ${cap.toLocaleString()} kept`;
-  $("retention-note").textContent =
-    `Mail deletes itself after ${state.config.retentionDays} days. ` +
-    `Up to ${state.config.limits.perAddress} messages per address, ` +
-    `${formatBytes(state.config.limits.rawBytes)} per message.`;
+  $("storage-cap").textContent = `of ${cap.toLocaleString()}`;
 }
 
 export function renderRail() {

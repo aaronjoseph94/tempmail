@@ -1,7 +1,7 @@
 /* The settings drawer, sheet gestures, web push, theme and accent. */
 
 import { CACHE_KEY, PREFS, SCHEMES, state } from "./state.js";
-import { $, copyText, escapeHtml, hideToast, isDesktop, plural, reducedMotion, store, toast } from "./util.js";
+import { $, copyText, escapeHtml, hideToast, isDesktop, reducedMotion, store, toast } from "./util.js";
 import { api, send } from "./api.js";
 import { loadPasskeys } from "./passkeys.js";
 import { poll, refresh } from "./data.js";
@@ -27,7 +27,7 @@ export function openSettings(tab = "site") {
   // The add field starts empty: the list below it is where the domains live,
   // so pre-filling it with the default only invites saving a duplicate.
   $("set-domain").value = "";
-  $("set-domain").placeholder = cfg.domainSource === "observed" ? cfg.mailDomain : "example.com";
+  $("set-domain").placeholder = "Add a domain, e.g. example.com";
   $("set-domain").disabled = domainFromEnv;
   $("domain-form").querySelector("button").disabled = domainFromEnv;
   $("domain-note").hidden = !domainFromEnv;
@@ -36,13 +36,15 @@ export function openSettings(tab = "site") {
 
   const passwordFromEnv = cfg.passwordSource === "env";
   $("password-form").hidden = passwordFromEnv;
+  $("pw-note").hidden = !passwordFromEnv;
   $("pw-note").textContent = passwordFromEnv
     ? "The password is the AUTH_PASSWORD secret; change it in the Cloudflare dashboard."
-    : "Changing it signs out every other device.";
+    : "";
 
   renderLimits();
   $("set-screener").checked = !!cfg.screener;
   renderJunkState();
+  renderRulesSummary();
   renderExport();
   loadPasskeys().catch(() => {});
   $("set-autorefresh").checked = state.autoRefresh;
@@ -108,7 +110,9 @@ function renderLimits() {
   const hint = (id, unit, range) => {
     const el = $(id);
     if (!el) return;
-    el.textContent = range ? `${unit} · ${range.min}–${range.max}` : unit;
+    el.textContent = unit;
+    const input = el.closest("label")?.querySelector("input");
+    if (input && range) input.title = `${range.min}–${range.max} ${unit}`;
   };
   hint("lim-retention-hint", "days", ranges.retentionDays);
   hint("lim-per-address-hint", "messages", ranges.perAddress);
@@ -184,9 +188,9 @@ function renderDomains() {
     return `<div class="domain-row">
       <button type="button" class="domain-pick" data-domain="${escapeHtml(domain)}" aria-pressed="${isDefault}"
               ${locked || isDefault ? "disabled" : ""} title="${isDefault ? "New addresses are made here" : `Make ${escapeHtml(domain)} the default`}">
-        <svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>
+        <span class="domain-tick" aria-hidden="true">${isDefault ? '<svg class="icon sm"><use href="#i-tick"/></svg>' : ""}</span>
         <span class="name">${escapeHtml(domain)}</span>
-        ${isDefault ? '<span class="life">default</span>' : ""}
+        ${isDefault ? '<span class="domain-default">Default</span>' : ""}
       </button>
       <button type="button" class="domain-drop" data-drop="${escapeHtml(domain)}" ${locked ? "disabled" : ""}
               aria-label="Remove ${escapeHtml(domain)}" title="Remove ${escapeHtml(domain)}">
@@ -315,11 +319,29 @@ export async function setScreener(on) {
 function renderJunkState() {
   const junk = state.config?.junk;
   const line = $("junk-state");
-  if (!junk) { line.textContent = ""; $("junk-forget").hidden = true; return; }
-  line.textContent = junk.ready
-    ? `Junk filter: trained on ${plural(junk.junk, "junk message")} and ${plural(junk.ham, "good one")}.`
-    : `Junk filter: off until you mark ${junk.needed} junk and ${junk.needed} good messages. ${junk.junk} and ${junk.ham} so far.`;
+  if (!junk) { line.textContent = "Junk filter off until you mark messages"; $("junk-forget").hidden = true; return; }
+  line.innerHTML = junk.ready
+    ? `Junk filter trained on <b>${junk.junk} junk · ${junk.ham} good</b>`
+    : `Junk filter off until you mark ${junk.needed} junk and ${junk.needed} good`;
   $("junk-forget").hidden = junk.junk === 0 && junk.ham === 0;
+}
+
+/** Count of rules on the Security card. Pass a number after the rules sheet saves. */
+export async function renderRulesSummary(count) {
+  const line = $("rules-summary");
+  if (!line) return;
+  const paint = (n) => {
+    line.innerHTML = n
+      ? `<b>${n} ${n === 1 ? "rule" : "rules"}</b> run on arriving mail`
+      : "No rules yet";
+  };
+  if (typeof count === "number") { paint(count); return; }
+  try {
+    const data = await api("/api/rules");
+    paint((data.rules || []).length);
+  } catch {
+    line.textContent = "Rules run on arriving mail";
+  }
 }
 
 export async function forgetJunk() {
@@ -346,7 +368,7 @@ export async function forgetJunk() {
 function renderExport() {
   const select = $("export-scope");
   const chosen = select.value;
-  const options = ['<option value="">Everything</option>']
+  const options = ['<option value="">Whole inbox</option>']
     .concat((state.addresses || []).map((a) => `<option value="${escapeHtml(a.address)}">${escapeHtml(a.address)}</option>`));
   select.innerHTML = options.join("");
   select.value = (state.addresses || []).some((a) => a.address === chosen) ? chosen : "";
@@ -529,11 +551,11 @@ async function syncPushSwitch() {
   }
   if (iosNotInstalled()) {
     box.checked = false; box.disabled = true;
-    hint.textContent = "On iPhone, add this site to your Home Screen first, then turn this on from there";
+    hint.textContent = "On iPhone, add to Home Screen first.";
     return;
   }
   box.disabled = false;
-  hint.textContent = "Codes on the lock screen, even with the app closed. On iPhone, add this site to the Home Screen first, then open it from there to turn this on.";
+  hint.textContent = "Codes on the lock screen, even with the app closed. On iPhone, add to Home Screen first.";
   const reg = swRegistration ?? (await registerServiceWorker());
   const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
   state.push = !!sub && store.get(PREFS.push) === "on";

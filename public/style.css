@@ -734,7 +734,15 @@ select:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), var(--r
 }
 .domain-pick:hover { background: var(--c3); }
 .domain-pick[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
+.domain-pick[disabled] { opacity: 1; cursor: default; }
+.domain-tick { width: 15px; display: grid; place-items: center; flex: none; }
 .domain-pick .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.domain-pick .domain-default {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 500;
+}
 .domain-drop {
   display: grid; place-items: center;
   width: max(36px, var(--tap-min)); height: max(36px, var(--tap-min));
@@ -2341,17 +2349,17 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 .icon-btn.spinning .icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { rotate: 360deg; } }
 
-/* A label beside a control that is not a switch (the theme picker). */
-.setting-row {
+.set-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 8px 0;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--c3);
 }
-.setting-row .label { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-base); flex: 1 1 160px; }
-.setting-row .label small { color: var(--ink3); font-size: var(--t-sm); }
+.set-card-text { font-size: var(--t-md); color: var(--ink2); }
+.set-card-text b { color: var(--ink); font-weight: 600; }
 
 /* ================================================================ 5. drawer */
 
@@ -2359,7 +2367,10 @@ dialog.mini[open] .mini-inner { animation: mini-in var(--d-slow) var(--ease-spri
 /* ---- settings: the limits grid ---- */
 
 .limits { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.limits > button { grid-column: 1 / -1; justify-self: start; }
+
+#limits-form { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+#limits-form .limits { width: 100%; }
+#limits-form .hint { margin: 0; }
 
 /* Settings slides in from the right on desktop and up from the bottom on a
    phone. <dialog> is kept for the free focus trap and Esc handling; the
@@ -2422,18 +2433,13 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
 #settings .drawer-head {
+  align-items: center;
   padding: 16px 12px 0 20px;
   box-shadow: none;
 }
-.drawer-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .drawer-head h2 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
-.drawer-kicker {
-  margin: 0;
-  font-size: var(--t-sm);
-  line-height: 1.45;
-  color: var(--ink3);
-}
 .drawer-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+#settings .drawer-scroll { padding: 4px 20px calc(24px + env(safe-area-inset-bottom)); }
 .drawer-tabs {
   display: flex;
   gap: 2px;
@@ -2468,17 +2474,10 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   .drawer-tab:hover { color: var(--ink); }
 }
 .drawer-pane[hidden] { display: none; }
-.drawer-lead {
-  margin: 0;
-  padding: 14px 16px 2px;
-  font-size: var(--t-md);
-  line-height: 1.55;
-  color: var(--ink2);
-}
 .sec-lead {
-  margin: -2px 0 0;
+  margin: -6px 0 0;
   font-size: var(--t-md);
-  line-height: 1.55;
+  line-height: 1.45;
   color: var(--ink3);
 }
 
@@ -2514,6 +2513,27 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
   text-transform: uppercase;
   color: var(--ink3);
 }
+#settings .drawer-sec { padding: 18px 0; }
+#settings .drawer-sec.tight { gap: 6px; }
+#settings .drawer-sec.tight h3 { margin-bottom: 6px; }
+#settings .drawer-sec h3 {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  text-transform: none;
+  color: var(--ink);
+}
+#settings .drawer-sec h3.danger { color: var(--danger); }
+#settings .domain-list { margin: 0 -8px; gap: 2px; }
+#settings .row.fields { align-items: center; width: 100%; }
+#settings .row.fields input,
+#settings .row.fields select { flex: 1; }
+#settings #theme-seg { align-self: flex-start; }
+#settings .drawer-sec > .btn { align-self: flex-start; }
+#settings .set-card .btn { flex: none; }
+#settings .meter-row b { color: var(--ink); font-weight: 600; }
+#settings .stack > .btn { width: auto; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > input { flex: 1; }
 .stack { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
@@ -2841,9 +2861,6 @@ body.gate {
   .brand-mark { width: 44px; height: 44px; }
   .chip { padding: 8px 14px; font-size: var(--t-md); }
   .seg-btn { padding: 8px 16px; font-size: var(--t-md); min-height: 44px; }
-  .setting-row { flex-direction: column; align-items: stretch; }
-  .setting-row .seg { width: 100%; }
-  .setting-row .seg-btn { flex: 1; }
   .leak-strip { flex-wrap: wrap; }
   .leak-strip .btn { width: 100%; justify-content: center; }
   .search-clear { width: 30px; height: 30px; }

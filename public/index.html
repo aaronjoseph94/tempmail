@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=74" />
+  <link rel="stylesheet" href="/style.css?v=75" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -384,10 +384,7 @@
     <div class="drawer-panel" id="drawer-panel">
       <div class="drawer-grip" id="drawer-grip" aria-hidden="true"></div>
       <header class="drawer-head">
-        <div class="drawer-heading">
-          <h2 id="settings-title">Settings</h2>
-          <p class="drawer-kicker">How this inbox looks, who can sign in, and how mail is kept.</p>
-        </div>
+        <h2 id="settings-title">Settings</h2>
         <button id="btn-settings-close" class="icon-btn plain" aria-label="Close settings">
           <svg class="icon"><use href="#i-close"/></svg>
         </button>
@@ -395,7 +392,7 @@
 
       <div class="drawer-tabs" role="tablist" aria-label="Settings">
         <button type="button" class="drawer-tab" role="tab" id="tab-site" data-tab="site" aria-selected="true" aria-controls="pane-site">
-          <svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site
+          <svg class="icon sm" aria-hidden="true"><use href="#i-inbox"/></svg>Site
         </button>
         <button type="button" class="drawer-tab" role="tab" id="tab-security" data-tab="security" aria-selected="false" aria-controls="pane-security">
           <svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Security
@@ -404,40 +401,36 @@
           <svg class="icon sm" aria-hidden="true"><use href="#i-mail"/></svg>Mail
         </button>
         <button type="button" class="drawer-tab" role="tab" id="tab-look" data-tab="look" aria-selected="false" aria-controls="pane-look">
-          <svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Look
+          <svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance
         </button>
       </div>
 
       <div class="drawer-scroll">
         <div class="drawer-pane" id="pane-site" data-tab="site" role="tabpanel" aria-labelledby="tab-site">
-        <p class="drawer-lead only-desktop">These choices apply to this inbox on this Worker. Domains and the site name are saved on the server and follow you everywhere you sign in.</p>
+        <section class="drawer-sec">
+          <h3>Site name</h3>
+          <p class="sec-lead">Shown in the top bar, tab title and notifications.</p>
+          <form class="row fields" id="brand-form">
+            <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" aria-label="Site name" />
+            <button class="btn sm" type="submit">Save</button>
+          </form>
+        </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site</h3>
-          <p class="sec-lead">The name in the top bar, and the domains new addresses are made at. Cloudflare Email Routing still decides which mail this Worker actually receives &mdash; this list only controls what the app shows and generates.</p>
-          <form class="row fields" id="brand-form">
-            <label class="field">
-              <span>Site name <em>top bar, tab title, notifications &mdash; 40 characters</em></span>
-              <input id="set-brand" type="text" maxlength="40" autocomplete="off" placeholder="Temp Email" />
-            </label>
-            <button class="btn sm primary" type="submit">Save name</button>
-          </form>
+          <h3>Mail domains</h3>
+          <p class="sec-lead">Where new addresses are made. The default is ticked; Email Routing still decides what actually arrives.</p>
           <div class="domain-list" id="domain-list"></div>
           <form class="row fields" id="domain-form">
-            <label class="field">
-              <span>Add a mail domain <em>the part after the @, e.g. yourdomain.com</em></span>
-              <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="example.com" />
-            </label>
-            <button class="btn sm primary" type="submit" id="domain-add">Add</button>
+            <input id="set-domain" type="text" inputmode="url" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="Add a domain, e.g. example.com" aria-label="Add a mail domain" />
+            <button class="btn sm" type="submit" id="domain-add">Add</button>
           </form>
-          <p class="hint">You can keep several domains in one inbox (work and personal throwaways, a spare subdomain). Tap a domain to make it the default for <strong>New inbox</strong>. Remove one with the trash. An empty Add does not clear the list &mdash; remove domains one at a time.</p>
           <p class="hint" id="domain-note" hidden></p>
         </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-exit"/></svg>This device</h3>
-          <p class="sec-lead">Signs this browser out and stops push notifications here. Mail, domains and passkeys on the server are untouched. Other devices stay signed in until you change the password.</p>
-          <button id="btn-logout" class="btn sm ghost" type="button">
+          <h3>This device</h3>
+          <p class="sec-lead">Signs this browser out and stops push notifications here. Other devices stay signed in.</p>
+          <button id="btn-logout" class="btn sm" type="button">
             <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
           </button>
         </section>
@@ -445,127 +438,116 @@
 
         <div class="drawer-pane" id="pane-security" data-tab="security" role="tabpanel" aria-labelledby="tab-security" hidden>
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Screening</h3>
-          <p class="sec-lead">A catch-all means anyone who guesses an address can write to you. The Screener holds the first message from an unknown sender until you let them in. Rules run as mail arrives. The junk filter only speaks once you have taught it with your own Junk / Not junk taps &mdash; nothing is sent off this Worker.</p>
+          <h3>Screening</h3>
+          <p class="sec-lead">A catch-all accepts mail from anyone. These decide what reaches the inbox.</p>
           <label class="switch">
             <input type="checkbox" id="set-screener" /><span class="track"></span>
-            <span class="label">Screen new senders<small>Unknown senders wait in the Screener. Turning this on vouches for everyone already in the inbox, so only genuinely new people wait.</small></span>
+            <span class="label">Screen new senders<small>The first message from an unknown sender waits in the Screener until you let them in.</small></span>
           </label>
-          <button type="button" class="btn sm ghost" id="open-rules">
-            <svg class="icon sm"><use href="#i-sliders"/></svg><span>Rules</span>
-          </button>
-          <p class="hint">Rules are one condition and one action each, top to bottom. Binning or junking a message is the last word &mdash; nothing below that rule runs on it.</p>
-          <p class="hint" id="junk-state"></p>
-          <button type="button" class="btn sm ghost" id="junk-forget" hidden>
-            <svg class="icon sm"><use href="#i-refresh"/></svg><span>Forget what it has learned</span>
-          </button>
+          <div class="set-card">
+            <span class="set-card-text" id="rules-summary">Rules run on arriving mail</span>
+            <button type="button" class="btn sm" id="open-rules">
+              <svg class="icon sm"><use href="#i-sliders"/></svg><span>Edit rules</span>
+            </button>
+          </div>
+          <div class="set-card">
+            <span class="set-card-text" id="junk-state"></span>
+            <button type="button" class="btn sm" id="junk-forget" hidden>Forget</button>
+          </div>
         </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-key"/></svg>Passkeys</h3>
-          <p class="sec-lead">Sign in with Face ID, a fingerprint or a hardware key instead of typing the password. Add one per device you trust. The password still works, and is the way back in if the device is lost, reset or stolen.</p>
+          <h3>Passkeys</h3>
+          <p class="sec-lead">Face ID, fingerprint or a hardware key. The password stays as the way back in.</p>
           <div class="passkey-list" id="passkey-list"></div>
-          <button type="button" class="btn sm primary" id="passkey-add">
+          <button type="button" class="btn sm" id="passkey-add">
             <svg class="icon sm"><use href="#i-plus"/></svg><span>Add a passkey</span>
           </button>
           <p class="hint" id="passkey-note" hidden></p>
         </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Password</h3>
-          <p class="sec-lead">This is the site password, not an email password. Changing it signs every other browser and device out immediately, so a shared or stolen session cannot linger.</p>
+          <h3>Password</h3>
+          <p class="sec-lead">Changing it signs every other device out immediately.</p>
           <form class="stack" id="password-form">
-            <label class="field">
-              <span>Current password</span>
-              <input id="pw-current" type="password" autocomplete="current-password" required />
-            </label>
-            <label class="field">
-              <span>New password <em>8–200 characters</em></span>
-              <input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="200" required />
-            </label>
-            <label class="field">
-              <span>Confirm new password <em>must match, so a typo cannot lock you out</em></span>
-              <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="200" required />
-            </label>
+            <input id="pw-current" type="password" autocomplete="current-password" required placeholder="Current password" aria-label="Current password" />
+            <input id="pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="New password (8–200 characters)" aria-label="New password" />
+            <input id="pw-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="Confirm new password" aria-label="Confirm new password" />
             <button class="btn sm" type="submit">Change password</button>
           </form>
-          <p class="hint" id="pw-note"></p>
+          <p class="hint" id="pw-note" hidden></p>
         </section>
         </div>
 
         <div class="drawer-pane" id="pane-mail" data-tab="mail" role="tabpanel" aria-labelledby="tab-mail" hidden>
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
-          <p class="sec-lead">Three ways to hear that mail landed, plus a live connection that already updates the list. These switches are per device: turning sound off here does not mute your phone&rsquo;s other apps.</p>
+        <section class="drawer-sec tight">
+          <h3>Alerts</h3>
           <label class="switch">
             <input type="checkbox" id="set-sound" /><span class="track"></span>
-            <span class="label">Sound on arrival<small>A short chime in this tab when a message appears. The toolbar speaker does the same thing.</small></span>
+            <span class="label">Sound on arrival<small>A short chime in this tab.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-notify" /><span class="track"></span>
-            <span class="label">Desktop notifications<small>Only while this tab is in the background, so they do not stack on top of the inbox you are already looking at.</small></span>
+            <span class="label">Desktop notifications<small>Only while this tab is in the background.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-push" /><span class="track"></span>
-            <span class="label">Push notifications<small id="push-hint">Codes on the lock screen, even with the app closed. On iPhone, add this site to the Home Screen first, then open it from there to turn this on.</small></span>
+            <span class="label">Push notifications<small id="push-hint">Codes on the lock screen, even with the app closed. On iPhone, add to Home Screen first.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
-            <span class="label">Check for new mail automatically<small>A quiet backstop if the live connection drops. Mail still arrives live when this is off; the list just will not poll in the background.</small></span>
+            <span class="label">Check for new mail automatically<small>A backstop if the live connection drops.</small></span>
           </label>
         </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Your mail</h3>
-          <p class="sec-lead">Take a copy you can open in Apple Mail, Thunderbird or another app. Export one address at a time if the inbox is large &mdash; Cloudflare caps how much a single request may do, and a huge archive can stop mid-file.</p>
+          <h3>Storage</h3>
+          <div class="meter">
+            <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
+            <div class="meter-row"><span><b id="storage-used">—</b> messages kept</span><span id="storage-cap"></span></div>
+          </div>
+          <form id="limits-form">
+            <div class="limits">
+              <label class="field">
+                <span>Keep mail for <em id="lim-retention-hint">days</em></span>
+                <input id="lim-retention" type="number" inputmode="numeric" step="1" />
+              </label>
+              <label class="field">
+                <span>Per address <em id="lim-per-address-hint">messages</em></span>
+                <input id="lim-per-address" type="number" inputmode="numeric" step="1" />
+              </label>
+              <label class="field">
+                <span>In total <em id="lim-total-hint">messages</em></span>
+                <input id="lim-total" type="number" inputmode="numeric" step="1" />
+              </label>
+              <label class="field">
+                <span>Max message <em id="lim-raw-hint">MB</em></span>
+                <input id="lim-raw" type="number" inputmode="decimal" step="1" />
+              </label>
+              <label class="field">
+                <span>Attachments <em id="lim-attachment-hint">MB each</em></span>
+                <input id="lim-attachment" type="number" inputmode="decimal" step="1" />
+              </label>
+            </div>
+            <p class="hint" id="retention-note">Starred mail skips the age cleanup but still counts toward the totals.</p>
+            <button class="btn sm" type="submit">Save limits</button>
+          </form>
+        </section>
+
+        <section class="drawer-sec">
+          <h3>Download your mail</h3>
+          <p class="sec-lead">One .mbox archive that Apple Mail and Thunderbird open. Export one address at a time if the inbox is large.</p>
           <div class="row fields">
-            <label class="field">
-              <span>Download <em>.mbox archive &mdash; whole inbox or one address</em></span>
-              <select id="export-scope"></select>
-            </label>
-            <a class="btn sm primary" id="export-go" href="/api/export/mbox" download>
+            <select id="export-scope" aria-label="Download scope"></select>
+            <a class="btn sm" id="export-go" href="/api/export/mbox" download>
               <svg class="icon sm"><use href="#i-download"/></svg><span>Download</span>
             </a>
           </div>
-          <p class="hint">Rebuilt from what was kept: senders, dates, both versions of the body and every attachment. The original raw bytes are not stored, so the sender&rsquo;s exact MIME formatting is not part of it.</p>
         </section>
 
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-database"/></svg>Storage &amp; limits</h3>
-          <p class="sec-lead">The nightly job deletes old mail and keeps the database inside these caps. Starred messages skip the age cleanup, but they still count toward the totals. Values outside the ranges below are rejected and nothing is saved.</p>
-          <div class="meter">
-            <div class="meter-bar"><div class="meter-fill" id="storage-fill"></div></div>
-            <div class="meter-row"><span id="storage-used">—</span><span id="storage-cap"></span></div>
-          </div>
-          <form class="limits" id="limits-form">
-            <label class="field">
-              <span>Keep mail for <em id="lim-retention-hint">days</em></span>
-              <input id="lim-retention" type="number" inputmode="numeric" step="1" />
-            </label>
-            <label class="field">
-              <span>Per address <em id="lim-per-address-hint">messages</em></span>
-              <input id="lim-per-address" type="number" inputmode="numeric" step="1" />
-            </label>
-            <label class="field">
-              <span>In total <em id="lim-total-hint">messages</em></span>
-              <input id="lim-total" type="number" inputmode="numeric" step="1" />
-            </label>
-            <label class="field">
-              <span>Max message <em id="lim-raw-hint">MB</em></span>
-              <input id="lim-raw" type="number" inputmode="decimal" step="1" />
-            </label>
-            <label class="field">
-              <span>Attachments <em id="lim-attachment-hint">MB each</em></span>
-              <input id="lim-attachment" type="number" inputmode="decimal" step="1" />
-            </label>
-            <button class="btn sm primary" type="submit">Save limits</button>
-          </form>
-          <p class="hint" id="retention-note"></p>
-        </section>
-
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
-          <p class="sec-lead">Deletes every message in every inbox, including starred mail. Addresses, rules, passkeys and the password stay. This cannot be undone from the app.</p>
+          <h3 class="danger">Delete all mail</h3>
+          <p class="sec-lead">Every message in every inbox, starred included. Addresses, rules, passkeys and the password stay.</p>
           <button id="btn-delete-all" class="btn sm danger" type="button">
             <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
           </button>
@@ -574,52 +556,55 @@
 
         <div class="drawer-pane" id="pane-look" data-tab="look" role="tabpanel" aria-labelledby="tab-look" hidden>
         <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
-          <p class="sec-lead">Theme and accent stay on this browser. Remote images and link cleanup change how messages are shown, not what was stored.</p>
-          <div class="setting-row">
-            <span class="label">Theme<small>System follows the device. The sun/moon button in the top bar flips Light and Dark without leaving System remembered.</small></span>
-            <div class="seg" id="theme-seg" data-ready="false" role="group" aria-label="Theme">
-              <button type="button" class="seg-btn" data-theme="system" aria-pressed="true">System</button>
-              <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
-              <button type="button" class="seg-btn" data-theme="dark" aria-pressed="false">Dark</button>
+          <h3>Theme</h3>
+          <div class="seg" id="theme-seg" data-ready="false" role="group" aria-label="Theme">
+            <button type="button" class="seg-btn" data-theme="system" aria-pressed="true">System</button>
+            <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
+            <button type="button" class="seg-btn" data-theme="dark" aria-pressed="false">Dark</button>
+          </div>
+        </section>
+
+        <section class="drawer-sec">
+          <h3>Accent</h3>
+          <p class="sec-lead">Used for the one filled control, selection and codes.</p>
+          <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
+            <span id="scheme-label" class="sr-only">Accent</span>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
+              <span>Mono</span>
+            </div>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
+              <span>Indigo</span>
+            </div>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
+              <span>Emerald</span>
+            </div>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
+              <span>Amber</span>
+            </div>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
+              <span>Rose</span>
+            </div>
+            <div class="swatch-opt">
+              <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
+              <span>Cyan</span>
             </div>
           </div>
-          <div class="setting-row">
-            <span class="label" id="scheme-label">Accent<small>Used for switches, selection and the live dot. Each colour is checked for contrast in both themes.</small></span>
-            <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
-                <span>Mono</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
-                <span>Indigo</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
-                <span>Emerald</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
-                <span>Amber</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
-                <span>Rose</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
-                <span>Cyan</span>
-              </div>
-            </div>
-          </div>
+        </section>
+
+        <section class="drawer-sec tight">
+          <h3>Messages</h3>
           <label class="switch">
             <input type="checkbox" id="set-images" /><span class="track"></span>
-            <span class="label">Always load remote images<small>Off blocks tracking pixels until you tap Load images on a message. Inline images that arrived with the mail still show.</small></span>
+            <span class="label">Always load remote images<small>Off keeps tracking pixels blocked until you tap Load images.</small></span>
           </label>
           <label class="switch">
             <input type="checkbox" id="set-clean-links" checked /><span class="track"></span>
-            <span class="label">Clean up links<small>Strips tracking codes, unwraps redirects so you see the real destination, and puts that destination on hover. Turn it off if a sender&rsquo;s link breaks after cleanup.</small></span>
+            <span class="label">Clean up links<small>Strips tracking codes and unwraps redirects. Turn off if a sender&rsquo;s link breaks.</small></span>
           </label>
         </section>
         </div>
@@ -892,6 +877,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=74"></script>
+  <script type="module" src="/js/main.js?v=75"></script>
 </body>
 </html>
