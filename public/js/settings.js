@@ -20,7 +20,7 @@ export function retireActionToast() {
   if ($("toast").querySelector(".toast-act")) hideToast();
 }
 
-export function openSettings() {
+export function openSettings(tab = "site") {
   const cfg = state.config || {};
   renderBrand();
   const domainFromEnv = cfg.domainSource === "env";
@@ -54,8 +54,23 @@ export function openSettings() {
   renderStorage();
 
   retireActionToast();
+  showSettingsTab(tab);
   $("settings").showModal();
   requestAnimationFrame(renderThemeSeg);   // measured once the drawer is on screen
+}
+
+export function showSettingsTab(tab) {
+  const known = ["site", "security", "mail", "look"];
+  const id = known.includes(tab) ? tab : "site";
+  for (const btn of document.querySelectorAll(".drawer-tab")) {
+    const on = btn.dataset.tab === id;
+    btn.setAttribute("aria-selected", String(on));
+    btn.tabIndex = on ? 0 : -1;
+  }
+  for (const pane of document.querySelectorAll(".drawer-pane")) {
+    pane.hidden = pane.dataset.tab !== id;
+  }
+  if (id === "look") requestAnimationFrame(renderThemeSeg);
 }
 
 export function closeSettings() {

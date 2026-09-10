@@ -383,6 +383,8 @@ export function renderListHead() {
   $("btn-burn").title = blocked ? "Unblock this address" : "Block this address: mail to it bounces";
   $("btn-burn").setAttribute("aria-label", $("btn-burn").title);
   $("btn-read-all").hidden = unread === 0 || !!box;
+  const extras = ["btn-read-all", "btn-rename", "btn-burn", "btn-subs", "btn-wipe"];
+  $("btn-list-menu").hidden = isDesktop() && extras.every((id) => $(id).hidden);
   // Stays live inside a box. A phone has no rail, so this button is the only
   // way to the list the boxes live in -- disabling it here left no way back
   // out of the Screener at all.
@@ -404,7 +406,11 @@ export function renderListHead() {
 export function openListMenu() {
   const menu = $("list-menu");
   const trigger = $("btn-list-menu");
-  const items = [...document.querySelectorAll(".list-tools [data-menu]")].filter((b) => !b.hidden);
+  const items = [...document.querySelectorAll(".list-tools [data-menu]")].filter((b) => {
+    if (b.hidden) return false;
+    if (isDesktop() && (b.id === "btn-refresh" || b.id === "btn-select")) return false;
+    return true;
+  });
   if (!items.length) return;
 
   menu.replaceChildren(...items.map((b) => {
@@ -452,6 +458,13 @@ export function closeListMenu() {
   if (menu.hidden) return;
   menu.hidden = true;
   $("btn-list-menu").setAttribute("aria-expanded", "false");
+}
+
+export function closeMsgMenu() {
+  const menu = $("msg-menu");
+  if (menu.hidden) return;
+  menu.hidden = true;
+  $("btn-msg-more").setAttribute("aria-expanded", "false");
 }
 
 /** Focus goes back to the button that opened it, or it lands on <body>. */
@@ -577,7 +590,7 @@ function mailRow(m, staggerIndex) {
       <span class="mail-subject">${escapeHtml(m.subject || "(no subject)")}</span>
       ${m.snippet ? `<span class="mail-snippet">${escapeHtml(m.snippet)}</span>` : ""}
       <span class="mail-tags">
-        <span class="tag addr" title="${escapeHtml(m.address)}"><span class="at">@</span>${escapeHtml(local)}</span>
+        ${!state.filter ? `<span class="tag addr" title="${escapeHtml(m.address)}"><span class="at">@</span>${escapeHtml(local)}</span>` : ""}
         ${m.code ? `<span class="tag code" data-code="${escapeHtml(m.code)}" role="button" tabindex="0" title="Copy code"><svg class="icon"><use href="#i-key"/></svg>${escapeHtml(m.code)}</span>` : ""}
         ${m.hasAttachments ? '<span class="tag" title="Has attachments"><svg class="icon"><use href="#i-clip"/></svg></span>' : ""}
         ${m.foundInBody && state.query ? '<span class="tag" title="The words you searched for are inside this message"><svg class="icon"><use href="#i-search"/></svg>in the message</span>' : ""}

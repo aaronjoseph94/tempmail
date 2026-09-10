@@ -956,6 +956,16 @@ body.in-box .view-filters { display: none; }
 .search-count { font-size: var(--t-xs); color: var(--ink3); font-variant-numeric: tabular-nums; }
 .search-clear { pointer-events: auto; width: 24px; height: 24px; border-radius: var(--r-sm); color: var(--ink3); display: grid; place-items: center; }
 @media (hover: hover) and (pointer: fine) { .search-clear:hover { color: var(--ink); background: var(--c5); } }
+.search-slash {
+  font: 500 11px/1.4 var(--font);
+  color: var(--ink3);
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--c4);
+  box-shadow: inset 0 0 0 1px var(--c6);
+}
+.searchbox:focus-within .search-slash,
+.search-clear:not([hidden]) ~ .search-slash { display: none; }
 
 .bar-actions { display: flex; align-items: center; gap: 4px; justify-self: end; }
 
@@ -963,13 +973,11 @@ body.in-box .view-filters { display: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
   margin-right: 6px;
   max-width: 230px;
   border-radius: var(--r-md);
-  background: var(--c3);
-  box-shadow: inset 0 0 0 1px var(--c6);
   font-size: var(--t-sm);
   color: var(--ink2);
 }
@@ -1037,14 +1045,20 @@ body.in-box .view-filters { display: none; }
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: 12px;
   margin: 0 -12px;                 /* reach past the rail's own padding */
-  padding: var(--s-4) var(--s-7) var(--s-9);
+  padding: 18px 16px 16px;
   background: none;
   box-shadow: inset 0 -1px 0 0 var(--c6);
   overflow: hidden;
   container-type: inline-size;
   container-name: addr;
+}
+.inbox-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .card-label {
   display: flex;
@@ -1057,86 +1071,77 @@ body.in-box .view-filters { display: none; }
   color: var(--ink3);
 }
 
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink3);
+}
+.copy-btn .tick, .copy-btn .copied-label { display: none; }
+.copy-btn.copied { color: var(--signal); }
+.copy-btn.copied .copy, .copy-btn.copied .copy-label { display: none; }
+.copy-btn.copied .tick, .copy-btn.copied .copied-label { display: inline; }
+.copy-btn.copied .tick { display: block; }
+@media (hover: hover) and (pointer: fine) {
+  .copy-btn:hover { color: var(--ink); background: var(--c4); }
+}
+
 .addr-value {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border-radius: var(--r-md);
+  background: none;
+  box-shadow: none;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--d-mid) var(--ease);
+}
+.addr-value #addr-local {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-snug);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.addr-value .domain { font-size: var(--t-md); color: var(--ink3); line-height: 1.3; }
+@media (hover: hover) and (pointer: fine) {
+  .addr-value:hover { background: var(--c3); }
+}
+
+.addr-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 12px;
-  text-align: left;
-  border-radius: var(--r-md);
-  background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6);
-  font-variant-numeric: tabular-nums;
+  gap: 4px;
   font-size: var(--t-sm);
-  line-height: 1.45;
-  transition: box-shadow var(--d-mid) var(--ease), background var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
+  color: var(--ink3);
+  margin-top: -2px;
 }
-.addr-value:active { transform: scale(0.985); }
-@media (hover: hover) and (pointer: fine) {
-  .addr-value:hover { box-shadow: inset 0 0 0 1px var(--accent-a28); background: var(--accent-a10); }
-}
-.addr-value .text {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.addr-value .text > span { white-space: nowrap; }
-.addr-value .at, .addr-value .domain { color: var(--ink2); }
-
-/* Copy button that morphs into a tick. Both glyphs are stacked and the
-   state class swaps which one is scaled in. */
-.copy-slot { position: relative; width: 17px; height: 17px; flex: none; color: var(--ink3); }
-.copy-slot .icon { position: absolute; inset: 0; width: 17px; height: 17px; transition: scale var(--d-slow) var(--ease-spring), opacity var(--d-mid) var(--ease); }
-.copy-slot .tick { scale: 0.4; opacity: 0; color: var(--ok); }
-.addr-value.copied .copy-slot .copy { scale: 0.4; opacity: 0; }
-.addr-value.copied .copy-slot .tick { scale: 1; opacity: 1; }
-.addr-value.copied { box-shadow: inset 0 0 0 1px var(--ok); }
-
-/* Three actions in equal columns. Labels sit under the icon so the 300px
-   rail and a phone-width card both keep readable tap targets — a single
-   nowrap row was overflowing "Wait for code" into its neighbours. */
-/* Generate is primary and owns its own row; the two secondary actions share
-   the row beneath it. Labels stay on one line and truncate rather than wrap,
-   so the buttons keep equal heights at every width. */
-.addr-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.addr-actions .btn {
-  min-width: 0;
-  min-height: max(36px, var(--tap-min));
-  padding: 8px 8px;
+.text-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink2);
   font-size: var(--t-sm);
-  justify-content: center;
-  background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  font-weight: 500;
 }
-.addr-actions .btn span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.addr-actions .text-btn:first-child { margin-left: -8px; }
+.addr-dot { color: var(--ink3); }
+@media (hover: hover) and (pointer: fine) {
+  .text-btn:hover { color: var(--ink); background: var(--c4); }
 }
-.addr-actions .btn .icon { flex: none; }
-#btn-roll { min-height: 40px; font-size: var(--t-base); }
-
-/* Too narrow for two labels side by side: give each its own row rather than
-   truncating one of them. */
-@container addr (max-width: 212px) {
-  .addr-actions { grid-template-columns: 1fr; }
-}
-/* Narrower still (a very thin rail): keep the icons and let the tooltip and
-   aria-label carry the meaning, the same trick the select bar uses. */
-@container addr (max-width: 180px) {
-  .addr-actions .btn span { display: none; }
-  .addr-actions .btn { padding: 8px; }
-}
+#btn-roll { min-height: 38px; font-size: var(--t-base); font-weight: 600; }
 
 /* ---- waiting for a code ---- */
 /* Set by startWaiting/stopWaiting. It had no rule at all, so the page scrolled
@@ -1293,6 +1298,29 @@ body.waiting { overflow: hidden; }
 /* ---- address list with a sliding highlight ---- */
 
 .rail-group { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1 1 auto; }
+.rail-keys {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  font-size: var(--t-sm);
+  color: var(--ink3);
+}
+.rail-keys kbd {
+  font: 500 11px/1.4 var(--font);
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--c4);
+  box-shadow: inset 0 0 0 1px var(--c6);
+  color: var(--ink3);
+}
+@media (hover: hover) and (pointer: fine) {
+  .rail-keys:hover { color: var(--ink); background: var(--c3); }
+}
 .rail-head {
   display: flex;
   align-items: center;
@@ -1559,15 +1587,14 @@ body.waiting { overflow: hidden; }
   animation: sec-in var(--d-slow) var(--ease-out);
 }
 .select-count { font-size: var(--t-md); font-weight: 600; color: var(--accent); }
-.select-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.select-actions .btn { padding: 8px 10px; gap: 6px; }
-
-/* The list column is only ~400px. Labels make the action row wrap into a
-   tangled second line, so drop them and keep the icon (title still explains). */
-@container list (max-width: 520px) {
-  .select-actions .btn span { display: none; }
-  .select-actions .btn { padding: 8px; min-width: 44px; }
+.select-actions { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.select-actions .btn {
+  height: 30px;
+  padding: 0 10px;
+  gap: 6px;
 }
+.select-actions .btn:not(#sel-all) span { display: none; }
+.select-actions .btn:not(#sel-all) { width: 30px; min-width: 30px; padding: 0; }
 
 .mail .tick-box {
   display: none;
@@ -1680,10 +1707,14 @@ body.selecting .mail .star { display: none; }
 }
 .picker-list .rail-item.active .count { color: var(--ink2); }
 .picker-list .rail-tools { display: none; }
-.list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: none; }
-/* Phones show the overflow button and nothing else: five icons beside the
-   title was more chrome than list. The buttons stay in the markup, hidden --
-   the menu is built from them, so renderListHead keeps deciding what exists. */
+.list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; flex: none; }
+/* Extra list actions live in the overflow menu. Refresh and select stay
+   visible on desktop; phones keep a single more button that lists them all. */
+.list-tools > [data-menu] { display: none; }
+@media (min-width: 900px) {
+  .list-tools > #btn-refresh,
+  .list-tools > #btn-select { display: grid; }
+}
 @media (max-width: 899px) {
   .list-tools > [data-menu] { display: none; }
 }
@@ -1877,12 +1908,12 @@ body.selecting .mail .star { display: none; }
 .empty-art {
   display: grid;
   place-items: center;
-  width: 62px; height: 62px;
+  width: 56px; height: 56px;
   margin-bottom: 4px;
-  border-radius: var(--r-xl);
-  background: var(--accent-a10);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent-a28);
+  border-radius: 16px;
+  background: var(--c3);
+  color: var(--ink3);
+  box-shadow: inset 0 0 0 1px var(--c6);
 }
 .empty h3 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
 .empty p { max-width: 42ch; }
@@ -1997,11 +2028,11 @@ body.selecting .mail .star { display: none; }
    avatar sat beside the address and the date floated level with nothing. */
 .msg-meta {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 2px 12px;
   align-items: start;
 }
-.msg-meta .avatar { margin-top: 1px; }
+.msg-meta .avatar { width: 36px; height: 36px; font-size: var(--t-md); margin-top: 1px; }
 .msg-who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 /* Name and badge, one row of their own. The badge used to trail the address
    inline, so any sender whose name and address filled the line left it
@@ -2019,31 +2050,19 @@ body.selecting .mail .star { display: none; }
 .msg-addr, .msg-to { font-size: var(--t-md); line-height: 1.45; color: var(--ink3); overflow-wrap: anywhere; }
 .msg-when {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  font-size: var(--t-md);
-  line-height: 1.35;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--t-sm);
+  line-height: 1.45;
   color: var(--ink3);
-  text-align: right;
-  white-space: nowrap;
+  margin-top: 2px;
 }
-.msg-expiry { font-size: var(--t-sm); }
+.msg-expiry { font-size: inherit; }
+.msg-when-dot { color: var(--ink3); }
 
-/* Two columns need roughly 440px. Below that the date's nowrap width was
-   winning the fight for the row and squeezing the sender into a column three
-   characters wide, which is what broke the addresses one letter per line.
-   Same stack as the phone, for the same reason. */
 @container reader (max-width: 480px) {
-  .msg-meta { grid-template-columns: 32px minmax(0, 1fr); }
-  .msg-when {
-    grid-column: 2;
-    align-items: flex-start;
-    margin-top: 5px;
-    font-size: var(--t-sm);
-    text-align: left;
-    white-space: normal;
-  }
+  .msg-when { margin-top: 5px; }
 }
 .msg-actions {
   display: flex;
@@ -2053,16 +2072,16 @@ body.selecting .mail .star { display: none; }
   padding-bottom: 16px;
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
-/* A hairline between what the message is showing (code, rich/plain, images,
-   unsubscribe) and what you can do to it. It hangs off whichever control leads
-   the action group, and is drawn only when something is actually on the left of
-   it -- those four are in the markup on every message and merely hidden, so
-   :first-child cannot answer that question. */
-.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-delete {
+#btn-msg-more { margin-left: auto; width: 34px; height: 34px; background: var(--c3); box-shadow: inset 0 0 0 1px var(--c6); color: var(--ink2); }
+@media (hover: hover) and (pointer: fine) {
+  #btn-msg-more:hover { background: var(--c4); color: var(--ink); }
+}
+.msg-extra { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.msg-actions:has(#btn-code:not([hidden])) > #btn-star {
   position: relative;
   margin-left: 14px;
 }
-.msg-actions:has(> :is(#btn-code, #body-toggle, #btn-images, #btn-unsub):not([hidden])) > #btn-delete::before {
+.msg-actions:has(#btn-code:not([hidden])) > #btn-star::before {
   content: "";
   position: absolute;
   left: -11px;
@@ -2073,10 +2092,64 @@ body.selecting .mail .star { display: none; }
   background: var(--c7);
 }
 
-/* Six labelled chips in a 340px column is three ragged rows. The icons keep
-   their titles, and the code chip keeps its label -- the code is the label.
-   Desktop only: on a phone this row is a horizontal scroller, where the same
-   width costs the labels nothing. */
+.msg-chrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  background: #f6f6f5;
+  box-shadow: inset 0 -1px 0 0 #e6e6e3;
+  flex-wrap: wrap;
+}
+.msg-chrome:not(:has(> :not([hidden]))) { display: none; }
+.msg-chrome .seg.paper {
+  padding: 2px;
+  border-radius: 7px;
+  background: #e9e9e7;
+  box-shadow: none;
+}
+.msg-chrome .seg.paper::before {
+  top: 2px;
+  bottom: 2px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(18 18 19 / 0.08);
+}
+.msg-chrome .seg.paper .seg-btn {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: var(--t-sm);
+  color: #5d5d61;
+}
+.msg-chrome .seg.paper .seg-btn[aria-pressed="true"] {
+  background: none;
+  color: #121213;
+  box-shadow: none;
+}
+.msg-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--t-sm);
+  color: #5d5d61;
+}
+.msg-privacy .icon { width: 13px; height: 13px; flex: none; }
+.msg-privacy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-chrome #btn-images {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 10px;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: #121213;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #dcdcd9;
+}
+@media (hover: hover) and (pointer: fine) {
+  .msg-chrome #btn-images:hover { background: #efefed; }
+}
+
 @media (min-width: 900px) {
   @container reader (max-width: 420px) {
     .msg-actions .chip span { display: none; }
@@ -2348,6 +2421,10 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   background: var(--c2);
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
+#settings .drawer-head {
+  padding: 16px 12px 0 20px;
+  box-shadow: none;
+}
 .drawer-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .drawer-head h2 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
 .drawer-kicker {
@@ -2357,6 +2434,40 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   color: var(--ink3);
 }
 .drawer-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.drawer-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 12px 0;
+  box-shadow: inset 0 -1px 0 0 var(--c6);
+  flex: none;
+}
+.drawer-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 8px 10px;
+  font-size: var(--t-md);
+  font-weight: 500;
+  color: var(--ink3);
+  white-space: nowrap;
+}
+.drawer-tab[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.drawer-tab::after {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px; bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  scale: 0 1;
+  opacity: 0;
+}
+.drawer-tab[aria-selected="true"]::after { scale: 1 1; opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .drawer-tab:hover { color: var(--ink); }
+}
+.drawer-pane[hidden] { display: none; }
 .drawer-lead {
   margin: 0;
   padding: 14px 16px 2px;
@@ -2381,6 +2492,7 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
 .drawer-sec:last-child { box-shadow: none; }
+.drawer-pane .drawer-sec:last-child { box-shadow: none; }
 dialog.drawer[open] .drawer-sec { animation: sec-in var(--d-slow) var(--ease-out) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
 /* The stagger index. Settings carried it as an inline style on each section,
    so a drawer that did not (either sheet) had every section arriving on the
@@ -2411,6 +2523,9 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
 .keys div { display: flex; align-items: center; gap: 8px; }
 .keys dt { flex: none; display: flex; gap: 4px; }
 .keys dd { color: var(--ink3); }
+.keys-dialog .mini-inner { width: min(520px, calc(100vw - 32px)); gap: 14px; }
+.keys-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.keys-head h2 { margin: 0; }
 
 .meter { display: flex; flex-direction: column; gap: 8px; }
 .meter-bar { height: 6px; border-radius: var(--r-full); background: var(--c5); overflow: hidden; }
@@ -2597,6 +2712,7 @@ body.gate {
   body.searching .topbar .searchbox { display: flex; }
   .domain-pill { display: none; }
   .search-meta .search-count { display: none; }
+  .search-slash { display: none; }
 
   .shell { display: block; height: auto; }
 
@@ -2692,6 +2808,9 @@ body.gate {
     background: var(--c7);
   }
   .drawer-head { padding: 8px 16px 14px; }
+  #settings .drawer-head { padding: 8px 12px 0 16px; }
+  .drawer-tabs { overflow-x: auto; scrollbar-width: none; }
+  .drawer-tabs::-webkit-scrollbar { display: none; }
   .keys { grid-template-columns: 1fr; }
 
   .empty { padding: 40px 24px; }
@@ -2712,9 +2831,9 @@ body.gate {
   .select-actions { width: 100%; }
   .select-actions .icon-btn.plain { margin-left: auto; }
 
-  .inbox-card { gap: 14px; padding: 16px 16px 20px; }
-  .addr-actions { gap: 8px; }
-  .addr-actions .btn { font-size: var(--t-md); }
+  .inbox-card { gap: 12px; padding: 16px 16px 16px; }
+  .addr-actions { gap: 4px; }
+  .text-btn { min-height: 44px; padding: 0 10px; }
   #btn-roll { min-height: 46px; }
   .tag { padding: 4px 10px; font-size: var(--t-sm); }
   .tag.code { padding: 8px 12px; min-height: 44px; }
@@ -2763,8 +2882,9 @@ body.gate {
      one -- and this lifts the message context menu to the same floor, which it
      never met either. */
   .menu-item { min-height: var(--tap-min); }
-  .msg-actions .seg-btn { min-height: 44px; }
-  .msg-actions .chip, .msg-actions .seg-btn { min-width: 44px; }
+  .msg-chrome .seg-btn { min-height: 44px; height: auto; }
+  .msg-actions .chip { min-width: 44px; }
+  .msg-chrome #btn-images { min-height: 44px; height: auto; }
   .wait-close { width: 44px; height: 44px; }
   .rail-item { min-height: 44px; }
   .addr-value { min-height: 44px; }

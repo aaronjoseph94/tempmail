@@ -5,7 +5,7 @@ import { $, copyText, escapeHtml, formatBytes, formatWhen, hideToast, initialsFo
 import { cleanLink, looksLikeTracker, trackerCompany } from "./trackers.js";
 import { api, send } from "./api.js";
 import { poll, refresh } from "./data.js";
-import { closeListMenu, domainOf, moveSegHighlight, relatedDomain, renderFeed, renderRail, renderTitle, toggleBlock, toggleStar, visibleMessages } from "./render.js";
+import { closeListMenu, closeMsgMenu, domainOf, moveSegHighlight, relatedDomain, renderFeed, renderRail, renderTitle, toggleBlock, toggleStar, visibleMessages } from "./render.js";
 
 /* ----------------------------------------------------------------- viewer */
 
@@ -16,6 +16,7 @@ export async function openMessage(id) {
   // menu sits at 80 and would paint over it. body.reading also stops the
   // scroll dismissal firing, so it has to be closed here.
   closeListMenu();
+  closeMsgMenu();
   // Two quick clicks race, and the slower fetch used to win: whichever message
   // answered last was the one shown, regardless of which was asked for last.
   const seq = ++openSeq;
@@ -85,7 +86,7 @@ function renderViewer() {
 
   const retentionDays = state.config?.retentionDays ?? 100;
   const daysLeft = Math.max(0, Math.ceil((msg.receivedAt + retentionDays * 86400000 - Date.now()) / 86400000));
-  $("msg-expiry").textContent = `deletes in ${plural(daysLeft, "day")}`;
+  $("msg-expiry").textContent = `Deletes in ${plural(daysLeft, "day")}`;
 
   paintStar();
   $("btn-export").href = `/api/messages/${encodeURIComponent(msg.id)}/export`;
@@ -338,6 +339,7 @@ export function closeMessage({ fromHistory = false } = {}) {
   frameObserver?.disconnect();
   $("msg-frame").srcdoc = "";
   document.body.classList.remove("reading");
+  closeMsgMenu();
   renderFeed();
   // Let the sheet finish sliding out before the content disappears.
   setTimeout(() => { if (!state.open) renderViewer(); }, isDesktop() ? 0 : 260);
@@ -617,6 +619,7 @@ function renderUnsubChip(msg) {
   chip.title = msg.unsubscribe?.oneClick
     ? "The sender supports one-click unsubscribe; this inbox will send the request for you"
     : "Opens the sender's unsubscribe link";
+  $("msg-menu-unsub").hidden = !msg.unsubscribe;
 }
 
 /** Asks the Worker to unsubscribe, or opens what the sender offered. */

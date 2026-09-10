@@ -15,7 +15,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <script src="/theme.js"></script>
-  <link rel="stylesheet" href="/style.css?v=73" />
+  <link rel="stylesheet" href="/style.css?v=74" />
 </head>
 <body>
   <!-- Icon sprite. Everything below references these with <use href="#i-…">. -->
@@ -87,6 +87,7 @@
         <button class="search-clear" id="search-clear" aria-label="Clear search" hidden>
           <svg class="icon sm"><use href="#i-close"/></svg>
         </button>
+        <kbd class="search-slash" id="search-slash">/</kbd>
       </span>
     </div>
 
@@ -117,28 +118,34 @@
     <aside class="rail">
       <!-- The inbox you hand out: what it is, then what you can do with it. -->
       <section class="inbox-card" aria-labelledby="inbox-card-label">
-        <span class="card-label" id="inbox-card-label">Your inbox</span>
+        <div class="inbox-card-head">
+          <span class="card-label" id="inbox-card-label">Your inbox</span>
+          <button id="btn-copy" class="copy-btn" title="Copy this address (C)">
+            <svg class="icon sm copy" aria-hidden="true"><use href="#i-copy"/></svg>
+            <svg class="icon sm tick" aria-hidden="true"><use href="#i-tick"/></svg>
+            <span class="copy-label">Copy</span>
+            <span class="copied-label">Copied</span>
+          </button>
+        </div>
 
-        <button id="btn-copy" class="addr-value" title="Copy this address (C)">
-          <span class="text"><span id="addr-local"></span><span class="domain" id="addr-domain"></span></span>
-          <span class="copy-slot" aria-hidden="true">
-            <svg class="icon copy"><use href="#i-copy"/></svg>
-            <svg class="icon tick"><use href="#i-tick"/></svg>
-          </span>
+        <button id="addr-value" class="addr-value" title="Copy this address">
+          <span id="addr-local"></span>
+          <span class="domain" id="addr-domain"></span>
         </button>
         <p class="hint" id="addr-hint" hidden>
           Add your mail domain in <button type="button" class="link" id="link-domain">Settings</button> to finish the address.
         </p>
 
         <button id="btn-roll" class="btn primary block" title="Make a new inbox (N)">
-          <svg class="icon sm"><use href="#i-plus"/></svg><span>New Inbox</span>
+          <svg class="icon sm"><use href="#i-plus"/></svg><span>New inbox</span>
         </button>
 
         <div class="addr-actions">
-          <button id="btn-mine" class="btn sm ghost" title="Show only the mail sent to this address" aria-label="Open this inbox">
-            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Open</span>
+          <button id="btn-mine" class="text-btn" title="Show only the mail sent to this address" aria-label="Open this inbox">
+            <svg class="icon sm"><use href="#i-inbox-arrow"/></svg><span>Open inbox</span>
           </button>
-          <button id="btn-wait" class="btn sm ghost" title="Watch this inbox and show the next code the moment it lands" aria-label="Wait for a code">
+          <span class="addr-dot" aria-hidden="true">·</span>
+          <button id="btn-wait" class="text-btn" title="Watch this inbox and show the next code the moment it lands" aria-label="Wait for a code">
             <svg class="icon sm"><use href="#i-key"/></svg><span>Get code</span>
           </button>
         </div>
@@ -159,6 +166,11 @@
       <nav class="rail-group" aria-label="Inboxes">
         <div class="rail-head"><span>Inboxes</span><span id="addr-count"></span></div>
         <div class="rail-list" id="rail-list" data-ready="false"></div>
+        <button type="button" class="rail-keys" id="btn-keys" title="Keyboard shortcuts (?)">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>
+          Keyboard shortcuts
+          <kbd>?</kbd>
+        </button>
       </nav>
     </aside>
 
@@ -180,7 +192,7 @@
         <div class="list-tools">
           <!-- Phones show this and nothing else; the buttons below are the
                single source of truth for what it contains and what is enabled. -->
-          <button id="btn-list-menu" class="icon-btn plain only-phone" aria-label="More actions" title="More actions"
+          <button id="btn-list-menu" class="icon-btn plain" aria-label="More actions" title="More actions"
                   aria-haspopup="menu" aria-expanded="false" aria-controls="list-menu">
             <svg class="icon sm"><use href="#i-more"/></svg>
           </button>
@@ -277,10 +289,11 @@
             </div>
             <div class="msg-addr mono" id="msg-from-addr"></div>
             <div class="msg-to">to <button type="button" class="link mono" id="msg-to" title="Show only mail for this address"></button></div>
-          </div>
-          <div class="msg-when">
-            <time id="msg-date"></time>
-            <span class="msg-expiry" id="msg-expiry"></span>
+            <div class="msg-when">
+              <time id="msg-date"></time>
+              <span class="msg-when-dot" aria-hidden="true">·</span>
+              <span class="msg-expiry" id="msg-expiry"></span>
+            </div>
           </div>
         </div>
 
@@ -294,11 +307,6 @@
           <svg class="icon sm" aria-hidden="true"><use href="#i-warn"/></svg>
           <span id="msg-warn-text"></span>
           <button type="button" class="btn sm" id="msg-warn-plain">Show plain text</button>
-        </div>
-
-        <div id="msg-privacy" class="leak-strip screen quiet" hidden>
-          <svg class="icon sm" aria-hidden="true"><use href="#i-eye-off"/></svg>
-          <span id="msg-privacy-text"></span>
         </div>
 
         <div id="msg-junk" class="leak-strip screen" hidden>
@@ -321,15 +329,8 @@
           <button id="btn-code" class="chip accent" hidden aria-label="Copy the verification code" title="Copy the verification code">
             <svg class="icon sm"><use href="#i-key"/></svg><span><b id="msg-code"></b></span>
           </button>
-          <div class="seg" id="body-toggle" data-ready="false" role="group" aria-label="View message as" hidden>
-            <button id="btn-html" class="seg-btn" aria-pressed="true">Rich</button>
-            <button id="btn-text" class="seg-btn" aria-pressed="false">Plain</button>
-          </div>
-          <button id="btn-images" class="chip" hidden title="Remote images stay blocked until you ask for them">
-            <svg class="icon sm"><use href="#i-image"/></svg><span>Load images</span>
-          </button>
-          <button id="btn-unsub" class="chip" hidden title="Unsubscribe from this sender">
-            <svg class="icon sm"><use href="#i-unsub"/></svg><span>Unsubscribe</span>
+          <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
+            <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
           </button>
           <button id="btn-junk" class="chip" aria-label="Mark as junk" title="Mark as junk and teach the filter">
             <svg class="icon sm"><use href="#i-ban"/></svg><span>Junk</span>
@@ -337,20 +338,36 @@
           <button id="btn-delete" class="chip danger" title="Delete (#)">
             <svg class="icon sm"><use href="#i-trash"/></svg><span>Delete</span>
           </button>
-          <button id="btn-unread" class="chip" title="Mark unread (u)">
+          <button id="btn-msg-more" class="icon-btn" aria-label="More actions" title="More" aria-haspopup="menu" aria-expanded="false" aria-controls="msg-menu">
+            <svg class="icon sm"><use href="#i-more"/></svg>
+          </button>
+          <button id="btn-unsub" class="chip msg-extra" hidden title="Unsubscribe from this sender">
+            <svg class="icon sm"><use href="#i-unsub"/></svg><span>Unsubscribe</span>
+          </button>
+          <button id="btn-unread" class="chip msg-extra" title="Mark unread (u)">
             <svg class="icon sm"><use href="#i-unread"/></svg><span>Unread</span>
           </button>
-          <a id="btn-export" class="chip" download title="Download as a text file">
+          <a id="btn-export" class="chip msg-extra" download title="Download as a text file">
             <svg class="icon sm"><use href="#i-download"/></svg><span>Export</span>
           </a>
-          <button id="btn-star" class="chip" title="Star this message (s)" aria-pressed="false">
-            <svg class="icon sm"><use href="#i-star"/></svg><span>Star</span>
-          </button>
         </div>
 
         <div id="msg-attachments" class="attachments" hidden></div>
 
         <div class="msg-body" id="msg-body">
+          <div class="msg-chrome">
+            <div class="seg paper" id="body-toggle" data-ready="false" role="group" aria-label="View message as" hidden>
+              <button id="btn-html" class="seg-btn" aria-pressed="true">Rich</button>
+              <button id="btn-text" class="seg-btn" aria-pressed="false">Plain</button>
+            </div>
+            <div id="msg-privacy" class="msg-privacy" hidden>
+              <svg class="icon sm" aria-hidden="true"><use href="#i-eye-off"/></svg>
+              <span id="msg-privacy-text"></span>
+            </div>
+            <button id="btn-images" class="chip paper" hidden title="Remote images stay blocked until you ask for them">
+              <svg class="icon sm"><use href="#i-image"/></svg><span>Load images</span>
+            </button>
+          </div>
           <!-- Same-origin so the frame can be measured and sized to its content;
                scripts and forms stay blocked by the sandbox, and links open in
                a new tab. -->
@@ -376,8 +393,24 @@
         </button>
       </header>
 
+      <div class="drawer-tabs" role="tablist" aria-label="Settings">
+        <button type="button" class="drawer-tab" role="tab" id="tab-site" data-tab="site" aria-selected="true" aria-controls="pane-site">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site
+        </button>
+        <button type="button" class="drawer-tab" role="tab" id="tab-security" data-tab="security" aria-selected="false" aria-controls="pane-security">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Security
+        </button>
+        <button type="button" class="drawer-tab" role="tab" id="tab-mail" data-tab="mail" aria-selected="false" aria-controls="pane-mail">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-mail"/></svg>Mail
+        </button>
+        <button type="button" class="drawer-tab" role="tab" id="tab-look" data-tab="look" aria-selected="false" aria-controls="pane-look">
+          <svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Look
+        </button>
+      </div>
+
       <div class="drawer-scroll">
-        <p class="drawer-lead only-desktop">These choices apply to this inbox on this Worker. Appearance and alerts stay on this device; domains, screening, the password and storage limits are saved on the server and follow you everywhere you sign in.</p>
+        <div class="drawer-pane" id="pane-site" data-tab="site" role="tabpanel" aria-labelledby="tab-site">
+        <p class="drawer-lead only-desktop">These choices apply to this inbox on this Worker. Domains and the site name are saved on the server and follow you everywhere you sign in.</p>
 
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-globe"/></svg>Site</h3>
@@ -399,6 +432,33 @@
           </form>
           <p class="hint">You can keep several domains in one inbox (work and personal throwaways, a spare subdomain). Tap a domain to make it the default for <strong>New inbox</strong>. Remove one with the trash. An empty Add does not clear the list &mdash; remove domains one at a time.</p>
           <p class="hint" id="domain-note" hidden></p>
+        </section>
+
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-exit"/></svg>This device</h3>
+          <p class="sec-lead">Signs this browser out and stops push notifications here. Mail, domains and passkeys on the server are untouched. Other devices stay signed in until you change the password.</p>
+          <button id="btn-logout" class="btn sm ghost" type="button">
+            <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
+          </button>
+        </section>
+        </div>
+
+        <div class="drawer-pane" id="pane-security" data-tab="security" role="tabpanel" aria-labelledby="tab-security" hidden>
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Screening</h3>
+          <p class="sec-lead">A catch-all means anyone who guesses an address can write to you. The Screener holds the first message from an unknown sender until you let them in. Rules run as mail arrives. The junk filter only speaks once you have taught it with your own Junk / Not junk taps &mdash; nothing is sent off this Worker.</p>
+          <label class="switch">
+            <input type="checkbox" id="set-screener" /><span class="track"></span>
+            <span class="label">Screen new senders<small>Unknown senders wait in the Screener. Turning this on vouches for everyone already in the inbox, so only genuinely new people wait.</small></span>
+          </label>
+          <button type="button" class="btn sm ghost" id="open-rules">
+            <svg class="icon sm"><use href="#i-sliders"/></svg><span>Rules</span>
+          </button>
+          <p class="hint">Rules are one condition and one action each, top to bottom. Binning or junking a message is the last word &mdash; nothing below that rule runs on it.</p>
+          <p class="hint" id="junk-state"></p>
+          <button type="button" class="btn sm ghost" id="junk-forget" hidden>
+            <svg class="icon sm"><use href="#i-refresh"/></svg><span>Forget what it has learned</span>
+          </button>
         </section>
 
         <section class="drawer-sec">
@@ -431,24 +491,9 @@
           </form>
           <p class="hint" id="pw-note"></p>
         </section>
+        </div>
 
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg>Screening</h3>
-          <p class="sec-lead">A catch-all means anyone who guesses an address can write to you. The Screener holds the first message from an unknown sender until you let them in. Rules run as mail arrives. The junk filter only speaks once you have taught it with your own Junk / Not junk taps &mdash; nothing is sent off this Worker.</p>
-          <label class="switch">
-            <input type="checkbox" id="set-screener" /><span class="track"></span>
-            <span class="label">Screen new senders<small>Unknown senders wait in the Screener. Turning this on vouches for everyone already in the inbox, so only genuinely new people wait.</small></span>
-          </label>
-          <button type="button" class="btn sm ghost" id="open-rules">
-            <svg class="icon sm"><use href="#i-sliders"/></svg><span>Rules</span>
-          </button>
-          <p class="hint">Rules are one condition and one action each, top to bottom. Binning or junking a message is the last word &mdash; nothing below that rule runs on it.</p>
-          <p class="hint" id="junk-state"></p>
-          <button type="button" class="btn sm ghost" id="junk-forget" hidden>
-            <svg class="icon sm"><use href="#i-refresh"/></svg><span>Forget what it has learned</span>
-          </button>
-        </section>
-
+        <div class="drawer-pane" id="pane-mail" data-tab="mail" role="tabpanel" aria-labelledby="tab-mail" hidden>
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-sliders"/></svg>Alerts</h3>
           <p class="sec-lead">Three ways to hear that mail landed, plus a live connection that already updates the list. These switches are per device: turning sound off here does not mute your phone&rsquo;s other apps.</p>
@@ -467,56 +512,6 @@
           <label class="switch">
             <input type="checkbox" id="set-autorefresh" checked /><span class="track"></span>
             <span class="label">Check for new mail automatically<small>A quiet backstop if the live connection drops. Mail still arrives live when this is off; the list just will not poll in the background.</small></span>
-          </label>
-        </section>
-
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
-          <p class="sec-lead">Theme and accent stay on this browser. Remote images and link cleanup change how messages are shown, not what was stored.</p>
-          <div class="setting-row">
-            <span class="label">Theme<small>System follows the device. The sun/moon button in the top bar flips Light and Dark without leaving System remembered.</small></span>
-            <div class="seg" id="theme-seg" data-ready="false" role="group" aria-label="Theme">
-              <button type="button" class="seg-btn" data-theme="system" aria-pressed="true">System</button>
-              <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
-              <button type="button" class="seg-btn" data-theme="dark" aria-pressed="false">Dark</button>
-            </div>
-          </div>
-          <div class="setting-row">
-            <span class="label" id="scheme-label">Accent<small>Used for switches, selection and the live dot. Each colour is checked for contrast in both themes.</small></span>
-            <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
-                <span>Mono</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
-                <span>Indigo</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
-                <span>Emerald</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
-                <span>Amber</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
-                <span>Rose</span>
-              </div>
-              <div class="swatch-opt">
-                <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
-                <span>Cyan</span>
-              </div>
-            </div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="set-images" /><span class="track"></span>
-            <span class="label">Always load remote images<small>Off blocks tracking pixels until you tap Load images on a message. Inline images that arrived with the mail still show.</small></span>
-          </label>
-          <label class="switch">
-            <input type="checkbox" id="set-clean-links" checked /><span class="track"></span>
-            <span class="label">Clean up links<small>Strips tracking codes, unwraps redirects so you see the real destination, and puts that destination on hover. Turn it off if a sender&rsquo;s link breaks after cleanup.</small></span>
           </label>
         </section>
 
@@ -568,35 +563,6 @@
           <p class="hint" id="retention-note"></p>
         </section>
 
-        <section class="drawer-sec only-desktop">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard</h3>
-          <p class="sec-lead">Shortcuts apply while the inbox is focused, not while you are typing in a field. A dialog (Settings, a sheet, a prompt) owns the keys until you close it.</p>
-          <dl class="keys">
-            <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous (or ↓ ↑)</dd></div>
-            <div><dt><kbd>Enter</kbd></dt><dd>open message</dd></div>
-            <div><dt><kbd>Esc</kbd></dt><dd>close / clear</dd></div>
-            <div><dt><kbd>/</kbd></dt><dd>search</dd></div>
-            <div><dt><kbd>C</kbd></dt><dd>copy address</dd></div>
-            <div><dt><kbd>N</kbd></dt><dd>new address</dd></div>
-            <div><dt><kbd>U</kbd></dt><dd>mark unread</dd></div>
-            <div><dt><kbd>S</kbd></dt><dd>star / unstar</dd></div>
-            <div><dt><kbd>#</kbd></dt><dd>delete message</dd></div>
-            <div><dt><kbd>Right-click</kbd></dt><dd>message menu</dd></div>
-            <div><dt><kbd>X</kbd></dt><dd>select messages</dd></div>
-            <div><dt><kbd>R</kbd></dt><dd>check for new mail</dd></div>
-            <div><dt><kbd>T</kbd></dt><dd>switch theme</dd></div>
-            <div><dt><kbd>,</kbd><kbd>?</kbd></dt><dd>settings</dd></div>
-          </dl>
-        </section>
-
-        <section class="drawer-sec">
-          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-exit"/></svg>This device</h3>
-          <p class="sec-lead">Signs this browser out and stops push notifications here. Mail, domains and passkeys on the server are untouched. Other devices stay signed in until you change the password.</p>
-          <button id="btn-logout" class="btn sm ghost" type="button">
-            <svg class="icon sm"><use href="#i-exit"/></svg>Sign out
-          </button>
-        </section>
-
         <section class="drawer-sec">
           <h3><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg>Danger zone</h3>
           <p class="sec-lead">Deletes every message in every inbox, including starred mail. Addresses, rules, passkeys and the password stay. This cannot be undone from the app.</p>
@@ -604,7 +570,88 @@
             <svg class="icon sm"><use href="#i-trash"/></svg>Delete all mail
           </button>
         </section>
+        </div>
+
+        <div class="drawer-pane" id="pane-look" data-tab="look" role="tabpanel" aria-labelledby="tab-look" hidden>
+        <section class="drawer-sec">
+          <h3><svg class="icon sm" aria-hidden="true"><use href="#i-image"/></svg>Appearance</h3>
+          <p class="sec-lead">Theme and accent stay on this browser. Remote images and link cleanup change how messages are shown, not what was stored.</p>
+          <div class="setting-row">
+            <span class="label">Theme<small>System follows the device. The sun/moon button in the top bar flips Light and Dark without leaving System remembered.</small></span>
+            <div class="seg" id="theme-seg" data-ready="false" role="group" aria-label="Theme">
+              <button type="button" class="seg-btn" data-theme="system" aria-pressed="true">System</button>
+              <button type="button" class="seg-btn" data-theme="light" aria-pressed="false">Light</button>
+              <button type="button" class="seg-btn" data-theme="dark" aria-pressed="false">Dark</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="label" id="scheme-label">Accent<small>Used for switches, selection and the live dot. Each colour is checked for contrast in both themes.</small></span>
+            <div class="swatches" id="scheme-swatches" role="radiogroup" aria-labelledby="scheme-label">
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="mono" role="radio" aria-checked="true" aria-label="Mono" title="Mono"></button>
+                <span>Mono</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="indigo" role="radio" aria-checked="false" aria-label="Indigo" title="Indigo"></button>
+                <span>Indigo</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="emerald" role="radio" aria-checked="false" aria-label="Emerald" title="Emerald"></button>
+                <span>Emerald</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="amber" role="radio" aria-checked="false" aria-label="Amber" title="Amber"></button>
+                <span>Amber</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="rose" role="radio" aria-checked="false" aria-label="Rose" title="Rose"></button>
+                <span>Rose</span>
+              </div>
+              <div class="swatch-opt">
+                <button type="button" class="swatch" data-scheme="cyan" role="radio" aria-checked="false" aria-label="Cyan" title="Cyan"></button>
+                <span>Cyan</span>
+              </div>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="set-images" /><span class="track"></span>
+            <span class="label">Always load remote images<small>Off blocks tracking pixels until you tap Load images on a message. Inline images that arrived with the mail still show.</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="set-clean-links" checked /><span class="track"></span>
+            <span class="label">Clean up links<small>Strips tracking codes, unwraps redirects so you see the real destination, and puts that destination on hover. Turn it off if a sender&rsquo;s link breaks after cleanup.</small></span>
+          </label>
+        </section>
+        </div>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="keys" class="mini keys-dialog" aria-labelledby="keys-title">
+    <div class="mini-inner">
+      <header class="keys-head">
+        <h2 id="keys-title">Keyboard shortcuts</h2>
+        <button type="button" class="icon-btn plain" id="keys-close" aria-label="Close">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+      <p class="hint">While the inbox is focused and you are not typing in a field.</p>
+      <dl class="keys">
+        <div><dt><kbd>J</kbd><kbd>K</kbd></dt><dd>next / previous (or ↓ ↑)</dd></div>
+        <div><dt><kbd>Enter</kbd></dt><dd>open message</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>close / clear</dd></div>
+        <div><dt><kbd>/</kbd></dt><dd>search</dd></div>
+        <div><dt><kbd>C</kbd></dt><dd>copy address</dd></div>
+        <div><dt><kbd>N</kbd></dt><dd>new inbox</dd></div>
+        <div><dt><kbd>U</kbd></dt><dd>mark unread</dd></div>
+        <div><dt><kbd>S</kbd></dt><dd>star / unstar</dd></div>
+        <div><dt><kbd>#</kbd></dt><dd>delete message</dd></div>
+        <div><dt><kbd>X</kbd></dt><dd>select messages</dd></div>
+        <div><dt><kbd>R</kbd></dt><dd>check for new mail</dd></div>
+        <div><dt><kbd>T</kbd></dt><dd>switch theme</dd></div>
+        <div><dt><kbd>,</kbd></dt><dd>settings</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>this list</dd></div>
+      </dl>
     </div>
   </dialog>
 
@@ -817,6 +864,18 @@
        which actions exist and when. -->
   <div id="list-menu" class="menu" hidden role="menu" aria-label="List actions"></div>
 
+  <div id="msg-menu" class="menu" hidden role="menu" aria-label="Message actions">
+    <button type="button" class="menu-item" data-act="unread" role="menuitem">
+      <svg class="icon sm" aria-hidden="true"><use href="#i-unread"/></svg><span>Mark unread</span><kbd>U</kbd>
+    </button>
+    <button type="button" class="menu-item" data-act="export" role="menuitem">
+      <svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg><span>Export</span>
+    </button>
+    <button type="button" class="menu-item" id="msg-menu-unsub" data-act="unsub" role="menuitem" hidden>
+      <svg class="icon sm" aria-hidden="true"><use href="#i-unsub"/></svg><span>Unsubscribe</span>
+    </button>
+  </div>
+
   <div id="mail-menu" class="menu" hidden role="menu" aria-label="Message">
     <button type="button" class="menu-item" data-act="open" role="menuitem">
       <svg class="icon sm" aria-hidden="true"><use href="#i-mail"/></svg><span>Open</span><kbd>↵</kbd>
@@ -833,6 +892,6 @@
     </button>
   </div>
 
-  <script type="module" src="/js/main.js?v=73"></script>
+  <script type="module" src="/js/main.js?v=74"></script>
 </body>
 </html>

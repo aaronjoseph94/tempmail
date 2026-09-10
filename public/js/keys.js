@@ -7,6 +7,13 @@ import { closeMailMenu, closeMessage, deleteOpen, manualRefresh, markUnread, ope
 import { copyAddress, openNewInbox, stopWaiting } from "./inbox.js";
 import { openSettings, toggleTheme } from "./settings.js";
 
+export function openKeys() {
+  $("keys").showModal();
+}
+export function closeKeys() {
+  if ($("keys").open) $("keys").close();
+}
+
 /* --------------------------------------------------------------- keyboard */
 
 export function step(direction) {
@@ -60,7 +67,7 @@ document.addEventListener("keydown", (e) => {
     case "r": manualRefresh(); toast("Refreshed", "i-refresh"); break;
     case "t": toggleTheme(); break;
     case ",": e.preventDefault(); openSettings(); break;
+    case "?": e.preventDefault(); openKeys(); break;
     case "#": case "Delete": deleteOpen(); break;
-    case "?": openSettings(); break;
   }
 });

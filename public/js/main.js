@@ -11,14 +11,14 @@
 import { PREFS, state } from "./state.js";
 import { $, copyText, isDesktop, store, toast, wideQuery } from "./util.js";
 import { chime, connectLive, liveFailures, liveRetry, liveSocket, loadCache, loadConfig, loadOlder, poll } from "./data.js";
-import { closeListMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
+import { closeListMenu, closeMsgMenu, deleteInbox, dismissListMenu, moveRailHighlight, moveSegHighlight, openListMenu, renderDomain, renderFeed, renderRail, setBox, setFilter, setOwner, setQuery, setView, skeletonRows, toggleBlock, toggleSearch, toggleStar } from "./render.js";
 import { bulk, closeMailMenu, closeMessage, copyCode, deleteOpen, fitFrame, manualRefresh, markJunk, markUnread, openMessage, pickAll, renderBody, runMailMenu, setSelecting, togglePick, unsubscribeOpen, wireFeedGestures } from "./viewer.js";
 import { addRule, closeRules, fillRuleForm, onRuleClick, openRules, renderRuleForm } from "./rules.js";
 import { closeSubs, onSubClick, openSubs, runSubs } from "./subs.js";
 import { addPasskey, onPasskeyClick } from "./passkeys.js";
 import { closeInboxPicker, closeNewInbox, copyAddress, createInbox, fullAddress, generateAddress, openInboxPicker, openLabelDialog, openNewInbox, renaming, renderCandidate, rerollCandidate, saveLabel, setPendingLife, startWaiting, stopWaiting } from "./inbox.js";
-import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, updateExportLink, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
-import { step } from "./keys.js";
+import { applyScheme, applyTheme, changePassword, closeSettings, deleteAll, dropDomain, makeDomainDefault, handleWorkerMessage, logout, markAllRead, openSettings, showSettingsTab, registerServiceWorker, forgetJunk, saveBrand, saveDomain, setCleanLinks, updateExportLink, saveLimits, schemePref, setAlwaysImages, setAutoRefresh, setScreener, setSound, themePref, toggleNotifications, togglePush, toggleTheme, wireDrawerDrag } from "./settings.js";
+import { closeKeys, openKeys, step } from "./keys.js";
 
 /* ----------------------------------------------------------------- wiring */
 
@@ -42,8 +42,9 @@ $("list-menu").addEventListener("keydown", (e) => {
 });
 document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest("#list-menu, #btn-list-menu")) closeListMenu();
+  if (!e.target.closest("#msg-menu, #btn-msg-more")) closeMsgMenu();
 }, true);
-addEventListener("resize", closeListMenu);
+addEventListener("resize", () => { closeListMenu(); closeMsgMenu(); });
 
 $("mail-menu").addEventListener("click", (e) => {
   const item = e.target.closest("[data-act]");
@@ -135,6 +136,7 @@ $("search-clear").addEventListener("click", () => { $("search").value = ""; setQ
 $("btn-search").addEventListener("click", toggleSearch);
 
 $("btn-copy").addEventListener("click", copyAddress);
+$("addr-value").addEventListener("click", copyAddress);
 $("btn-roll").addEventListener("click", openNewInbox);
 $("btn-new-phone").addEventListener("click", openNewInbox);
 $("new-inbox-close").addEventListener("click", closeNewInbox);
@@ -189,7 +191,7 @@ $("btn-mine").addEventListener("click", () => {
   if (!state.mailDomain) { copyAddress(); return; }
   setFilter(fullAddress());
 });
-$("link-domain").addEventListener("click", openSettings);
+$("link-domain").addEventListener("click", () => openSettings("site"));
 
 $("btn-back").addEventListener("click", () => closeMessage());
 $("btn-close").addEventListener("click", () => closeMessage());
@@ -280,6 +282,62 @@ $("btn-settings").addEventListener("click", openSettings);
 $("btn-settings-close").addEventListener("click", closeSettings);
 // Clicking the backdrop (that is, the dialog itself rather than the panel) closes it.
 $("settings").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeSettings(); });
+for (const tab of document.querySelectorAll(".drawer-tab")) {
+  tab.addEventListener("click", () => showSettingsTab(tab.dataset.tab));
+}
+document.querySelector(".drawer-tabs").addEventListener("keydown", (e) => {
+  const tabs = [...document.querySelectorAll(".drawer-tab")];
+  const i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  const dir = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 1, ArrowUp: -1 }[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  const next = tabs[(i + dir + tabs.length) % tabs.length];
+  showSettingsTab(next.dataset.tab);
+  next.focus();
+});
+$("btn-keys").addEventListener("click", openKeys);
+$("keys-close").addEventListener("click", closeKeys);
+$("keys").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeKeys(); });
+
+function placeMsgMenu() {
+  const menu = $("msg-menu");
+  const at = $("btn-msg-more").getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  const pad = 8;
+  const left = Math.min(Math.max(pad, at.right - w), innerWidth - w - pad);
+  const below = at.bottom + 6;
+  const flip = below + h > innerHeight - pad;
+  const top = flip ? Math.max(pad, at.top - h - 6) : below;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+$("btn-msg-more").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menu = $("msg-menu");
+  if (!menu.hidden) { closeMsgMenu(); return; }
+  closeListMenu();
+  menu.hidden = false;
+  $("btn-msg-more").setAttribute("aria-expanded", "true");
+  placeMsgMenu();
+  menu.querySelector(".menu-item:not([hidden])")?.focus();
+});
+$("msg-menu").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-act]");
+  if (!item) return;
+  closeMsgMenu();
+  if (item.dataset.act === "unread") markUnread();
+  else if (item.dataset.act === "export") $("btn-export").click();
+  else if (item.dataset.act === "unsub") unsubscribeOpen();
+});
+$("msg-menu").addEventListener("keydown", (e) => {
+  const items = [...$("msg-menu").querySelectorAll(".menu-item:not([hidden])")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  else if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); closeMsgMenu(); $("btn-msg-more").focus(); }
+});
 $("brand-form").addEventListener("submit", saveBrand);
 $("domain-form").addEventListener("submit", saveDomain);
 $("password-form").addEventListener("submit", changePassword);
