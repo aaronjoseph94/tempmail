@@ -64,18 +64,19 @@
 
   /* Neutral ramp, darkest surface to brightest text. Cool slate, so the
      indigo accent reads as part of the same family rather than an intrusion. */
-  --c1: #0b0b0c;   /* page */
-  --c2: #101011;   /* panels */
-  --c3: #151517;   /* cards */
-  --c4: #1c1c1e;   /* hover */
-  --c5: #232326;   /* pressed, wells */
-  --c6: #2c2c30;   /* hairlines */
-  --c7: #3b3b40;   /* strong hairlines */
-  --c8: #57575d;   /* disabled ink */
+  --c1: #0c0c0d;   /* page */
+  --c2: #171718;   /* panels */
+  --c3: #1d1d1f;   /* cards */
+  --c4: #242426;   /* hover */
+  --c5: #2b2b2e;   /* pressed, wells */
+  --c6: rgb(255 255 255 / 0.08); /* hairlines — an alpha, so a card reads as
+                                    lifted off whatever it sits on */
+  --c7: #3b3b3f;   /* strong hairlines */
+  --c8: #66666b;   /* disabled ink */
 
-  --ink: #f2f2f3;  /* primary text — 14.0:1 on the lightest surface */
-  --ink2: #a9a9ae; /* secondary — 6.7:1 */
-  --ink3: #98989e; /* tertiary, meta — 5.5:1 */
+  --ink: #f4f4f5;  /* primary text — 12.7:1 on the lightest surface */
+  --ink2: #b3b3b8; /* secondary — 6.7:1 */
+  --ink3: #949499; /* tertiary, meta — 4.7:1 even on the lightest well */
 
   /* The accent is ink, not a hue. It marks the one action worth taking on a
      screen and nothing else, which is why it can afford to be the only solid
@@ -96,11 +97,14 @@
   --warn: #eab308;
   --danger: #fb7185;
   --danger-a12: rgb(251 113 133 / 0.13);
-  --scrim: rgb(0 0 0 / 0.62);
+  --scrim: rgb(0 0 0 / 0.55);
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
-  --shadow-2: 0 4px 16px -4px rgb(0 0 0 / 0.5);
-  --shadow-3: 0 16px 40px -12px rgb(0 0 0 / 0.6);
+  /* One set for both themes: these are soft enough that the dark theme does
+     not need its own, which is why the light block below no longer repeats
+     them. Depth now comes from the --c6 hairline, not from a heavy drop. */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-2: 0 6px 20px -6px rgb(0 0 0 / 0.10);
+  --shadow-3: 0 24px 60px -20px rgb(0 0 0 / 0.22);
   --ring: 0 0 0 3px var(--accent-a28);
 
 
@@ -153,10 +157,10 @@
   --s-15: 64px;
 
   /* Radii, on the same rhythm as the spacing scale. */
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
   /* Reserved for things that are literally track-shaped: the switch, the
      meter, the sheet's grab handle. Not the segmented controls -- a lozenge
      sliding inside a capsule was the one shape in the app that read as though
@@ -202,25 +206,25 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --c1: #f5f5f4;
+  --c1: #f4f4f3;
   --c2: #ffffff;
-  --c3: #fafaf9;
-  --c4: #efefed;
-  --c5: #e6e6e3;
-  --c6: #dcdcd9;
-  --c7: #c4c4c0;
-  --c8: #989894;
+  --c3: #f7f7f6;
+  --c4: #f0f0ef;
+  --c5: #e9e9e7;
+  --c6: rgb(0 0 0 / 0.07);
+  --c7: #d4d4d1;
+  --c8: #9a9a98;
 
-  --ink: #121213;  /* 15.0:1 on the darkest surface */
+  --ink: #1d1d1f;  /* 14.7:1 on the darkest surface */
   --ink2: #4c4c50; /* 6.8:1 */
   --ink3: #5d5d61; /* 5.2:1 */
 
-  --accent: #121213;
+  --accent: #1d1d1f;
   --accent-hi: #000000;
   --accent-ink: #ffffff;
   --accent-a10: rgb(0 0 0 / 0.05);
   --accent-a16: rgb(0 0 0 / 0.09);
-  --accent-a28: rgb(0 0 0 / 0.18);
+  --accent-a28: rgb(0 0 0 / 0.16);
 
   /* Was #059669, which measured 3.18:1 as text on its own tint — under the
      floor, and it is used as text on the authenticity badge. */
@@ -230,11 +234,7 @@
   --warn: #a16207;
   --danger: #be123c;
   --danger-a12: rgb(225 29 72 / 0.09);
-  --scrim: rgb(18 18 19 / 0.42);
-
-  --shadow-1: 0 1px 2px rgb(18 18 19 / 0.06);
-  --shadow-2: 0 4px 16px -4px rgb(18 18 19 / 0.10);
-  --shadow-3: 0 16px 40px -12px rgb(18 18 19 / 0.16);
+  --scrim: rgb(20 20 22 / 0.35);
 }
 
 
@@ -519,14 +519,15 @@ kbd {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: var(--r-md);
-  background: var(--c3);
+  border-radius: var(--r-sm);
+  background: var(--c2);
   box-shadow: inset 0 0 0 1px var(--c6);
   color: var(--ink);
   font-size: var(--t-md);
   font-weight: 500;
   line-height: 1;
-  padding: 8px 14px;
+  padding: 6px 12px;
+  --btn-h: 32px;
   /* Heights are declared, not inherited from whatever font-size a variant
      happens to carry — that is what put a 39px button beside a 44px one. */
   min-height: max(var(--btn-h, 36px), var(--tap-min));
@@ -569,7 +570,7 @@ kbd {
   .btn.ghost:hover:not(:disabled) { background: var(--c4); box-shadow: none; }
 }
 .btn.sm, .chip.sm { padding: 6px 12px; font-size: var(--t-sm); border-radius: var(--r-sm); --btn-h: 30px; }
-.btn.block { width: 100%; padding: 12px 16px; font-size: var(--t-base); --btn-h: 40px; }
+.btn.block { width: 100%; padding: 9px 14px; font-size: var(--t-base); --btn-h: 38px; }
 .btn.danger, .chip.danger { color: var(--danger); }
 @media (hover: hover) and (pointer: fine) {
   .btn.danger:hover:not(:disabled), .chip.danger:hover:not(:disabled) {
@@ -579,14 +580,14 @@ kbd {
 }
 
 .icon-btn {
-  width: max(36px, var(--tap-min));
-  height: max(36px, var(--tap-min));
+  width: max(32px, var(--tap-min));
+  height: max(32px, var(--tap-min));
   /* flex: none because an icon button is a fixed square. As a flex item it
      otherwise shrinks below its own width, which is how Copy ended up 39px
      wide in a 320px sheet while still reporting height 44. */
   flex: none;
   padding: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--ink2);
 }
 .icon-btn.plain { background: transparent; box-shadow: none; }
@@ -602,7 +603,7 @@ kbd {
 /* Chips are a deliberate toggle, so those do get a filled active state. */
 .chip[aria-pressed="true"] { color: var(--accent); background: var(--accent-a10); box-shadow: inset 0 0 0 1px var(--accent-a28); }
 
-.chip { border-radius: var(--r-md); padding: 8px 12px; font-size: var(--t-sm); }
+.chip { padding: 6px 10px; font-size: var(--t-sm); }
 .chip.accent {
   background: var(--accent-a10);
   color: var(--accent);
@@ -629,9 +630,9 @@ kbd {
   position: relative;
   display: inline-flex;
   padding: 3px;
-  background: var(--c5);
+  background: var(--c4);
   border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  box-shadow: none;
 }
 .seg::before {
   content: "";
@@ -692,7 +693,7 @@ input[type="text"], input[type="password"], input[type="search"], input[type="em
   width: 100%;
   min-width: 0;
   padding: 10px 12px;
-  background: var(--c2);
+  background: var(--c3);
   border: 0;
   border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px var(--c6);
@@ -839,7 +840,7 @@ body.in-box .view-filters { display: none; }
   width: 40px; height: 24px;
   background: var(--c5);
   border-radius: var(--r-full);
-  box-shadow: inset 0 0 0 1px var(--c7);
+  box-shadow: none;
   transition: background var(--d-slow) var(--ease), box-shadow var(--d-slow) var(--ease);
 }
 .switch .track::after {
@@ -852,7 +853,7 @@ body.in-box .view-filters { display: none; }
   box-shadow: var(--shadow-1);
   transition: translate var(--d-slow) var(--ease-spring), background var(--d-slow) var(--ease), width var(--d-fast) var(--ease);
 }
-.switch input:checked + .track { background: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.switch input:checked + .track { background: var(--accent); box-shadow: none; }
 .switch input:checked + .track::after { translate: 16px 0; background: var(--accent-ink); }
 .switch input:active + .track::after { width: 22px; }
 .switch input:checked:active + .track::after { translate: 12px 0; }
@@ -875,9 +876,11 @@ body.in-box .view-filters { display: none; }
   align-items: center;
   gap: 16px;
   height: var(--bar-h);
-  padding: 0 16px;
+  padding: 0 20px;
   background: var(--c1);
-  box-shadow: inset 0 -1px 0 0 var(--c6);
+  /* No rule under the bar: it sits on the page rather than over a panel, and
+     the list and rail cards below already draw their own edges. */
+  box-shadow: none;
 }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .topbar {
@@ -911,12 +914,12 @@ body.in-box .view-filters { display: none; }
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: var(--r-sm);
-  background: none;
-  color: var(--ink);
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-ink);
   box-shadow: none;
 }
-.brand-mark .icon { width: 16px; height: 16px; stroke-width: 2.1; }
+.brand-mark .icon { width: 16px; height: 16px; stroke-width: 2.2; }
 
 /* The @ draws itself once on load: the outer sweep unrolls anticlockwise and
    the inner ring settles behind it, so the mark arrives rather than appearing.
@@ -950,7 +953,9 @@ body.in-box .view-filters { display: none; }
 
 .searchbox { position: relative; display: flex; align-items: center; }
 .searchbox .icon { position: absolute; left: 12px; color: var(--ink3); pointer-events: none; transition: color var(--d-mid) var(--ease); }
-.searchbox input { padding-left: 38px; padding-right: 76px; background: none; }
+.searchbox input { padding-left: 38px; padding-right: 76px; background: var(--c2); box-shadow: none; }
+.searchbox:focus-within input { box-shadow: inset 0 0 0 1px var(--accent), var(--ring); }
+.searchbox:focus-within .icon { color: var(--accent); }
 .searchbox:focus-within input { background: var(--c2); }
 .searchbox:focus-within .icon { color: var(--accent); }
 .search-meta {
@@ -985,7 +990,8 @@ body.in-box .view-filters { display: none; }
   padding: 0 12px;
   margin-right: 6px;
   max-width: 230px;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
+  background: var(--c2);
   font-size: var(--t-sm);
   color: var(--ink2);
 }
@@ -1038,10 +1044,10 @@ body.in-box .view-filters { display: none; }
 .rail {
   display: flex;
   flex-direction: column;
-  gap: var(--s-7);
-  padding: var(--s-6) var(--s-6) var(--s-8);
+  gap: 12px;
+  padding: 12px 12px 16px;
   overflow-y: auto;
-  box-shadow: inset -1px 0 0 0 var(--c6);
+  box-shadow: none;
 }
 
 /* ---- your-address card ---- */
@@ -1053,11 +1059,12 @@ body.in-box .view-filters { display: none; }
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 0 -12px;                 /* reach past the rail's own padding */
-  padding: 18px 16px 16px;
-  background: none;
-  box-shadow: inset 0 -1px 0 0 var(--c6);
+  gap: 14px;
+  margin: 0;
+  padding: 16px;
+  background: var(--c2);
+  border-radius: var(--r-lg);
+  box-shadow: none;
   overflow: hidden;
   container-type: inline-size;
   container-name: addr;
@@ -1114,9 +1121,9 @@ body.in-box .view-filters { display: none; }
   transition: background var(--d-mid) var(--ease);
 }
 .addr-value #addr-local {
-  font-size: var(--t-lg);
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: var(--track-snug);
+  letter-spacing: -0.012em;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
@@ -1144,7 +1151,9 @@ body.in-box .view-filters { display: none; }
   font-size: var(--t-sm);
   font-weight: 500;
 }
-.addr-actions .text-btn:first-child { margin-left: -8px; }
+/* The first label sits flush with the card's edge: the row moves, not the
+   button, so nothing reaches outside its own box. */
+.addr-actions { margin-left: -8px; }
 .addr-dot { color: var(--ink3); }
 @media (hover: hover) and (pointer: fine) {
   .text-btn:hover { color: var(--ink); background: var(--c4); }
@@ -1218,11 +1227,12 @@ body.waiting { overflow: hidden; }
 .view-filters {
   display: flex;
   flex: none;
-  justify-content: space-between;
-  gap: var(--s-3);
+  justify-content: flex-start;
+  gap: 4px;
   min-width: 0;
-  padding: 0 var(--s-1);
-  box-shadow: inset 0 -1px 0 0 var(--c6);
+  flex-wrap: nowrap;
+  padding: 0;
+  box-shadow: none;
 }
 /* The padding is the tap target, not decoration: the pill sized every tab
    equally, and a tab that is only as wide as the word "All" is 17px of
@@ -1234,34 +1244,19 @@ body.waiting { overflow: hidden; }
   align-items: center;
   justify-content: center;
   gap: var(--s-3);
-  padding: 8px var(--s-3) 10px;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  background: transparent;
   color: var(--ink3);
-  font-size: var(--t-md);
+  font-size: var(--t-sm);
   font-weight: 500;
   white-space: nowrap;
-  white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   transition: background var(--d-mid) var(--ease), color var(--d-mid) var(--ease), transform var(--d-fast) var(--ease-spring);
 }
 .view-chip:active { transform: scale(0.96); }
-.view-chip.active { color: var(--ink); font-weight: 600; }
-/* The marker sits on the row's own rule and grows out of the middle of the
-   label, so moving between tabs reads as one mark travelling rather than two
-   blinking. */
-.view-chip::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-  scale: 0 1;
-  opacity: 0;
-  transition: scale var(--d-slow) var(--ease-out), opacity var(--d-fast) var(--ease);
-}
-.view-chip.active::after { scale: 1 1; opacity: 1; }
+.view-chip.active { background: var(--accent-a10); color: var(--accent); font-weight: 600; }
+.view-chip.active .pip { background: var(--accent); }
 @media (hover: hover) and (pointer: fine) {
   .view-chip:hover { color: var(--ink2); }
 }
@@ -1307,8 +1302,12 @@ body.waiting { overflow: hidden; }
 
 .rail-group { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1 1 auto; }
 .rail-keys {
+  /* Hidden by the reskin: the rail ends at the inbox list now. The dialog it
+     opened is still there on "?", which is also what its own label said. Set
+     last, after the flex display it overrides. */
   margin-top: auto;
   display: inline-flex;
+  display: none;
   align-items: center;
   gap: 8px;
   align-self: flex-start;
@@ -1333,7 +1332,7 @@ body.waiting { overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 4px;
+  padding: 0 10px 6px;
   font-size: var(--t-xs);
   font-weight: 600;
   letter-spacing: var(--track-caps);
@@ -1353,8 +1352,8 @@ body.waiting { overflow: hidden; }
   width: 100%;
   height: var(--hl-h, 0px);
   translate: 0 var(--hl-y, 0px);
-  background: var(--accent-a10);
-  box-shadow: inset 0 0 0 1px var(--accent-a28);
+  background: var(--c2);
+  box-shadow: none;
   border-radius: var(--r-md);
   opacity: var(--hl-o, 0);
   transition:
@@ -1382,7 +1381,8 @@ body.waiting { overflow: hidden; }
   .rail-item:hover { color: var(--ink); background: var(--c3); }
   .rail-row:has(.rail-item.active) .rail-item:hover { background: transparent; }
 }
-.rail-item.active { color: var(--ink); font-weight: 600; }
+.rail-item.active { color: var(--accent); font-weight: 600; }
+.rail-item.active .badge { background: var(--accent); color: var(--accent-ink); }
 .rail-item .icon { color: currentColor; opacity: 0.8; }
 .rail-item .name {
   flex: 1;
@@ -1510,8 +1510,8 @@ body.waiting { overflow: hidden; }
 /* The Screener's question, in the same shell as the leak and phishing notices
    but asking for a decision rather than warning about one -- so it is quiet,
    and the affirmative answer is the only thing with any weight. */
-.leak-strip.screen { background: var(--c3); color: var(--ink2); box-shadow: inset 0 0 0 1px var(--c7); }
-.leak-strip.screen .icon { color: var(--ink3); }
+.leak-strip.screen { background: var(--accent-a10); color: var(--ink); box-shadow: none; }
+.leak-strip.screen .icon { color: var(--accent); }
 /* Quieter still: this one reports rather than asks, so it reads as a footnote
    the eye can skip. */
 .leak-strip.quiet { background: none; box-shadow: none; padding: 2px 2px 8px; color: var(--ink3); font-size: var(--t-sm); }
@@ -1522,7 +1522,7 @@ body.waiting { overflow: hidden; }
   padding: 14px 16px;
   border-radius: var(--r-lg);
   background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  box-shadow: none;
   display: flex; flex-direction: column; gap: 10px;
 }
 /* A code-shaped run in the body, made tappable. Underlined rather than filled:
@@ -1569,8 +1569,10 @@ body.waiting { overflow: hidden; }
   transition: opacity var(--d-mid) var(--ease), color var(--d-mid) var(--ease), background var(--d-mid) var(--ease);
 }
 .mail:hover .star, .mail:focus-within .star, .star.on { opacity: 1; }
-.star.on { color: var(--accent); }
-.star.on .icon { fill: var(--accent-a28); }
+/* The one place a hue survives the ink accent: a star is the reader's own
+   mark, so it keeps amber whichever scheme is on. */
+.star.on { color: var(--warn); }
+.star.on .icon { fill: var(--warn); }
 @media (hover: hover) and (pointer: fine) { .star:hover { color: var(--accent); background: var(--accent-a10); } }
 /* A small spring pop the moment a message is starred. */
 .star.just-starred .icon { animation: star-pop 0.42s var(--ease-spring); }
@@ -1640,8 +1642,8 @@ body.selecting .mail .star { display: none; }
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--c2);
-  box-shadow: inset -1px 0 0 0 var(--c6);
+  background: transparent;
+  box-shadow: none;
   container-type: inline-size;
   container-name: list;
 }
@@ -1652,13 +1654,13 @@ body.selecting .mail .star { display: none; }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 16px 16px 12px;
-  box-shadow: inset 0 -1px 0 0 var(--c6);
+  padding: 18px 20px 10px;
+  box-shadow: none;
 }
 .list-head h2 {
-  font-size: var(--t-lg);
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: var(--track-snug);
+  letter-spacing: -0.012em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1716,6 +1718,9 @@ body.selecting .mail .star { display: none; }
 .picker-list .rail-item.active .count { color: var(--ink2); }
 .picker-list .rail-tools { display: none; }
 .list-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; flex: none; }
+/* The list's own tools sit on the head, which has no fill of its own, so they
+   drop the chip shell the shared button shape gives them. */
+.list-tools .icon-btn { background: transparent; box-shadow: none; }
 /* Extra list actions live in the overflow menu. Refresh and select stay
    visible on desktop; phones keep a single more button that lists them all. */
 .list-tools > [data-menu] { display: none; }
@@ -1727,13 +1732,21 @@ body.selecting .mail .star { display: none; }
   .list-tools > [data-menu] { display: none; }
 }
 
-.feed { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.feed {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The list is a card floating on the page, not a full-bleed column. */
+  margin: 0 12px 12px;
+  background: var(--c2);
+  border-radius: var(--r-lg);
+}
 
 .day {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 12px 16px 8px;
+  padding: 14px 16px 6px;
   font-size: var(--t-xs);
   font-weight: 600;
   letter-spacing: var(--track-caps);
@@ -1751,17 +1764,20 @@ body.selecting .mail .star { display: none; }
 .mail {
   position: relative;
   display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: var(--s-6);
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
   width: 100%;
-  padding: var(--s-5) var(--s-8);
+  padding: 14px 16px;
   text-align: left;
   box-shadow: inset 0 -1px 0 0 var(--c6);
   user-select: none;
   transition: background var(--d-fast) var(--ease);
 }
+/* The feed is a rounded card now, so the last row must not draw its rule
+   across the curve. */
+.mail:last-child { box-shadow: none; }
 @media (hover: hover) and (pointer: fine) { .mail:hover { background: var(--c3); } }
-.mail.open { background: var(--c4); }
+.mail.open { background: var(--accent-a10); }
 .mail.open::after {
   content: "";
   position: absolute;
@@ -1769,18 +1785,10 @@ body.selecting .mail .star { display: none; }
   width: 2px;
   background: var(--accent);
 }
-/* Unread is a dot in the gutter, not an edge bar: it now reads as a column of
-   its own rather than as decoration on the frame, and it is no longer the same
-   mark as "open", which the two used to share. */
-.mail.unread::before {
-  content: "";
-  position: absolute;
-  left: var(--s-3);
-  top: var(--s-9);
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--signal);
-}
+/* Unread is carried by weight and ink alone -- see .mail.unread .mail-from
+   below. The gutter dot the older list used is gone: with rows this quiet a
+   second mark beside the bolder text was saying the same thing twice, and the
+   rail's own per-box count still reports what has not been read. */
 
 /* New arrivals fade up, staggered by index. */
 .mail.arrived { animation: arrive 0.42s var(--ease-out) both; animation-delay: var(--stagger, 0ms); }
@@ -1798,16 +1806,35 @@ body.selecting .mail .star { display: none; }
    the only multi-hue thing in the app, and 38px of random colour per row was
    more colour area than everything else combined. */
 .avatar {
-  width: 32px; height: 32px;
+  width: 36px; height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: var(--c5);
-  color: var(--ink2);
+  border-radius: var(--r-sm);
+  background: var(--av, var(--c5));
+  color: var(--av-ink, var(--ink2));
   font-size: var(--t-sm);
+  letter-spacing: 0.02em;
   font-weight: 600;
   text-transform: uppercase;
   user-select: none;
+}
+/* Six soft tints, cycled down the list. These stay hued in every scheme: they
+   identify a correspondent rather than reporting anything, so they are the one
+   place colour is decorative on purpose. Each pair was picked as a tint and its
+   own darker ink, so the initial clears 4.5:1 on the chip it sits on. */
+.mail:nth-child(6n+1) .avatar { --av: #e0e7ff; --av-ink: #3730a3; }
+.mail:nth-child(6n+2) .avatar { --av: #dcfce7; --av-ink: #166534; }
+.mail:nth-child(6n+3) .avatar { --av: #ffedd5; --av-ink: #9a3412; }
+.mail:nth-child(6n+4) .avatar { --av: #fce7f3; --av-ink: #9d174d; }
+.mail:nth-child(6n+5) .avatar { --av: #cffafe; --av-ink: #155e75; }
+.mail:nth-child(6n+6) .avatar { --av: #fef3c7; --av-ink: #92400e; }
+:root:not([data-theme="light"]) {
+  .mail:nth-child(6n+1) .avatar { --av: #312e81; --av-ink: #c7d2fe; }
+  .mail:nth-child(6n+2) .avatar { --av: #14532d; --av-ink: #bbf7d0; }
+  .mail:nth-child(6n+3) .avatar { --av: #7c2d12; --av-ink: #fed7aa; }
+  .mail:nth-child(6n+4) .avatar { --av: #831843; --av-ink: #fbcfe8; }
+  .mail:nth-child(6n+5) .avatar { --av: #164e63; --av-ink: #a5f3fc; }
+  .mail:nth-child(6n+6) .avatar { --av: #78350f; --av-ink: #fde68a; }
 }
 
 .mail-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1835,7 +1862,7 @@ body.selecting .mail .star { display: none; }
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--t-md);
-  color: var(--ink2);
+  color: var(--ink);
 }
 .mail.unread .mail-subject { font-weight: 600; color: var(--ink); }
 /* Always on. It used to appear on hover and on unread only, which meant the
@@ -1861,9 +1888,10 @@ body.selecting .mail .star { display: none; }
   max-width: 100%;
   padding: var(--s-1) var(--s-3);
   border-radius: var(--r-sm);
-  background: none;
-  box-shadow: inset 0 0 0 1px var(--c6);
-  color: var(--ink3);
+  padding: 2px 8px;
+  background: var(--c3);
+  box-shadow: none;
+  color: var(--ink2);
   font-size: var(--t-xs);
   line-height: 1.5;
 }
@@ -1874,6 +1902,7 @@ body.selecting .mail .star { display: none; }
    nothing else is filled. */
 .tag.code {
   min-height: 24px;
+  padding: 2px 8px;
   background: var(--accent);
   color: var(--accent-ink);
   box-shadow: none;
@@ -1886,6 +1915,7 @@ body.selecting .mail .star { display: none; }
 @media (hover: hover) and (pointer: fine) { .tag.code:hover { background: var(--accent-hi); } }
 .tag .icon { width: 11px; height: 11px; }
 
+.list-foot:not(:empty) { margin: 0 12px 12px; }
 .list-foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
 .list-foot:empty { display: none; }
 
@@ -1908,7 +1938,10 @@ body.selecting .mail .star { display: none; }
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  margin: 0 12px 12px;
   padding: 56px 24px;
+  background: var(--c2);
+  border-radius: var(--r-lg);
   text-align: center;
   animation: rise 0.4s var(--ease-out) both;
 }
@@ -1919,9 +1952,9 @@ body.selecting .mail .star { display: none; }
   width: 56px; height: 56px;
   margin-bottom: 4px;
   border-radius: 16px;
-  background: var(--c3);
-  color: var(--ink3);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  background: var(--accent-a10);
+  color: var(--accent);
+  box-shadow: none;
 }
 .empty h3 { font-size: var(--t-lg); font-weight: 600; letter-spacing: var(--track-snug); }
 .empty p { max-width: 42ch; }
@@ -1950,9 +1983,9 @@ body.selecting .mail .star { display: none; }
   place-items: center;
   width: 21px; height: 21px;
   border-radius: 50%;
-  background: var(--c5);
-  box-shadow: inset 0 0 0 1px var(--c6);
-  color: var(--ink2);
+  background: var(--accent-a10);
+  box-shadow: none;
+  color: var(--accent);
   font-size: var(--t-xs);
   font-weight: 600;
 }
@@ -2011,9 +2044,11 @@ body.selecting .mail .star { display: none; }
      a 2560px screen read the same 716px column as a 1600px one and left a
      thousand pixels of pane empty beside it. Plain text keeps its own measure
      further down -- that is a reading limit, not a layout one. */
-  max-width: 1120px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 24px 32px 64px;
+  background: var(--c2);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2040,6 +2075,9 @@ body.selecting .mail .star { display: none; }
   gap: 2px 12px;
   align-items: start;
 }
+/* The reader's own avatar takes the accent rather than a correspondent tint:
+   there is one sender here, so the tint would be identifying nothing. */
+.msg-meta .avatar { --av: var(--accent-a16); --av-ink: var(--accent); }
 .msg-meta .avatar { width: 36px; height: 36px; font-size: var(--t-md); margin-top: 1px; }
 .msg-who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 /* Name and badge, one row of their own. The badge used to trail the address
@@ -2077,14 +2115,20 @@ body.selecting .mail .star { display: none; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding-bottom: 16px;
+  padding-bottom: 14px;
   box-shadow: inset 0 -1px 0 0 var(--c6);
 }
-#btn-msg-more { margin-left: auto; width: 34px; height: 34px; background: var(--c3); box-shadow: inset 0 0 0 1px var(--c6); color: var(--ink2); }
+.msg-actions .chip { background: var(--c3); box-shadow: none; }
+.msg-actions .chip.accent { background: var(--accent); color: var(--accent-ink); }
+#btn-msg-more { margin-left: auto; width: max(32px, var(--tap-min)); height: max(32px, var(--tap-min)); background: var(--c3); box-shadow: none; color: var(--ink2); }
 @media (hover: hover) and (pointer: fine) {
   #btn-msg-more:hover { background: var(--c4); color: var(--ink); }
 }
-.msg-extra { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* The reader's Unread, Export and Unsubscribe controls live in #msg-menu now.
+   These stay in the DOM for the keyboard shortcuts and the export link that
+   drive them, but out of the tab order: clipped-to-a-pixel left three stops a
+   keyboard user could land on and not see. */
+.msg-extra { display: none; }
 .msg-actions:has(#btn-code:not([hidden])) > #btn-star {
   position: relative;
   margin-left: 14px;
@@ -2191,7 +2235,7 @@ a.attachment:active { transform: scale(0.97); }
 .attachment.dud { opacity: 0.55; cursor: not-allowed; }
 
 .msg-body {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--c6);
   overflow: hidden;
@@ -2401,6 +2445,7 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   display: flex;
   flex-direction: column;
   background: var(--c2);
+  border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
   overflow: hidden;
 }
@@ -2442,9 +2487,9 @@ dialog.drawer[open]::backdrop { opacity: 1; }
 #settings .drawer-scroll { padding: 4px 20px calc(24px + env(safe-area-inset-bottom)); }
 .drawer-tabs {
   display: flex;
-  gap: 2px;
-  padding: 10px 12px 0;
-  box-shadow: inset 0 -1px 0 0 var(--c6);
+  gap: 6px;
+  padding: 12px 20px 0;
+  box-shadow: none;
   flex: none;
 }
 .drawer-tab {
@@ -2452,12 +2497,16 @@ dialog.drawer[open]::backdrop { opacity: 1; }
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 8px 10px;
+  padding: 6px 10px;
+  min-height: max(32px, var(--tap-min));
+  border-radius: var(--r-sm);
+  background: transparent;
   font-size: var(--t-md);
   font-weight: 500;
   color: var(--ink3);
   white-space: nowrap;
 }
+.drawer-tab[aria-selected="true"] { background: var(--accent-a10); color: var(--accent); }
 .drawer-tab[aria-selected="true"] { color: var(--ink); font-weight: 600; }
 .drawer-tab::after {
   content: "";
@@ -2553,7 +2602,7 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
   height: 100%;
   width: 0;
   border-radius: var(--r-full);
-  background: linear-gradient(90deg, var(--accent), var(--accent-hi));
+  background: var(--accent);
   transition: width 0.7s var(--ease-out);
 }
 .meter-row { display: flex; justify-content: space-between; font-size: var(--t-sm); color: var(--ink3); }
@@ -2570,8 +2619,8 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
   gap: var(--s-5);
   padding: var(--s-6);
   border-radius: var(--r-md);
-  background: var(--c3);
-  box-shadow: inset 0 0 0 1px var(--c6);
+  background: var(--accent-a10);
+  box-shadow: none;
 }
 /* The address wraps rather than truncating: it is the one string the sheet
    exists to show, and eliding it on a 320px screen (or against a long real
@@ -2580,10 +2629,10 @@ dialog.drawer[open] .drawer-sec:nth-child(n + 5) { --i: 4; }
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: var(--t-lg);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
   letter-spacing: var(--track-snug);
-  color: var(--ink);
+  color: var(--accent);
 }
 .life-seg { width: 100%; }
 /* A beat of air before the action itself, so the choice above reads as its
@@ -2644,15 +2693,17 @@ body.gate {
   width: min(408px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 32px 32px;
-  border-radius: var(--r-xl);
+  gap: 20px;
+  padding: 36px;
+  border-radius: 24px;
   background: var(--c2);
-  box-shadow: inset 0 0 0 1px var(--c6), var(--shadow-3);
+  box-shadow: var(--shadow-3);
   animation: gate-in 0.5s var(--ease-out) both;
 }
 @keyframes gate-in { from { opacity: 0; translate: 0 14px; scale: 0.985; } to { opacity: 1; translate: 0 0; scale: 1; } }
-.gate-card .brand { font-size: var(--t-xl); justify-self: start; }
+.gate-card .brand { font-size: var(--t-xl); justify-self: start; flex-direction: column; align-items: flex-start; gap: 14px; }
+.gate-card .brand-mark { width: 36px; height: 36px; border-radius: 10px; }
+.gate-card .brand-mark .icon { width: 20px; height: 20px; }
 .gate-form { display: flex; flex-direction: column; gap: 14px; }
 .gate-form h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: var(--track-tight); }
 .gate-lead { color: var(--ink2); font-size: var(--t-base); }
@@ -2737,6 +2788,7 @@ body.gate {
   .shell { display: block; height: auto; }
 
   .rail {
+    /* the list card carries the inset on a phone, so the rail stops short */
     gap: 12px;
     padding: 12px 14px 0;
     overflow: visible;
@@ -2757,7 +2809,7 @@ body.gate {
   .list-head { padding: 14px 16px 12px; }
   .feed { overflow: visible; }
   .day { position: static; background: none; padding: 14px 16px 6px; }
-  .mail { padding: 14px 16px; grid-template-columns: 40px 1fr; }
+  .mail { padding: 14px 16px; grid-template-columns: 36px 1fr; }
   .mail-from, .mail-subject { font-size: var(--t-base); }
 
   /* Reading a message is a full-screen sheet that slides in from the right. */
@@ -2840,8 +2892,8 @@ body.gate {
      inbox card, plus a marker under one word, was three horizontal lines in
      40 pixels. Weight and ink carry it instead. */
   .view-filters { margin-bottom: 4px; gap: var(--s-4); box-shadow: none; }
-  .view-chip { padding: 10px var(--s-3); min-width: 44px; min-height: 44px; }
-  .view-chip::after { content: none; }
+  .view-chip { padding: 6px 12px; min-width: 44px; min-height: 44px; background: var(--c2); }
+  .view-chip.active { background: var(--accent-a10); }
   .limits { grid-template-columns: 1fr; }
   /* Stars stay visible on touch, where there is no hover to reveal them. */
   .star { opacity: 1; width: 44px; height: 44px; }
@@ -2856,10 +2908,11 @@ body.gate {
   .text-btn { min-height: 44px; padding: 0 10px; }
   #btn-roll { min-height: 46px; }
   .tag { padding: 4px 10px; font-size: var(--t-sm); }
-  .tag.code { padding: 8px 12px; min-height: 44px; }
+  .tag.code { padding: 8px 12px; min-height: 44px; font-size: var(--t-sm); }
   .brand { min-height: 44px; }
   .brand-mark { width: 44px; height: 44px; }
   .chip { padding: 8px 14px; font-size: var(--t-md); }
+  .btn.block { --btn-h: 42px; }
   .seg-btn { padding: 8px 16px; font-size: var(--t-md); min-height: 44px; }
   .leak-strip { flex-wrap: wrap; }
   .leak-strip .btn { width: 100%; justify-content: center; }
