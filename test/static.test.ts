@@ -22,7 +22,12 @@ describe("before signing in", () => {
       expect(res.status, path).toBe(200);
       expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     }
-    expect(await (await call("/style.css")).text()).toContain("--accent");
+    const css = await (await call("/style.css")).text();
+    expect(css).toContain("--accent");
+    // An empty mailbox used to keep the flex:1 feed card, which drew a blank
+    // panel above "No mail yet". The card must collapse when it has no rows.
+    expect(css).toContain(".feed:empty");
+    expect(css).toContain(".list-foot:has(#btn-more[hidden])");
   });
 
   it("serves the fonts the sign-in page asks for", async () => {
@@ -59,6 +64,9 @@ describe("after signing in", () => {
     expect(page.status).toBe(200);
     const body = await page.text();
     expect(body).toContain('id="feed"');
+    expect(body).toContain('id="feed-empty"');
+    expect(body).not.toContain("address above");
+    expect(body).toContain("Create an inbox, or send to any name at your domain.");
     expect(body).toContain('<script type="module" src="/js/main.js');
     expect(page.headers.get("content-security-policy")).toContain("script-src 'self'");
 

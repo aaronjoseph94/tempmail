@@ -597,7 +597,9 @@ function mailRow(m, staggerIndex) {
 
 function renderEmpty(visibleCount) {
   const empty = $("feed-empty");
+  const feed = $("feed");
   empty.hidden = visibleCount > 0;
+  feed.hidden = visibleCount === 0;
   if (visibleCount > 0) return;
   const firstRun = state.addresses.length === 0 && !state.query && !state.filter && state.view === "all" && state.box === "inbox";
   $("empty-steps").hidden = !firstRun;
@@ -632,6 +634,7 @@ function renderEmpty(visibleCount) {
     $("empty-title").textContent = "No mail yet";
     $("empty-text").textContent = firstRun ? "Three steps and your first message lands here." : "";
   }
+  $("empty-text").hidden = !$("empty-text").textContent;
 }
 
 /* ----------------------------------------------------- filtering + search */
@@ -659,7 +662,10 @@ export function setBox(box) {
   document.body.classList.toggle("in-box", box !== "inbox");
   renderRail();
   renderListHead();
-  skeletonRows();
+  const feed = $("feed");
+  feed.hidden = false;
+  feed.innerHTML = skeletonRows();
+  $("feed-empty").hidden = true;
   refresh().catch(() => {});
 }
 
